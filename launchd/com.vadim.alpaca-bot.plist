@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.vadim.alpaca-bot</string>
+
+    <!-- Use the venv python3 directly — no shell, no activate, no PATH issues -->
+    <key>ProgramArguments</key>
+    <array>
+      <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/.venv/bin/python3</string>
+      <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/main.py</string>
+      <string>--mode</string>
+      <string>live</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>BROKER</key>
+      <string>alpaca</string>
+      <key>CONFIG_FILE</key>
+      <string>config_alpaca_stocks.yaml</string>
+      <!-- launchd strips PATH; give python3 enough to find system tools if needed -->
+      <key>PATH</key>
+      <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/.venv/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/logs/alpaca.launchd.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/logs/alpaca.launchd.err.log</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+      <key>SuccessfulExit</key>
+      <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+  </dict>
+</plist>

@@ -1,0 +1,33 @@
+# Alpaca SDK (v0.x — new unified SDK)
+alpaca-py>=0.26.0
+
+# Coinbase Advanced Trade SDK
+coinbase-advanced-py>=1.4.0
+
+# Config
+PyYAML>=6.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Data
+pandas>=2.0.0
+numpy>=1.26.0
+
+# HTTP / retry
+requests>=2.31.0
+urllib3>=2.0.0
+
+# Scheduling / time utilities
+pytz>=2024.1
+python-dateutil>=2.9.0
+
+# Browser automation (optional read-only monitoring)
+playwright>=1.44.0
+
+# Testing
+pytest>=8.0.0
+pytest-mock>=3.14.0
+
+# Linting / formatting (optional, dev only)
+# ruff>=0.4.0

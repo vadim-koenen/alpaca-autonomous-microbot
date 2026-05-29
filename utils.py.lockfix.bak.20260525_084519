@@ -1,0 +1,495 @@
+"""
+utils.py — Shared utilities for the Alpaca autonomous micro-trading bot.
+
+Handles:
+- Config loading and validation
+- Environment variable loading with strict secret protection
+- Logging setup
+- Time helpers
+- Safe numeric helpers
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+import pytz
+import yaml
+from dotenv import load_dotenv
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+ROOT = Path(__file__).parent
+CONFIG_PATH = ROOT / "config.yaml"
+ENV_PATH = ROOT / ".env"
+RUNTIME_DIR = ROOT / "runtime"
+LOCK_FILE = RUNTIME_DIR / "bot.lock"
+STOP_FILE = RUNTIME_DIR / "STOP_TRADING"
+
+# ---------------------------------------------------------------------------
+# Config loading
+# ---------------------------------------------------------------------------
+
+_config: dict[str, Any] | None = None
+
+
+def _resolve_config_path() -> Path:
+    """
+    Determine which config file to load.
+
+    Priority order:
+      1. CONFIG_FILE env var (absolute or relative to ROOT)
+      2. Default: config.yaml in ROOT
+
+    This allows running multiple bot instances with different configs:
+      CONFIG_FILE=config_coinbase_crypto.yaml python main.py
+      CONFIG_FILE=config_alpaca_stocks.yaml  python main.py
+    """
+    env_path = os.environ.get("CONFIG_FILE", "").strip()
+    if env_path:
+        p = Path(env_path)
+        if not p.is_absolute():
+            p = ROOT / p
+        return p
+    return CONFIG_PATH
+
+
+def load_config(path: Path | None = None) -> dict[str, Any]:
+    """Load and cache the config file. Raises on missing file.
+
+    If *path* is None, the config path is resolved from the CONFIG_FILE env
+    var (or the default config.yaml).  Passing an explicit *path* is retained
+    for backwards-compatibility with tests that supply a temporary file.
+    """
+    global _config
+    if _config is not None:
+        return _config
+    resolved = path if path is not None else _resolve_config_path()
+    if not resolved.exists():
+        raise FileNotFoundError(f"Config file not found at {resolved}")
+    with open(resolved, "r") as f:
+        _config = yaml.safe_load(f)
+    return _config
+
+
+def get_cfg(*keys: str, default: Any = None) -> Any:
+    """Nested key lookup: get_cfg('crypto', 'max_trade_notional_usd')."""
+    cfg = load_config()
+    node = cfg
+    for k in keys:
+        if not isinstance(node, dict):
+            return default
+        node = node.get(k, default)
+        if node is None:
+            return default
+    return node
+
+
+# ---------------------------------------------------------------------------
+# Environment / secrets
+# ---------------------------------------------------------------------------
+
+def load_env() -> None:
+    """Load .env file. Must be called before any env access."""
+    if ENV_PATH.exists():
+        load_dotenv(ENV_PATH, override=False)
+    else:
+        # Allow environment variables to be set externally (CI, Docker, etc.)
+        pass
+
+
+def get_alpaca_keys() -> tuple[str, str]:
+    """
+    Return (api_key, secret_key).
+    Raises RuntimeError if either is missing or still set to placeholder.
+    Never prints/logs the values.
+    """
+    api_key = os.environ.get("ALPACA_API_KEY", "")
+    secret_key = os.environ.get("ALPACA_SECRET_KEY", "")
+    if not api_key or api_key == "replace_me":
+        raise RuntimeError(
+            "ALPACA_API_KEY is not set. Edit .env and add your Alpaca API key."
+        )
+    if not secret_key or secret_key == "replace_me":
+        raise RuntimeError(
+            "ALPACA_SECRET_KEY is not set. Edit .env and add your Alpaca secret key."
+        )
+    return api_key, secret_key
+
+
+def is_paper() -> bool:
+    """True if ALPACA_PAPER env var is 'true' (case-insensitive)."""
+    return os.environ.get("ALPACA_PAPER", "true").strip().lower() == "true"
+
+
+def is_live_trading_enabled() -> bool:
+    """
+    Returns True only when LIVE_TRADING env var is exactly the string 'true'.
+    This is the master kill switch.
+    """
+    return os.environ.get("LIVE_TRADING", "false").strip().lower() == "true"
+
+
+# ---------------------------------------------------------------------------
+# Logging setup
+# ---------------------------------------------------------------------------
+
+_logging_configured = False
+
+
+def setup_logging(name: str = "bot") -> logging.Logger:
+    """
+    Configure root logger to write to console and a rotating log file.
+    Safe to call multiple times; only configures once.
+    """
+    global _logging_configured
+    cfg = load_config()
+    log_dir = ROOT / cfg.get("logging", {}).get("log_dir", "logs")
+    log_dir.mkdir(exist_ok=True)
+    level_str = cfg.get("logging", {}).get("log_level", "INFO").upper()
+    level = getattr(logging, level_str, logging.INFO)
+
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+
+    if not _logging_configured:
+        fmt = logging.Formatter(
+            "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        # Console handler
+        ch = logging.StreamHandler(sys.stdout)
+        ch.setFormatter(fmt)
+        ch.setLevel(level)
+
+        # File handler
+        log_file = log_dir / f"bot_{datetime.now(timezone.utc).strftime('%Y%m%d')}.log"
+        fh = logging.FileHandler(log_file, encoding="utf-8")
+        fh.setFormatter(fmt)
+        fh.setLevel(level)
+
+        root = logging.getLogger()
+        root.setLevel(level)
+        root.addHandler(ch)
+        root.addHandler(fh)
+        _logging_configured = True
+
+    return logger
+
+
+# ---------------------------------------------------------------------------
+# Time helpers
+# ---------------------------------------------------------------------------
+
+def now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def now_local() -> datetime:
+    cfg = load_config()
+    tz_name = cfg.get("account", {}).get("timezone", "America/Chicago")
+    tz = pytz.timezone(tz_name)
+    return datetime.now(tz)
+
+
+def utc_ts() -> str:
+    return now_utc().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def data_is_stale(ts: datetime | None, max_seconds: int) -> bool:
+    """Return True if ts is None or older than max_seconds ago (UTC)."""
+    if ts is None:
+        return True
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    age = (now_utc() - ts).total_seconds()
+    return age > max_seconds
+
+
+# ---------------------------------------------------------------------------
+# Safe numeric helpers
+# ---------------------------------------------------------------------------
+
+def safe_float(value: Any, default: float = 0.0) -> float:
+    """Parse a value to float without raising."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def get_broker_name() -> str:
+    """Return 'alpaca' or 'coinbase' based on BROKER env var. Default: alpaca."""
+    return os.environ.get("BROKER", "alpaca").strip().lower()
+
+
+def build_broker():
+    """
+    Broker factory. Returns the appropriate broker instance based on BROKER env var.
+    This is the single place where broker selection happens; main.py calls this.
+    """
+    name = get_broker_name()
+    if name == "coinbase":
+        from broker_coinbase import BrokerCoinbase
+        return BrokerCoinbase()
+    else:
+        from broker_alpaca import BrokerAlpaca
+        return BrokerAlpaca()
+
+
+def spread_pct(bid: float, ask: float) -> float:
+    """Spread as a percentage of mid-price. Returns 999 if mid is zero."""
+    if bid <= 0 or ask <= 0:
+        return 999.0
+    mid = (bid + ask) / 2.0
+    if mid == 0:
+        return 999.0
+    return ((ask - bid) / mid) * 100.0
+
+
+# ---------------------------------------------------------------------------
+# Trade mode helper
+# ---------------------------------------------------------------------------
+
+def get_mode() -> str:
+    """Return config mode: 'dry_run', 'paper', or 'live'."""
+    return load_config().get("mode", "dry_run").lower()
+
+
+def assert_not_live_without_env() -> None:
+    """
+    Hard guard: if mode is 'live', LIVE_TRADING env var must be 'true'.
+    Raises RuntimeError otherwise.
+    """
+    if get_mode() == "live" and not is_live_trading_enabled():
+        raise RuntimeError(
+            "LIVE_TRADING=true is required in .env to run in live mode. "
+            "Currently LIVE_TRADING is not set or is false. "
+            "Set it explicitly only after dry_run and paper validation."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Process lock — prevents two live bot instances from running simultaneously
+# ---------------------------------------------------------------------------
+
+def acquire_process_lock(force: bool = False) -> bool:
+    """
+    Write runtime/bot.lock with the current PID.
+
+    Returns True if lock was acquired.
+    Returns False (does NOT raise) if another live instance is running.
+    Set force=True to steal the lock regardless (use with caution).
+
+    Only enforced in live mode — paper/dry_run are allowed to run concurrently.
+    """
+    if get_mode() != "live":
+        return True  # no lock needed for non-live modes
+
+    RUNTIME_DIR.mkdir(exist_ok=True)
+    my_pid = os.getpid()
+
+    if LOCK_FILE.exists() and not force:
+        try:
+            existing_pid = int(LOCK_FILE.read_text().strip())
+            # Check if that PID is still alive
+            os.kill(existing_pid, 0)   # signal 0 = existence check, no actual signal
+            # Process is alive — refuse to start
+            return False
+        except (ProcessLookupError, PermissionError):
+            # Stale lock — dead process, safe to overwrite
+            pass
+        except ValueError:
+            # Corrupt lock file — overwrite it
+            pass
+
+    LOCK_FILE.write_text(str(my_pid))
+    return True
+
+
+def release_process_lock() -> None:
+    """Remove the lock file on clean shutdown. Safe to call multiple times."""
+    try:
+        if LOCK_FILE.exists():
+            stored = LOCK_FILE.read_text().strip()
+            if stored == str(os.getpid()):
+                LOCK_FILE.unlink()
+    except Exception:
+        pass  # never let cleanup errors propagate
+
+
+# ---------------------------------------------------------------------------
+# Kill switch — operator drops runtime/STOP_TRADING to halt the bot
+# ---------------------------------------------------------------------------
+
+def kill_switch_active() -> bool:
+    """
+    Returns True if the operator has placed a STOP_TRADING file in runtime/.
+    The file can be created with: touch runtime/STOP_TRADING
+    Remove it to allow trading to resume on the next restart.
+    """
+    return STOP_FILE.exists()
+
+
+def clear_kill_switch() -> None:
+    """Remove the STOP_TRADING file (only needed in tests / manual recovery)."""
+    try:
+        if STOP_FILE.exists():
+            STOP_FILE.unlink()
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# State persistence — survive restarts without losing stop/TP levels
+# ---------------------------------------------------------------------------
+
+import json as _json
+import os as _os
+import sys as _sys
+from datetime import datetime as _datetime
+
+STATE_ROOT = ROOT / "state"
+
+
+def _detect_state_namespace() -> str:
+    """
+    Determine which broker-specific state directory this process should use.
+
+    launchd plists should provide BROKER=alpaca or BROKER=coinbase.
+    Falls back to BOT_STATE_NAMESPACE / BOT_NAME / argv inspection.
+    Refuses to use shared state/open_positions.json when namespace is unknown.
+    """
+    candidates = [
+        _os.getenv("BOT_STATE_NAMESPACE", ""),
+        _os.getenv("BROKER", ""),
+        _os.getenv("BOT_NAME", ""),
+    ]
+
+    raw = " ".join(candidates).strip().lower()
+    argv = " ".join(_sys.argv).lower()
+    combined = f"{raw} {argv}"
+
+    if "coinbase" in combined:
+        return "coinbase"
+
+    if "alpaca" in combined:
+        return "alpaca"
+
+    raise RuntimeError(
+        "Unable to determine bot state namespace. "
+        "Set BROKER=alpaca or BROKER=coinbase in the launchd plist/environment."
+    )
+
+
+def get_state_namespace() -> str:
+    return _detect_state_namespace()
+
+
+def get_state_dir() -> Path:
+    namespace = get_state_namespace()
+    state_dir = STATE_ROOT / namespace
+
+    # Hard guard: never allow writes directly to shared state/
+    if state_dir == STATE_ROOT:
+        raise RuntimeError("Unsafe state directory resolved to shared state root")
+
+    return state_dir
+
+
+def get_positions_file() -> Path:
+    return get_state_dir() / "open_positions.json"
+
+
+def _dt_serializer(obj):
+    """JSON encoder for datetime objects."""
+    if isinstance(obj, _datetime):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+
+def _dt_deserializer(d: dict) -> dict:
+    """Attempt to parse known datetime fields back from ISO strings."""
+    for key in ("entry_time",):
+        if key in d and isinstance(d[key], str):
+            try:
+                from datetime import timezone
+                dt = _datetime.fromisoformat(d[key])
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                d[key] = dt
+            except (ValueError, AttributeError):
+                pass
+    return d
+
+
+def save_positions(open_positions: dict) -> None:
+    """
+    Persist session.open_positions to broker-specific state/<broker>/open_positions.json.
+    Call this after every position open or close.
+    """
+    try:
+        state_dir = get_state_dir()
+        positions_file = get_positions_file()
+        state_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "saved_at": now_utc().isoformat(),
+            "state_namespace": get_state_namespace(),
+            "positions": open_positions,
+        }
+        positions_file.write_text(
+            _json.dumps(payload, default=_dt_serializer, indent=2)
+        )
+    except Exception as e:
+        logging.getLogger("state").error(f"Failed to save positions: {e}")
+
+
+def load_saved_positions() -> dict:
+    """
+    Load previously saved open_positions from disk.
+    Returns empty dict if file is missing, corrupt, or stale.
+    Performs a staleness check: positions older than max_position_minutes are discarded.
+    """
+    log = logging.getLogger("state")
+    positions_file = get_positions_file()
+    if not positions_file.exists():
+        log.info(f"No saved positions file found at {positions_file}")
+        return {}
+    try:
+        data = _json.loads(positions_file.read_text())
+        positions = data.get("positions", {})
+        saved_at_str = data.get("saved_at", "")
+
+        # Staleness guard: if state file is very old, discard it
+        if saved_at_str:
+            try:
+                from datetime import timezone
+                saved_at = _datetime.fromisoformat(saved_at_str)
+                if saved_at.tzinfo is None:
+                    saved_at = saved_at.replace(tzinfo=timezone.utc)
+                age_hours = (now_utc() - saved_at).total_seconds() / 3600.0
+                max_hours = 24.0  # discard state older than 24h
+                if age_hours > max_hours:
+                    log.warning(
+                        f"Saved state is {age_hours:.1f}h old (>{max_hours}h) — discarding"
+                    )
+                    return {}
+            except Exception:
+                pass
+
+        # Deserialize datetime fields
+        parsed = {}
+        for sym, pos_data in positions.items():
+            parsed[sym] = _dt_deserializer(dict(pos_data))
+
+        log.info(f"Loaded {len(parsed)} saved position(s) from {positions_file}")
+        return parsed
+    except Exception as e:
+        log.error(f"Failed to load saved positions: {e}")
+        return {}

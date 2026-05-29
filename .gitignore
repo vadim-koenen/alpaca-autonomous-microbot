@@ -1,0 +1,81 @@
+# Secrets — never commit
+.env
+
+# Logs and output
+*.log
+logs/
+reports/
+journal.csv
+journal_*.csv
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing and caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+*.cover
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Jupyter (if notebooks are added later)
+.ipynb_checkpoints/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- Local safety excludes ---
+.env
+.env.*
+*.key
+*.pem
+*.p8
+
+# Runtime / live bot state
+logs/
+runtime/
+state/
+state.bak*/
+*.lock
+
+# Journals / account-derived files
+journal*.csv
+journal/
+memory/*.sqlite3
+memory/*.sqlite3-*
+memory/*.sqlite3-shm
+memory/*.sqlite3-wal
+memory/.fuse_hidden*
+memory/distillations/
+
+# Local env/cache
+.venv/
+__pycache__/
+.pytest_cache/
+pytest-cache-files-*/
+.DS_Store
+
+# Large release archives / local snapshots
+snapshots/
+*.tar.gz
+*.zip

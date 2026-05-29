@@ -1,0 +1,182 @@
+"""
+strategy_equities.py — Equity long strategies (paper/dry-run only until manually enabled).
+
+Strategies:
+  1. momentum_breakout — price breaks N-bar high with volume
+  2. vwap_reversion   — price deviates from VWAP and reverts
+
+live_enabled is false by default. These run in paper/dry-run mode only
+until the user explicitly enables them in config and confirms risk parameters.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Optional
+
+import pandas as pd
+
+from market_data import MarketData, add_indicators
+from risk_manager import TradeProposal
+from utils import get_cfg, now_utc
+
+logger = logging.getLogger("strategy.equities")
+
+
+class EquitiesStrategy:
+    def __init__(self, market_data: MarketData) -> None:
+        self._md = market_data
+
+    def generate_proposals(self, symbol: str) -> list[TradeProposal]:
+        if not get_cfg("equities", "enabled", default=True):
+            return []
+
+        allowed_symbols = get_cfg("equities", "symbols", default=[])
+        if symbol not in allowed_symbols:
+            return []
+
+        enabled_strategies = get_cfg("strategy", "equity_strategies", default=[])
+        prefer_no_trade = get_cfg("strategy", "prefer_no_trade_when_unclear", default=True)
+
+        quote = self._md.get_equity_quote(symbol)
+        if not quote.valid:
+            return []
+
+        df = self._md.get_equity_bars_df(symbol, limit=40)
+        if df.empty or len(df) < 10:
+            return []
+
+        df = add_indicators(df)
+        proposals = []
+
+        if "starter_movement" in enabled_strategies:
+            p = self._starter_movement(symbol, quote, df, prefer_no_trade)
+            if p is not None:
+                proposals.append(p)
+
+        if "momentum_breakout" in enabled_strategies and not proposals:
+            p = self._momentum_breakout(symbol, quote, df, prefer_no_trade)
+            if p is not None:
+                proposals.append(p)
+
+        if "vwap_reversion" in enabled_strategies and not proposals:
+            p = self._vwap_reversion(symbol, quote, df, prefer_no_trade)
+            if p is not None:
+                proposals.append(p)
+
+        return proposals
+
+    def _momentum_breakout(self, symbol, quote, df, prefer_no_trade) -> Optional[TradeProposal]:
+        try:
+            lookback = get_cfg("strategy", "lookback_bars", default=20)
+            row = df.iloc[-1]
+            prev = df.iloc[-(lookback + 1):-1]
+            if len(prev) < 5:
+                return None
+
+            recent_high = prev["h"].max()
+            rsi = float(row.get("rsi_14", 50))
+            rel_vol = float(row.get("rel_volume", 0))
+            ema9 = float(row.get("ema_9", float(row["c"])))
+            ema21 = float(row.get("ema_21", float(row["c"])))
+            close = float(row["c"])
+
+            if not (close > recent_high and rel_vol > 1.3 and ema9 > ema21 and rsi < 78):
+                return None
+
+            confidence = 0.30
+            if rel_vol > 1.5:
+                confidence += 0.15
+            if rsi > 55:
+                confidence += 0.10
+            if ema9 > ema21 * 1.002:
+                confidence += 0.10
+            if row.get("mom_5", 0) > 0.005:
+                confidence += 0.10
+
+            min_conf = get_cfg("strategy", "min_confidence_score", default=0.65)
+            if prefer_no_trade and confidence < min_conf:
+                return None
+
+            notional = get_cfg("equities", "max_trade_notional_usd", default=3.0)
+            sl_pct = 0.015
+            tp_pct = 0.025
+
+            return TradeProposal(
+                symbol=symbol,
+                asset_class="equity",
+                strategy="momentum_breakout",
+                side="buy",
+                order_type="limit",
+                notional=notional,
+                limit_price=quote.ask,
+                confidence=confidence,
+                bid=quote.bid,
+                ask=quote.ask,
+                price=quote.mid,
+                quote_time=quote.timestamp,
+                stop_loss_price=quote.mid * (1 - sl_pct),
+                take_profit_price=quote.mid * (1 + tp_pct),
+            )
+        except Exception as e:
+            logger.error(f"{symbol} equity momentum error: {e}")
+            return None
+
+    def _vwap_reversion(self, symbol, quote, df, prefer_no_trade) -> Optional[TradeProposal]:
+        """Simple VWAP approximation using intraday bars."""
+        try:
+            if "v" not in df.columns or df["v"].sum() == 0:
+                return None
+
+            # Intraday VWAP approximation
+            typical_price = (df["h"] + df["l"] + df["c"]) / 3
+            cum_tp_vol = (typical_price * df["v"]).cumsum()
+            cum_vol = df["v"].cumsum()
+            vwap = (cum_tp_vol / (cum_vol + 1e-10)).iloc[-1]
+
+            row = df.iloc[-1]
+            close = float(row["c"])
+            rsi = float(row.get("rsi_14", 50))
+
+            # Buy when price is below VWAP and RSI is recovering (30-45)
+            below_vwap = close < vwap * 0.998
+            rsi_recovering = 30 < rsi < 45
+
+            if not (below_vwap and rsi_recovering):
+                return None
+
+            deviation_pct = (vwap - close) / vwap * 100
+            confidence = 0.30
+            if deviation_pct > 0.5:
+                confidence += 0.15
+            if rsi > 35:
+                confidence += 0.10
+            if float(row.get("rel_volume", 0)) > 0.8:
+                confidence += 0.10
+
+            min_conf = get_cfg("strategy", "min_confidence_score", default=0.65)
+            if prefer_no_trade and confidence < min_conf:
+                return None
+
+            notional = get_cfg("equities", "max_trade_notional_usd", default=3.0)
+
+            return TradeProposal(
+                symbol=symbol,
+                asset_class="equity",
+                strategy="vwap_reversion",
+                side="buy",
+                order_type="limit",
+                notional=notional,
+                limit_price=quote.ask,
+                confidence=confidence,
+                bid=quote.bid,
+                ask=quote.ask,
+                price=quote.mid,
+                quote_time=quote.timestamp,
+                stop_loss_price=quote.mid * 0.985,
+                take_profit_price=vwap * 1.002,
+                meta={"vwap": vwap, "deviation_pct": deviation_pct},
+            )
+        except Exception as e:
+            logger.error(f"{symbol} vwap_reversion error: {e}")
+            return None

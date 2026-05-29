@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.vadim.daily-distill</string>
+
+    <!-- Advisory memory distillation only. Does not run main.py or trade. -->
+    <key>ProgramArguments</key>
+    <array>
+      <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/.venv/bin/python3</string>
+      <string>scripts/daily_distill.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>PATH</key>
+      <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/.venv/bin:/usr/local/bin:/usr/bin:/bin</string>
+      <key>TZ</key>
+      <string>UTC</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/logs/daily_distill.launchd.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/logs/daily_distill.launchd.err.log</string>
+
+    <!-- 23:55 UTC daily. Do not load/start without explicit operator approval. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+      <key>Hour</key>
+      <integer>23</integer>
+      <key>Minute</key>
+      <integer>55</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+  </dict>
+</plist>

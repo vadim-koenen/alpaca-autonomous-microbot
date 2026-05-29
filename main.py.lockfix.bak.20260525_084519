@@ -1,0 +1,676 @@
+"""
+main.py — Alpaca Autonomous Micro-Trading Bot
+
+Entry point and main orchestration loop.
+
+Usage:
+  python main.py --mode dry_run
+  python main.py --mode paper
+  python main.py --mode live --asset-class crypto
+
+Flow per cycle:
+  1. Load config + env
+  2. Connect to Alpaca, fetch permissions
+  3. Build account state snapshot
+  4. Check kill switches (halt, daily loss, equity floor)
+  5. Run strategy router → get proposals
+  6. For each proposal: risk_manager.check() → if approved: order_manager.execute()
+  7. position_manager.monitor() → apply stops / TPs / time exits
+  8. Optional: browser_monitor.capture_snapshot() every N cycles
+  9. Sleep → repeat
+ 10. On shutdown: generate daily report
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import signal
+import sys
+import time
+import logging
+from datetime import date, datetime
+
+from browser_monitor import BrowserMonitor
+from journal import get_journal
+from market_data import MarketData
+from order_manager import OrderManager, SessionState
+from permissions import AccountPermissions, fetch_permissions
+from position_manager import PositionManager
+from report import ReportGenerator
+from risk_manager import RiskManager, AccountState
+from strategy_router import StrategyRouter
+from utils import (
+    RUNTIME_DIR,
+    acquire_process_lock,
+    assert_not_live_without_env,
+    build_broker,
+    get_broker_name,
+    get_cfg,
+    get_mode,
+    is_paper,
+    kill_switch_active,
+    load_config,
+    load_env,
+    release_process_lock,
+    safe_float,
+    setup_logging,
+)
+
+# ---------------------------------------------------------------------------
+# Globals for graceful shutdown
+# ---------------------------------------------------------------------------
+_running = True
+_broker = None
+_session: SessionState | None = None
+_position_mgr: PositionManager | None = None
+
+
+_shutdown_count = 0
+
+
+def _handle_signal(signum, frame):
+    global _running, _shutdown_count
+    _shutdown_count += 1
+    logger = logging.getLogger("main")
+    if _shutdown_count == 1:
+        logger.warning(f"Signal {signum} received — initiating graceful shutdown (press Ctrl+C again to force-quit)")
+        _running = False
+    else:
+        # Second press: force-quit immediately, bypassing cleanup
+        logger.warning("Second signal received — force-quitting now")
+        import os
+        os._exit(1)
+
+
+signal.signal(signal.SIGINT, _handle_signal)
+signal.signal(signal.SIGTERM, _handle_signal)
+
+
+# ---------------------------------------------------------------------------
+# Diagnose helper — one-shot indicator snapshot, no orders
+# ---------------------------------------------------------------------------
+
+def _run_diagnose(market_data, logger) -> None:
+    """
+    Fetch live quotes + indicators for all configured crypto symbols
+    and print a human-readable table to stdout. No orders, no journal writes.
+    """
+    from market_data import add_indicators
+    from utils import get_cfg
+
+    crypto_symbols = get_cfg("crypto", "symbols", default=["BTC/USD", "ETH/USD"])
+    lookback = get_cfg("strategy", "lookback_bars", default=20)
+
+    sep = "─" * 70
+    print(f"\n{'=' * 70}")
+    print("DIAGNOSE — Live Indicator Snapshot")
+    print(f"Lookback bars: {lookback}  |  Min confidence: {get_cfg('strategy','min_confidence_score',default=0.65)}")
+    print(f"{'=' * 70}\n")
+
+    for symbol in crypto_symbols:
+        print(f"{sep}")
+        print(f"  {symbol}")
+        print(f"{sep}")
+
+        try:
+            quote = market_data.get_crypto_quote(symbol)
+
+            # Always show raw quote, even if invalid — helps diagnose the problem
+            if quote.bid == 0 and quote.ask == 0:
+                print(f"  ⚠  No quote returned from API (bid=0, ask=0) — check API keys or Alpaca status")
+                print()
+                continue
+
+            age_s = ""
+            if quote.timestamp:
+                from utils import now_utc as _now
+                age_s = f"  age={((_now()-quote.timestamp).total_seconds()):.1f}s"
+            print(f"  Quote  : bid={quote.bid:.4f}  ask={quote.ask:.4f}  mid={quote.mid:.4f}{age_s}")
+            if not quote.valid:
+                print(f"  ⚠  Quote is STALE (age > {get_cfg('crypto','stale_data_seconds',default=60)}s) — data feed may be delayed")
+                print()
+                continue
+            spread = (quote.ask - quote.bid) / quote.mid * 100 if quote.mid > 0 else 0
+            print(f"  Spread : {spread:.4f}%  (max allowed: {get_cfg('crypto','max_spread_pct',default=0.5)}%)")
+
+            df = market_data.get_crypto_bars_df(symbol, limit=max(lookback + 10, 40))
+            if df.empty or len(df) < 10:
+                print(f"  ⚠  Not enough bars ({len(df)} returned, need 10+)")
+                print(f"     This usually means the Alpaca bars API returned no data.")
+                print(f"     Check: https://status.alpaca.markets/")
+                print()
+                continue
+
+            df = add_indicators(df)
+            row = df.iloc[-1]
+            prev = df.iloc[-(lookback + 1):-1]
+
+            close = float(row["c"])
+            rsi = float(row.get("rsi_14", 0))
+            ema9 = float(row.get("ema_9", close))
+            ema21 = float(row.get("ema_21", close))
+            rel_vol = float(row.get("rel_volume", 0))
+            bb_pct_b = float(row.get("bb_pct_b", 0.5))
+            bb_lower = float(row.get("bb_lower", 0))
+            bb_mid = float(row.get("bb_mid", close))
+            mom_5 = float(row.get("mom_5", 0))
+            recent_high = float(prev["h"].max()) if not prev.empty else 0
+            recent_low = float(prev["l"].min()) if not prev.empty else 0
+
+            print(f"  Bars   : {len(df)} returned  |  lookback high={recent_high:.4f}  low={recent_low:.4f}")
+            print(f"  Close  : {close:.4f}")
+            print(f"  RSI-14 : {rsi:.2f}   (momentum need <80; mean_rev need <35)")
+            print(f"  RelVol : {rel_vol:.3f}  (momentum need >1.2)")
+            print(f"  EMA9   : {ema9:.4f}  {'> EMA21 ✓' if ema9 > ema21 else '< EMA21 ✗'} ({ema21:.4f})")
+            print(f"  BB%b   : {bb_pct_b:.3f}  (mean_rev need <0.15)  lower={bb_lower:.4f}  mid={bb_mid:.4f}")
+            print(f"  Mom5   : {mom_5:.4f}")
+            print()
+
+            # Momentum breakout diagnosis
+            breakout = close > recent_high
+            vol_ok = rel_vol > 1.2
+            trend_ok = ema9 > ema21
+            not_overbought = rsi < 80
+
+            print("  ── Momentum Breakout ──")
+            print(f"     [{'✓' if breakout else '✗'}] breakout: close {close:.2f} {'>' if breakout else '<='} high {recent_high:.2f}")
+            print(f"     [{'✓' if vol_ok else '✗'}] volume:   rel_vol {rel_vol:.2f} {'>' if vol_ok else '<='} 1.2")
+            print(f"     [{'✓' if trend_ok else '✗'}] trend:    EMA9 {'>' if trend_ok else '<'} EMA21")
+            print(f"     [{'✓' if not_overbought else '✗'}] RSI:      {rsi:.1f} {'< 80 ✓' if not_overbought else '>= 80 ✗'}")
+            if all([breakout, vol_ok, trend_ok, not_overbought]):
+                print("     → All hard conditions MET — would generate signal if confidence ≥ 0.65")
+            else:
+                missing = [c for c, v in [("breakout", breakout), ("volume", vol_ok), ("trend", trend_ok), ("not_overbought", not_overbought)] if not v]
+                print(f"     → Missing: {', '.join(missing)}")
+            print()
+
+            # Mean reversion diagnosis
+            oversold = rsi < 35
+            at_lower = bb_pct_b < 0.15
+            not_downtrend = ema9 >= ema21 * 0.98
+
+            print("  ── Mean Reversion ──")
+            print(f"     [{'✓' if oversold else '✗'}] RSI oversold: {rsi:.1f} {'< 35 ✓' if oversold else '>= 35 ✗'}")
+            print(f"     [{'✓' if at_lower else '✗'}] lower band:   bb_pct_b {bb_pct_b:.3f} {'< 0.15 ✓' if at_lower else '>= 0.15 ✗'}")
+            print(f"     [{'✓' if not_downtrend else '✗'}] not downtrend: EMA9/EMA21 ratio {ema9/ema21:.4f} {'≥ 0.98 ✓' if not_downtrend else '< 0.98 ✗'}")
+            if all([oversold, at_lower, not_downtrend]):
+                print("     → All hard conditions MET — would generate signal if confidence ≥ 0.65")
+            else:
+                missing = [c for c, v in [("rsi_oversold", oversold), ("at_lower_band", at_lower), ("no_downtrend", not_downtrend)] if not v]
+                print(f"     → Missing: {', '.join(missing)}")
+            print()
+
+        except Exception as e:
+            print(f"  ⚠  Error fetching data for {symbol}: {e}")
+            print()
+
+    print(f"{'=' * 70}")
+    print("Diagnose complete. No orders placed.")
+    print(f"{'=' * 70}\n")
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="Alpaca Autonomous Micro-Trading Bot")
+    p.add_argument(
+        "--mode",
+        choices=["dry_run", "paper", "live"],
+        default=None,
+        help="Override config mode. Default: read from config.yaml",
+    )
+    p.add_argument(
+        "--asset-class",
+        choices=["crypto", "equities", "all"],
+        default="all",
+        help="Restrict scanning to a specific asset class (default: all)",
+    )
+    p.add_argument(
+        "--browser-monitor",
+        action="store_true",
+        default=False,
+        help="Enable Playwright browser monitoring (read-only, optional)",
+    )
+    p.add_argument(
+        "--once",
+        action="store_true",
+        default=False,
+        help="Run a single scan cycle then exit (useful for testing)",
+    )
+    p.add_argument(
+        "--diagnose",
+        action="store_true",
+        default=False,
+        help=(
+            "Print a live indicator snapshot for all symbols then exit. "
+            "No orders or journal writes. Good for understanding why signals "
+            "are or aren't firing."
+        ),
+    )
+    p.add_argument(
+        "--force-lock",
+        action="store_true",
+        default=False,
+        help=(
+            "Override stale process lock and start anyway. "
+            "Only use if you are certain no other live bot is running."
+        ),
+    )
+    return p.parse_args()
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    global _running, _broker, _session, _position_mgr
+
+    # ── 1. Environment and config ─────────────────────────────────────────
+    load_env()
+    args = parse_args()
+
+    # If --mode is specified on CLI, override config temporarily
+    if args.mode:
+        cfg = load_config()
+        cfg["mode"] = args.mode
+
+    logger = setup_logging("main")
+    mode = get_mode()
+
+    broker_name = get_broker_name()
+    logger.info("=" * 60)
+    logger.info(
+        f"Autonomous Micro-Bot starting | mode={mode.upper()} | "
+        f"broker={broker_name.upper()}"
+    )
+    logger.info("=" * 60)
+
+    # ── 2. Safety gates ───────────────────────────────────────────────────
+    try:
+        assert_not_live_without_env()
+    except RuntimeError as e:
+        logger.critical(str(e))
+        sys.exit(1)
+
+    # Process lock: prevent two live bot instances on the same account
+    if not acquire_process_lock(force=args.force_lock):
+        from utils import LOCK_FILE
+        try:
+            existing_pid = LOCK_FILE.read_text().strip()
+        except Exception:
+            existing_pid = "unknown"
+        logger.critical(
+            f"PROCESS LOCK: another live bot instance is already running "
+            f"(PID {existing_pid}). Refusing to start a second live instance. "
+            "Stop the first process or delete runtime/bot.lock if it is stale."
+        )
+        sys.exit(1)
+
+    # Kill-switch file check at startup
+    if kill_switch_active():
+        logger.critical(
+            "KILL SWITCH ACTIVE: runtime/STOP_TRADING file exists. "
+            "Remove it to allow trading, then restart."
+        )
+        release_process_lock()
+        sys.exit(1)
+
+    if mode == "live":
+        logger.warning(
+            "LIVE MODE ACTIVE. Real orders will be placed. "
+            "Capital at risk. Max trade: $2. Max exposure: $4. "
+            "Daily loss limit: $2."
+        )
+        time.sleep(3)  # Give operator a moment to abort if this was accidental
+
+    # ── 3. Connect to broker (Alpaca or Coinbase) ─────────────────────────
+    try:
+        _broker = build_broker()
+    except Exception as e:
+        logger.critical(f"Failed to initialise {get_broker_name()} broker: {e}")
+        sys.exit(1)
+
+    # ── --diagnose fast path (skip account check, go straight to market data) ──
+    if args.diagnose:
+        market_data = MarketData(_broker)
+        print(f"\nConnecting to Alpaca market data... (Ctrl+C twice to force-quit)\n")
+        _run_diagnose(market_data, logger)
+        return
+
+    # ── 4. Fetch account permissions ──────────────────────────────────────
+    permissions: AccountPermissions = fetch_permissions(_broker)
+    logger.info(permissions.summary())
+
+    if not permissions.is_healthy and mode != "dry_run":
+        logger.critical(
+            f"Account is not healthy (status={permissions.account_status}, "
+            f"blocked={permissions.account_blocked}/{permissions.trading_blocked}). "
+            "Cannot trade. Exiting."
+        )
+        sys.exit(1)
+
+    # ── 5. Instantiate components ─────────────────────────────────────────
+    journal = get_journal()
+    market_data = MarketData(_broker)
+    strategy_router = StrategyRouter(_broker, market_data)
+    risk_manager = RiskManager()
+    _session = SessionState()
+    order_manager = OrderManager(_broker, journal)
+    _position_mgr = PositionManager(_broker, journal)
+    reporter = ReportGenerator()
+
+    # Restore persisted position state from previous session (if any)
+    # This rebuilds stop/TP levels so managed exits survive a restart
+    if mode != "dry_run":
+        _position_mgr.restore_state(_session)
+        if _session.open_positions:
+            logger.info(
+                f"State restored: {len(_session.open_positions)} position(s) "
+                f"loaded from disk — {list(_session.open_positions.keys())}"
+            )
+
+    # Optional browser monitor
+    browser_monitor = None
+    if args.browser_monitor:
+        try:
+            browser_monitor = BrowserMonitor(paper=is_paper())
+            logger.info("Browser monitor initialised (read-only)")
+        except Exception as e:
+            logger.warning(f"Browser monitor failed to init (non-fatal): {e}")
+            browser_monitor = None
+
+    # Track starting equity for the daily report
+    starting_equity = permissions.equity
+    scan_interval = 60  # seconds between scan cycles
+    browser_check_every = 10  # run browser check every N cycles
+    cycle_count = 0
+
+    logger.info(
+        f"Starting equity: ${starting_equity:.4f} | "
+        f"Buying power: ${permissions.buying_power:.4f} | "
+        f"Crypto enabled: {permissions.crypto_enabled}"
+    )
+
+    # ── 6. Main loop ──────────────────────────────────────────────────────
+    while _running:
+        cycle_count += 1
+        logger.debug(f"--- Cycle {cycle_count} ---")
+
+        try:
+            # Refresh permissions and account state every cycle
+            permissions = fetch_permissions(_broker)
+
+            # Build AccountState snapshot for risk manager
+            open_positions_list = _broker.get_all_positions()
+            open_orders_list = _broker.get_open_orders()
+            account_state = AccountState(
+                equity=permissions.equity,
+                buying_power=permissions.buying_power,
+                open_positions=len(open_positions_list),
+                open_position_symbols=[
+                    getattr(p, "symbol", "") for p in open_positions_list
+                ],
+                open_orders=len(open_orders_list),
+                open_order_symbols=[
+                    getattr(o, "symbol", "") for o in open_orders_list
+                ],
+                daily_realized_pnl=_session.daily_realized_pnl,
+                daily_trade_count=_session.daily_trade_count,
+                consecutive_losses=_session.consecutive_losses,
+                crypto_enabled=permissions.crypto_enabled,
+                options_enabled=permissions.options_enabled,
+                options_level=permissions.options_level,
+                margin_enabled=permissions.margin_enabled,
+                short_selling_enabled=permissions.short_selling_enabled,
+                account_blocked=permissions.account_blocked,
+                trading_blocked=permissions.trading_blocked,
+                api_error_count=_session.api_error_count,
+            )
+
+            # ── Kill switches ─────────────────────────────────────────────
+            # Manual operator kill switch: touch runtime/STOP_TRADING
+            if kill_switch_active():
+                _session.halt("runtime/STOP_TRADING file detected — manual kill switch")
+                logger.critical(
+                    "KILL SWITCH FILE detected: runtime/STOP_TRADING. "
+                    "Halting all new trades. Remove file and restart to resume."
+                )
+
+            if _session.halted:
+                logger.warning(f"Session halted: {_session.halt_reason}. No new trades.")
+                _maybe_sleep(scan_interval, args.once)
+                if args.once:
+                    break
+                continue
+
+            # Equity floor
+            equity_floor = get_cfg("account", "disable_live_below_equity", default=7.0)
+            if mode == "live" and permissions.equity < equity_floor:
+                _session.halt(
+                    f"Equity ${permissions.equity:.2f} below floor ${equity_floor:.2f}"
+                )
+                continue
+
+            # Daily loss limit
+            max_daily_loss = get_cfg("global_risk", "max_daily_loss_usd", default=2.0)
+            if _session.daily_realized_pnl <= -abs(max_daily_loss):
+                _session.halt(
+                    f"Daily loss limit hit: ${_session.daily_realized_pnl:.2f}"
+                )
+                continue
+
+            # ── Monitor existing positions ────────────────────────────────
+            _position_mgr.monitor(_session)
+
+            # If position monitor triggered a halt (e.g. consecutive losses)
+            if _session.halted:
+                logger.warning(f"Halted after position exit: {_session.halt_reason}")
+                _maybe_sleep(scan_interval, args.once)
+                if args.once:
+                    break
+                continue
+
+            # ── Optional browser snapshot ─────────────────────────────────
+            if browser_monitor and cycle_count % browser_check_every == 0:
+                try:
+                    snapshot = browser_monitor.capture_snapshot(
+                        api_equity=permissions.equity,
+                        api_buying_power=permissions.buying_power,
+                        api_positions=len(open_positions_list),
+                    )
+                    should_pause = browser_monitor.check_and_pause_if_discrepancy(
+                        snapshot, _session
+                    )
+                    if should_pause and snapshot.security_warning:
+                        logger.critical(
+                            "Browser detected security/agreement page. "
+                            "Halting until manual review."
+                        )
+                        break
+                except Exception as e:
+                    logger.warning(f"Browser monitor cycle error (non-fatal): {e}")
+
+            # ── Strategy scan ─────────────────────────────────────────────
+            proposals = strategy_router.scan(permissions, buying_power=permissions.buying_power)
+
+            if not proposals:
+                logger.debug("No proposals this cycle. No trade is acceptable.")
+            else:
+                logger.info(f"{len(proposals)} proposal(s) to evaluate")
+
+            # ── Risk check + order execution ──────────────────────────────
+            for proposal in proposals:
+                # Re-check account state (may have changed after earlier fills)
+                account_state.open_positions = len(_broker.get_all_positions())
+                account_state.daily_trade_count = _session.daily_trade_count
+                account_state.consecutive_losses = _session.consecutive_losses
+                account_state.daily_realized_pnl = _session.daily_realized_pnl
+
+                allowed, reason = risk_manager.check(proposal, account_state)
+
+                if not allowed:
+                    journal.log_skip(
+                        symbol=proposal.symbol,
+                        asset_class=proposal.asset_class,
+                        strategy=proposal.strategy,
+                        reason=reason,
+                        action=proposal.side.upper(),
+                        confidence=proposal.confidence,
+                        price=proposal.price,
+                        bid=proposal.bid,
+                        ask=proposal.ask,
+                        spread_pct=proposal.meta.get("spread_pct", 0.0),
+                        notional=proposal.notional,
+                        equity=permissions.equity,
+                        buying_power=permissions.buying_power,
+                        open_positions=account_state.open_positions,
+                        daily_trade_count=_session.daily_trade_count,
+                        consecutive_losses=_session.consecutive_losses,
+                        mode=mode,
+                    )
+                    continue
+
+                # Risk manager approved — execute
+                order = order_manager.execute(
+                    proposal=proposal,
+                    session=_session,
+                    account_equity=permissions.equity,
+                    buying_power=permissions.buying_power,
+                    open_positions=account_state.open_positions,
+                )
+
+                # After each order check halt state
+                if _session.halted:
+                    break
+
+        except KeyboardInterrupt:
+            logger.info("KeyboardInterrupt received in loop")
+            _running = False
+            break
+        except Exception as e:
+            _session.api_error_count += 1
+            logger.error(f"Unexpected error in main loop cycle {cycle_count}: {e}", exc_info=True)
+            _write_heartbeat(broker_name, mode, _session, permissions if 'permissions' in dir() else None, last_error=str(e))
+        else:
+            _write_heartbeat(broker_name, mode, _session, permissions)
+
+        if args.once:
+            logger.info("--once flag set: exiting after single cycle")
+            break
+
+        _maybe_sleep(scan_interval, args.once)
+
+    # ── 7. Graceful shutdown ──────────────────────────────────────────────
+    logger.info("Shutting down...")
+
+    # If halted due to critical issue, emergency-close positions
+    if _session and _session.halted and _position_mgr:
+        logger.critical(f"Session was halted: {_session.halt_reason}")
+        open_pos = _broker.get_all_positions() if _broker else []
+        if open_pos:
+            logger.critical(
+                f"HALT with {len(open_pos)} open position(s) — initiating emergency close"
+            )
+            _position_mgr.close_all_for_halt(_session)
+
+    # Generate daily report
+    try:
+        ending_equity = 0.0
+        unrealized_pnl = 0.0
+        if _broker:
+            final_account = _broker.get_account()
+            if final_account:
+                ending_equity = safe_float(getattr(final_account, "equity", starting_equity))
+                unrealized_pnl = safe_float(getattr(final_account, "unrealized_pl", 0))
+
+        if get_cfg("logging", "daily_report", default=True):
+            reporter.generate_daily_report(
+                starting_equity=starting_equity,
+                ending_equity=ending_equity,
+                unrealized_pnl=unrealized_pnl,
+            )
+    except Exception as e:
+        logger.error(f"Failed to generate daily report: {e}")
+
+    # Release process lock so next startup isn't blocked
+    release_process_lock()
+    logger.info("Bot shutdown complete.")
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _write_heartbeat(
+    broker_name: str,
+    mode: str,
+    session: "SessionState | None",
+    permissions: "AccountPermissions | None",
+    last_error: str | None = None,
+) -> None:
+    """
+    Write a heartbeat JSON file every loop cycle.
+
+    The watchdog (and any external monitor) reads this to confirm the bot
+    is alive and healthy.  Uses an atomic tmp→rename to prevent partial reads.
+    """
+    import json
+    from zoneinfo import ZoneInfo
+
+    try:
+        RUNTIME_DIR.mkdir(exist_ok=True)
+        hb_file = RUNTIME_DIR / f"{broker_name}_heartbeat.json"
+        tz = ZoneInfo("America/Chicago")
+        now_str = datetime.now(tz).isoformat()
+
+        payload = {
+            "bot": broker_name,
+            "pid": os.getpid(),
+            "status": "halted" if (session and session.halted) else "running",
+            "mode": mode,
+            "broker": broker_name,
+            "last_loop_time": now_str,
+            "open_positions": len(session.open_positions) if session else 0,
+            "daily_pnl": round(session.daily_realized_pnl, 4) if session else 0.0,
+            "trades_today": session.daily_trade_count if session else 0,
+            "consecutive_losses": session.consecutive_losses if session else 0,
+            "api_errors_this_session": session.api_error_count if session else 0,
+            "equity": round(permissions.equity, 4) if permissions else 0.0,
+            "buying_power": round(permissions.buying_power, 4) if permissions else 0.0,
+            "kill_switch_present": kill_switch_active(),
+            "risk_halt_active": bool(session and session.halted),
+            "halt_reason": (session.halt_reason if session and session.halted else None),
+            "last_error": last_error,
+        }
+
+        tmp = hb_file.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload, indent=2, sort_keys=True))
+        tmp.rename(hb_file)
+    except Exception:
+        pass  # heartbeat failure must never crash the bot
+
+
+def _maybe_sleep(seconds: int, once: bool) -> None:
+    """
+    Sleep in 1-second ticks so Ctrl+C (SIGINT) exits within 1 second.
+
+    Python 3.5+ (PEP 475) restarts interrupted system calls, which means a
+    single time.sleep(60) call ignores SIGINT until the full 60 s elapse.
+    Ticking 1 s at a time lets the loop check _running after each tick.
+    """
+    if once:
+        return
+    logger = logging.getLogger("main")
+    logger.debug(f"Sleeping {seconds}s until next cycle...")
+    for _ in range(seconds):
+        if not _running:
+            break
+        time.sleep(1)
+
+
+if __name__ == "__main__":
+    main()

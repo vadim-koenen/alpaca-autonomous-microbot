@@ -1,0 +1,21 @@
+{
+  "archive": "/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/releases/alpaca_microbot_v0.1.0-safety-baseline_20260526T190901Z.tar.gz",
+  "created_at_utc": "20260526T190901Z",
+  "deploys": false,
+  "excluded": [
+    ".env",
+    ".env.*",
+    ".venv",
+    "__pycache__",
+    ".pytest_cache",
+    "*.pyc",
+    "logs",
+    "releases",
+    "memory/bot_memory.sqlite3",
+    "secrets"
+  ],
+  "git_hash": "unavailable",
+  "restarts_bots": false,
+  "test_count": "12 files",
+  "version": "v0.1.0-safety-baseline"
+}

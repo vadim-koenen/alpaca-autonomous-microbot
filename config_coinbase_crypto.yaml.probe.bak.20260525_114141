@@ -1,0 +1,181 @@
+# =============================================================
+# Coinbase Crypto-Only Config
+# =============================================================
+# Use this config when running the Coinbase broker (BROKER=coinbase).
+# Equities, options, margin, and short selling are ALL disabled —
+# Coinbase only supports crypto spot trading.
+#
+# IMPORTANT — NO PAPER MODE:
+#   Coinbase has no paper/sandbox endpoint. Use mode: dry_run for
+#   safe simulation (no orders placed). When ready for real money,
+#   change to mode: live and ensure LIVE_TRADING=true in .env.
+#
+# Usage:
+#   CONFIG_FILE=config_coinbase_crypto.yaml BROKER=coinbase python main.py --mode dry_run
+#   CONFIG_FILE=config_coinbase_crypto.yaml BROKER=coinbase python main.py --mode live
+
+# ── Runtime mode ─────────────────────────────────────────────
+mode: live       # LIVE: real Coinbase crypto orders allowed only with LIVE_TRADING=true
+
+# ── Account expectations ─────────────────────────────────────
+account:
+  expected_starting_equity: 8.00
+  disable_live_below_equity: 1.50
+  do_not_auto_increase_size_until_equity: 20.00
+  timezone: America/Chicago
+
+# ── Live-trading master gates ─────────────────────────────────
+live_trading:
+  enabled: true
+  require_env_live_trading_true: true
+  allow_crypto: true               # ENABLED — Coinbase is crypto-only
+  allow_equities: false            # Not supported on Coinbase
+  allow_long_options: false        # Not supported on Coinbase
+  allow_short_selling: false       # Not supported on Coinbase
+  allow_margin: false              # Not supported on Coinbase
+
+# ── Global risk limits ────────────────────────────────────────
+global_risk:
+  max_daily_loss_usd: 2.00
+  max_trades_per_day: 5
+  stop_after_consecutive_losses: 2
+  max_open_positions: 4
+  max_total_live_exposure_usd: 6.00
+  # Coinbase is 24/7 — no market close. These guards are no-ops but kept
+  # for config schema consistency.
+  no_new_trades_after_market_time: "23:55"
+  force_flat_before_market_close: false
+  force_flat_time: "23:58"
+  never_hold_options_through_expiration: false
+  max_api_errors_before_halt: 10
+
+# ── Crypto ───────────────────────────────────────────────────
+crypto:
+  enabled: true
+  live_enabled: true
+  # Symbols use Alpaca format (BTC/USD); broker_coinbase.py translates to BTC-USD internally.
+  live_symbols:
+    - BTC/USD
+    - ETH/USD
+    - SOL/USD
+  watch_only_symbols: []
+  symbols:
+    - BTC/USD
+    - ETH/USD
+    - SOL/USD
+  max_trade_notional_usd: 2.00
+  max_total_crypto_exposure_usd: 4.00
+  min_trade_notional_usd: 0.50
+  # Coinbase Advanced Trade has very tight spreads on liquid pairs.
+  # These limits are tighter than Alpaca equivalents as a result.
+  max_spread_pct_per_symbol:
+    BTC/USD: 0.10
+    ETH/USD: 0.15
+    SOL/USD: 0.20
+  max_spread_pct: 0.20    # global fallback
+  # Coinbase data timestamps are slightly slower than Alpaca.
+  # 90s allows for normal latency on weekend/off-hours.
+  stale_data_seconds: 90
+  use_limit_orders: true
+  allow_market_orders: false
+  # Static fallback exits (used when ATR is unavailable)
+  # These are wider than Alpaca equivalents to clear Coinbase's higher fees.
+  stop_loss_pct: 1.50
+  take_profit_pct: 3.00
+  max_position_minutes: 90
+  passive_limit_entries: true
+  buying_power_safety_buffer: 0.85
+  use_atr_exits: true
+  # 15-min bars: 100 bars = ~25 hours of history. ATR at 15-min is 0.5–1.5%
+  # for BTC/ETH — large enough to produce 3%+ targets that clear the 1.2% taker fee.
+  bars_limit: 100
+  min_bars_required: 60   # lower than Alpaca 5-min because 15-min bars are slower to fill
+  slippage_estimate_pct: 0.05
+
+# ── Fee model ─────────────────────────────────────────────────
+# Coinbase Advanced Trade API — Intro 1 tier (verified for this account):
+#   Maker: 0.60%  (passive limit order resting on book)
+#   Taker: 1.20%  (marketable limit that crosses spread)
+#
+# Round-trip worst-case: 2 × 1.20% = 2.40%
+# Round-trip expected:   0.60% + 1.20% = 1.80% (passive entry, taker exit)
+#
+# To have a positive worst-case edge on a trade with 0.10% spread + 0.05% slippage:
+#   min target = 2.40 + 0.10 + 0.05 + 0.50 (min edge) = 3.05%
+# This is why we use 15-min bars — 5-min ATR is too small to clear these fees.
+#
+# The broker also fetches actual fee rates from the Coinbase API on startup
+# and uses them for order-level logging (self._taker_fee / self._maker_fee).
+fees:
+  venue: "coinbase_advanced"
+  maker_fee_pct: 0.006      # 0.60% (Intro 1 tier)
+  taker_fee_pct: 0.012      # 1.20%
+  # 0.5% minimum net edge — combined with worst-case 2.40% round-trip,
+  # the strategy must target ≥ 3.05% moves to qualify. Filters dead sessions.
+  require_expected_edge_pct: 0.005
+  require_worst_case_edge_positive: true
+
+# ── Risk thresholds ───────────────────────────────────────────
+risk:
+  # Higher than Alpaca (1.4) — Coinbase fees consume significant margin.
+  # With a 1.5% stop and 3.05% target, R:R ≈ 2.0 — well above this floor.
+  min_reward_risk_ratio: 1.8
+  require_stop_loss: true
+  require_take_profit: true
+
+# ── Strategy behaviour ────────────────────────────────────────
+strategy_thresholds:
+  use_regime_filter: true
+  use_atr_exits: true
+  # Slightly higher thresholds — Coinbase's higher fees demand better signals.
+  confidence_threshold:
+    momentum_breakout: 0.72
+    ema_crossover: 0.70
+    mean_reversion: 0.74
+
+strategy:
+  allow_autonomous_selection: true
+  prefer_no_trade_when_unclear: true
+  crypto_strategies:
+    - momentum_breakout
+    - mean_reversion
+    - ema_crossover
+  min_confidence_score: 0.68
+  lookback_bars: 20
+  # 15-min bars for Coinbase — larger moves needed to clear 1.2% taker fees.
+  # scan_interval in main.py is 60s; bot re-evaluates each minute but the
+  # once-per-closed-bar guard ensures signals only fire on new 15-min bars.
+  crypto_timeframe: "15Min"
+
+# ── Equities (disabled on Coinbase) ──────────────────────────
+equities:
+  enabled: false
+  live_enabled: false
+  symbols: []
+
+# ── Options (disabled on Coinbase) ───────────────────────────
+options:
+  enabled: false
+  live_enabled: false
+
+# ── Short selling (disabled on Coinbase) ─────────────────────
+short_selling:
+  enabled: false
+  live_enabled: false
+  minimum_equity_required_usd: 2000.00
+
+# ── Margin (disabled on Coinbase) ────────────────────────────
+margin:
+  enabled: false
+  live_enabled: false
+  minimum_equity_required_usd: 2000.00
+
+# ── Logging ───────────────────────────────────────────────────
+logging:
+  journal_file: journal_coinbase_crypto.csv
+  log_dir: logs
+  report_dir: reports
+  log_skipped_trades: true
+  log_market_snapshot: true
+  daily_report: true
+  log_level: INFO
