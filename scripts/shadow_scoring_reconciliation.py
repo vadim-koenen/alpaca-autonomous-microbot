@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""CLI for Shadow Scoring Reconciliation and Bucket Watchlist."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from shadow_learner.scoring_reconciliation import ScoringReconciler
+from scripts.redact import redact_text
+
+
+def _fmt(value: Any, digits: int = 3) -> str:
+    if value is None:
+        return "n/a"
+    if isinstance(value, float):
+        return f"{value:.{digits}f}"
+    return str(value)
+
+
+def build_markdown_report(results: dict[str, Any], filters: dict[str, Any]) -> str:
+    eval_report = results["eval_report"]
+    diag_report = results["diag_report"]
+    overall = eval_report["overall"]
+
+    lines = [
+        "# Shadow Scoring Reconciliation Report",
+        "",
+        "> **ADVISORY ONLY**: This report contains shadow-mode diagnostics and "
+        "reconciliation logic. These metrics do not authorize live trading, "
+        "scaling, or any change to production risk parameters.",
+        "",
+        "## Filters",
+        f"- Since: {filters.get('since') or 'all'}",
+        f"- Symbol: {filters.get('symbol') or 'all'}",
+        f"- Model: {filters.get('model') or 'all'}",
+        "",
+        "## Summary Metrics",
+        f"- Total prospective samples: {diag_report['sample_count']}",
+        f"- Labeled outcomes: {diag_report.get('labeled_count', 0)}",
+        f"- Missing outcomes: {overall.get('missing_data_count', 0)}",
+        f"- Evaluator conclusion: {eval_report['evidence']['status']}",
+        f"- Diagnostics conclusion: {diag_report['conclusion']}",
+        "",
+        "## Reconciliation Results",
+        f"**Conclusion: {results['conclusion']}**",
+        f"Reason: {results['reconciliation_reason']}",
+        "",
+        "## Best and Worst Performers",
+    ]
+
+    best_m = results.get("best_model_overall")
+    if best_m:
+        lines.append(f"- **Best Model Overall**: {best_m['model_name']}@{best_m.get('model_version', 'n/a')} "
+                     f"(Accuracy: {_fmt(best_m['accuracy'])}, Acc Delta: {_fmt(best_m.get('accuracy_delta_vs_random'))})")
+    else:
+        lines.append("- **Best Model Overall**: n/a")
+
+    if results["reject_list"]:
+        worst_b = min(results["reject_list"], key=lambda b: (b["accuracy_delta"], b["brier_delta"]))
+        lines.append(f"- **Worst Bucket**: {worst_b['model']} | {worst_b['symbol']} | {worst_b['horizon']}m "
+                     f"(Acc Delta: {_fmt(worst_b['accuracy_delta'])}, Brier Delta: {_fmt(worst_b['brier_delta'])})")
+    else:
+        lines.append("- **Worst Bucket**: n/a")
+
+    lines.extend([
+        "",
+        "## Model/Symbol/Horizon Bucket Watchlist",
+        "Buckets showing potential edge (sample size and delta vs random).",
+        "",
+    ])
+
+    if results["watchlist"]:
+        lines.append("| Model | Symbol | Horizon | Samples | Acc Delta | Brier Delta |")
+        lines.append("|---|---|---:|---:|---:|---:|")
+        for b in results["watchlist"]:
+            lines.append(
+                f"| {b['model']} | {b['symbol']} | {b['horizon']}m | {b['sample_count']} | "
+                f"{_fmt(b['accuracy_delta'])} | {_fmt(b['brier_delta'])} |"
+            )
+    else:
+        lines.append("No buckets currently meet watchlist criteria.")
+
+    lines.extend([
+        "",
+        "## Model/Symbol/Horizon Bucket Reject List",
+        "Buckets showing no edge or underperforming random baseline.",
+        "",
+    ])
+
+    if results["reject_list"]:
+        # Limit reject list to top 20 for brevity
+        lines.append("| Model | Symbol | Horizon | Samples | Acc Delta | Brier Delta |")
+        lines.append("|---|---|---:|---:|---:|---:|")
+        for b in results["reject_list"][:20]:
+            lines.append(
+                f"| {b['model']} | {b['symbol']} | {b['horizon']}m | {b['sample_count']} | "
+                f"{_fmt(b['accuracy_delta'])} | {_fmt(b['brier_delta'])} |"
+            )
+        if len(results["reject_list"]) > 20:
+            lines.append(f"... and {len(results['reject_list']) - 20} more.")
+    else:
+        lines.append("No buckets currently in reject list.")
+
+    lines.extend([
+        "",
+        "## Warnings and Risks",
+        "- **Sample Size**: Buckets with low samples may have high variance.",
+        "- **Missing Data**: High rates of missing data can bias results.",
+        "- **Brier/Materiality**: Small improvements in Brier score may not be economically material.",
+        "- **Calibration**: Even if accuracy is high, poor calibration can lead to overconfidence.",
+        "",
+        "## Gate Status",
+        f"**Paper Trading Gate: {results['paper_gate_status']}**",
+        "",
+        "### Next Gate Requirements",
+    ])
+    for req in results["next_gate_requirements"]:
+        lines.append(f"- {req}")
+
+    lines.extend([
+        "",
+        "---",
+        "Report generated by Shadow Scoring Reconciliation tool.",
+    ])
+    return "\n".join(lines)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--since", help="UTC date or timestamp lower bound")
+    parser.add_argument("--symbol", help="Optional symbol filter")
+    parser.add_argument("--model", help="Optional model_name filter")
+    parser.add_argument("--output", help="Optional markdown report output path")
+    parser.add_argument("--db", help="Optional shadow learner SQLite path")
+    args = parser.parse_args()
+
+    reconciler = ScoringReconciler(db_path=args.db)
+    results = reconciler.reconcile(since=args.since, symbol=args.symbol, model_name=args.model)
+
+    filters = {"since": args.since, "symbol": args.symbol, "model": args.model}
+    report_md = redact_text(build_markdown_report(results, filters))
+
+    if args.output:
+        output_path = Path(args.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(report_md + "\n", encoding="utf-8")
+        print(redact_text(f"Wrote scoring reconciliation report: {output_path}"))
+    else:
+        print(report_md)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

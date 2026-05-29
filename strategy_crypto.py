@@ -113,6 +113,10 @@ class CryptoStrategy:
         self._md = market_data
         # Once-per-closed-bar tracker: symbol -> last bar timestamp string
         self._last_bar_ts: dict[str, str] = {}
+        # Controlled Exploration state (P2-001)
+        self._last_exploration_at: dict[str, Optional[datetime]] = {}
+        self._exploration_index: int = 0
+        self._exploration_proposed_this_cycle: bool = False
 
     # -----------------------------------------------------------------------
     # Notional sizing — capped by actual buying power with safety buffer
@@ -303,6 +307,12 @@ class CryptoStrategy:
         logger.info(f"SCAN {symbol}: regime={regime} | allowed_strategies={allowed}")
 
         if not allowed:
+            # 1. Controlled Exploration (P2-001)
+            exploration = self._coinbase_exploration(symbol, quote, df, buying_power, regime)
+            if exploration is not None:
+                return [exploration]
+
+            # 2. Legacy Probe
             probe = self._coinbase_probe(symbol, quote, df, prefer_no_trade, buying_power, regime)
             if probe is not None:
                 return [probe]
@@ -324,6 +334,14 @@ class CryptoStrategy:
                 candidates.append(p)
 
         if not candidates:
+            # Main strategies sat out — try exploration/probe as fallbacks
+            exploration = self._coinbase_exploration(symbol, quote, df, buying_power, regime)
+            if exploration is not None:
+                return [exploration]
+
+            probe = self._coinbase_probe(symbol, quote, df, prefer_no_trade, buying_power, regime)
+            if probe is not None:
+                return [probe]
             return []
 
         # Select best proposal by (net_expected_edge_pct, confidence, reward_risk_ratio)
@@ -349,6 +367,135 @@ class CryptoStrategy:
     # Strategy 1: Momentum Breakout
     # -----------------------------------------------------------------------
 
+    # -----------------------------------------------------------------------
+    # Selection Logic: Controlled Exploration (P2-001)
+    # -----------------------------------------------------------------------
+
+    def _coinbase_exploration(
+        self,
+        symbol: str,
+        quote: Quote,
+        df: pd.DataFrame,
+        buying_power: float | None,
+        regime: str
+    ) -> Optional[TradeProposal]:
+        """
+        Controlled Coinbase exploration (P2-001).
+        
+        Rotates across BTC, ETH, SOL to gather diverse live shadow data.
+        """
+        try:
+            cfg = get_cfg("crypto", "controlled_exploration", default={})
+            enabled = cfg.get("enabled", False)
+
+            # Reset flag if we are at the start of a new scan cycle
+            live_syms = get_cfg("crypto", "live_symbols", default=[])
+            is_first_sym = live_syms and symbol == live_syms[0]
+            
+            if is_first_sym:
+                 self._exploration_proposed_this_cycle = False
+                 if not enabled:
+                     logger.debug("EXPLORE | mode disabled in config")
+
+            if not enabled:
+                return None
+
+            if self._exploration_proposed_this_cycle:
+                return None
+
+            approved_symbols = cfg.get("approved_symbols", ["BTC/USD", "ETH/USD", "SOL/USD"])
+            if symbol not in approved_symbols:
+                logger.info(f"EXPLORE {symbol} | rejected: not in approved_symbols list")
+                return None
+
+            # Rotation logic
+            target_symbol = approved_symbols[self._exploration_index % len(approved_symbols)]
+            
+            if symbol != target_symbol:
+                # Not this symbol's turn in the rotation
+                logger.debug(f"EXPLORE {symbol} | skipped: rotation target is {target_symbol}")
+                return None
+
+            # Cooldown check (per symbol)
+            now = now_utc()
+            cooldown_min = float(cfg.get("per_symbol_cooldown_minutes", 45))
+            last = self._last_exploration_at.get(symbol)
+            if last is not None:
+                age_min = (now - last).total_seconds() / 60.0
+                if age_min < cooldown_min:
+                    logger.info(f"EXPLORE {symbol} | rejected: symbol cooldown {age_min:.1f}m < {cooldown_min:.1f}m")
+                    # Even if blocked by cooldown, we keep the index here to try others next
+                    self._exploration_index += 1
+                    return None
+
+            # Basic filters
+            bid = float(quote.bid)
+            ask = float(quote.ask)
+            mid = float(quote.mid)
+
+            if bid <= 0 or ask <= 0 or mid <= 0:
+                logger.warning(f"EXPLORE {symbol} | rejected: invalid quote (bid={bid}) — rotating")
+                self._exploration_index += 1
+                return None
+
+            spread_pct_val = ((ask - bid) / mid) * 100.0
+            max_spread = float(get_cfg("crypto", "coinbase_probe_max_spread_pct", default=0.10))
+            if spread_pct_val > max_spread:
+                logger.info(f"EXPLORE {symbol} | rejected: spread {spread_pct_val:.3f}% > max {max_spread:.3f}% — rotating")
+                self._exploration_index += 1
+                return None
+
+            # All good — Propose!
+            max_notional = float(cfg.get("max_single_trade_notional_usd", 1.00))
+            notional = self._compute_notional(buying_power) or 0.50
+            notional = min(notional, max_notional)
+
+            sl_pct = 1.50
+            tp_pct = 3.25
+            
+            meta = {
+                "controlled_exploration_enabled": True,
+                "exploration_candidate_symbols": approved_symbols,
+                "exploration_selected_symbol": symbol,
+                "exploration_notional_usd": notional,
+                "risk_caps_unchanged": True,
+                "no_live_risk_bypass": True,
+                "regime": regime,
+                "spread_pct": spread_pct_val,
+                "probe": True,
+            }
+            
+            logger.info(
+                f"SIGNAL coinbase_exploration {symbol} | regime={regime} | "
+                f"notional=${notional:.2f} conf=0.60 | "
+                f"rotation_idx={self._exploration_index}"
+            )
+            
+            self._last_exploration_at[symbol] = now
+            self._exploration_proposed_this_cycle = True
+            self._exploration_index += 1
+            
+            return TradeProposal(
+                symbol=symbol,
+                asset_class="crypto",
+                strategy="coinbase_exploration",
+                side="buy",
+                order_type="limit",
+                notional=notional,
+                limit_price=bid,
+                confidence=0.60,
+                bid=bid,
+                ask=ask,
+                price=mid,
+                quote_time=quote.timestamp,
+                stop_loss_price=mid * (1 - sl_pct/100.0),
+                take_profit_price=mid * (1 + tp_pct/100.0),
+                meta=meta
+            )
+        except Exception as e:
+            logger.error(f"Exploration error for {symbol}: {e}")
+            return None
+
     def _coinbase_probe(self, symbol, quote, df, prefer_no_trade, buying_power, regime):
         """
         Explicit opt-in Coinbase micro-probe.
@@ -365,6 +512,11 @@ class CryptoStrategy:
         """
         try:
             if not get_cfg("crypto", "coinbase_probe_enabled", default=False):
+                return None
+
+            # P2-001: Disable legacy probe if exploration is enabled and configured to disable legacy
+            exp_cfg = get_cfg("crypto", "controlled_exploration", default={})
+            if exp_cfg.get("enabled") and exp_cfg.get("disable_legacy_btc_probe_when_enabled"):
                 return None
 
             probe_symbols = get_cfg("crypto", "coinbase_probe_symbols", default=["BTC/USD"])

@@ -36,29 +36,22 @@ live_trading:
 
 # ── Global risk limits ────────────────────────────────────────
 global_risk:
-  max_daily_loss_usd: 2.00
-  max_trades_per_day: 5
-  stop_after_consecutive_losses: 2
-  max_open_positions: 4
+  max_daily_loss_usd: 3.00          # P2-001: raised from 2.00
+  max_trades_per_day: 12            # P2-001: raised to 12
+  stop_after_consecutive_losses: 3  # P2-001: raised from 2
+  max_open_positions: 2             # P2-001: absolute max 2
   max_total_live_exposure_usd: 6.00
-  # Coinbase is 24/7 — no market close. These guards are no-ops but kept
-  # for config schema consistency.
   no_new_trades_after_market_time: "23:55"
   force_flat_before_market_close: false
   force_flat_time: "23:58"
   never_hold_options_through_expiration: false
   max_api_errors_before_halt: 10
-  # After this many consecutive failed close_position() calls for the same
-  # symbol, the position is dropped from tracking without recording P/L.
-  # Handles positions held in consumer Coinbase wallet (not Advanced Trade)
-  # or other broker-side issues that cannot be resolved by retrying.
   max_close_failures: 3
 
 # ── Crypto ───────────────────────────────────────────────────
 crypto:
   enabled: true
   live_enabled: true
-  # Symbols use Alpaca format (BTC/USD); broker_coinbase.py translates to BTC-USD internally.
   live_symbols:
     - BTC/USD
     - ETH/USD
@@ -69,38 +62,49 @@ crypto:
     - ETH/USD
     - SOL/USD
   max_trade_notional_usd: 2.00
-  max_total_crypto_exposure_usd: 4.00
+  max_total_crypto_exposure_usd: 6.00 # P2-001: absolute max 6.00
   min_trade_notional_usd: 0.50
-  # Coinbase Advanced Trade has very tight spreads on liquid pairs.
-  # These limits are tighter than Alpaca equivalents as a result.
   max_spread_pct_per_symbol:
     BTC/USD: 0.10
     ETH/USD: 0.15
     SOL/USD: 0.20
   max_spread_pct: 0.20    # global fallback
-  # Coinbase data timestamps are slightly slower than Alpaca.
-  # 90s allows for normal latency on weekend/off-hours.
   stale_data_seconds: 90
   use_limit_orders: true
   allow_market_orders: false
-  # Static fallback exits (used when ATR is unavailable)
-  # These are wider than Alpaca equivalents to clear Coinbase's higher fees.
   stop_loss_pct: 1.50
   take_profit_pct: 3.00
   max_position_minutes: 90
   passive_limit_entries: true
   buying_power_safety_buffer: 0.85
   use_atr_exits: true
-  # 15-min bars: 100 bars = ~25 hours of history. ATR at 15-min is 0.5–1.5%
-  # for BTC/ETH — large enough to produce 3%+ targets that clear the 1.2% taker fee.
   bars_limit: 100
-  min_bars_required: 60   # lower than Alpaca 5-min because 15-min bars are slower to fill
+  min_bars_required: 60
   slippage_estimate_pct: 0.05
 
-  # ── Opt-in micro probe mode ─────────────────────────────────
-  # Purpose: create tiny controlled Coinbase movement without weakening
-  # the main regime strategy. This only creates TradeProposal objects;
-  # risk_manager and order_manager still decide whether anything is placed.
+  # ── Controlled Coinbase Exploration (P2-001) ────────────────
+  # Purpose: rotate micro-probes across multiple symbols (BTC, ETH, SOL)
+  # to gather diverse live shadow data.
+  # Default is OFF, but now ENABLED for P2-001 rollout.
+  controlled_exploration:
+    enabled: true
+    approved_symbols:
+      - BTC/USD
+      - ETH/USD
+      - SOL/USD
+    max_single_trade_notional_usd: 1.00
+    max_total_exploration_exposure_usd: 6.00
+    max_round_trips_per_day: 12
+    max_entries_per_symbol_per_day: 4
+    per_symbol_cooldown_minutes: 30
+    max_consecutive_losses: 3
+    daily_stop_loss_usd: 3.00
+    rotate_symbols: true
+    avoid_same_symbol_repeat: true
+    disable_legacy_btc_probe_when_enabled: true
+
+  # ── Legacy micro probe mode ─────────────────────────────────
+  # legacy probe is disabled when controlled exploration is enabled
   coinbase_probe_enabled: true
   coinbase_probe_symbols:
     - BTC/USD
@@ -115,32 +119,15 @@ crypto:
   coinbase_probe_min_confidence_score: 0.60
 
 # ── Fee model ─────────────────────────────────────────────────
-# Coinbase Advanced Trade API — Intro 1 tier (verified for this account):
-#   Maker: 0.60%  (passive limit order resting on book)
-#   Taker: 1.20%  (marketable limit that crosses spread)
-#
-# Round-trip worst-case: 2 × 1.20% = 2.40%
-# Round-trip expected:   0.60% + 1.20% = 1.80% (passive entry, taker exit)
-#
-# To have a positive worst-case edge on a trade with 0.10% spread + 0.05% slippage:
-#   min target = 2.40 + 0.10 + 0.05 + 0.50 (min edge) = 3.05%
-# This is why we use 15-min bars — 5-min ATR is too small to clear these fees.
-#
-# The broker also fetches actual fee rates from the Coinbase API on startup
-# and uses them for order-level logging (self._taker_fee / self._maker_fee).
 fees:
   venue: "coinbase_advanced"
   maker_fee_pct: 0.006      # 0.60% (Intro 1 tier)
   taker_fee_pct: 0.012      # 1.20%
-  # 0.5% minimum net edge — combined with worst-case 2.40% round-trip,
-  # the strategy must target ≥ 3.05% moves to qualify. Filters dead sessions.
   require_expected_edge_pct: 0.005
   require_worst_case_edge_positive: true
 
 # ── Risk thresholds ───────────────────────────────────────────
 risk:
-  # Higher than Alpaca (1.4) — Coinbase fees consume significant margin.
-  # With a 1.5% stop and 3.05% target, R:R ≈ 2.0 — well above this floor.
   min_reward_risk_ratio: 1.8
   require_stop_loss: true
   require_take_profit: true
@@ -149,12 +136,12 @@ risk:
 strategy_thresholds:
   use_regime_filter: true
   use_atr_exits: true
-  # Slightly higher thresholds — Coinbase's higher fees demand better signals.
   confidence_threshold:
     momentum_breakout: 0.72
     ema_crossover: 0.70
     mean_reversion: 0.74
     coinbase_probe: 0.60
+    coinbase_exploration: 0.60
 
 strategy:
   allow_autonomous_selection: true
@@ -165,33 +152,7 @@ strategy:
     - ema_crossover
   min_confidence_score: 0.68
   lookback_bars: 20
-  # 15-min bars for Coinbase — larger moves needed to clear 1.2% taker fees.
-  # scan_interval in main.py is 60s; bot re-evaluates each minute but the
-  # once-per-closed-bar guard ensures signals only fire on new 15-min bars.
   crypto_timeframe: "15Min"
-
-# ── Equities (disabled on Coinbase) ──────────────────────────
-equities:
-  enabled: false
-  live_enabled: false
-  symbols: []
-
-# ── Options (disabled on Coinbase) ───────────────────────────
-options:
-  enabled: false
-  live_enabled: false
-
-# ── Short selling (disabled on Coinbase) ─────────────────────
-short_selling:
-  enabled: false
-  live_enabled: false
-  minimum_equity_required_usd: 2000.00
-
-# ── Margin (disabled on Coinbase) ────────────────────────────
-margin:
-  enabled: false
-  live_enabled: false
-  minimum_equity_required_usd: 2000.00
 
 # ── Logging ───────────────────────────────────────────────────
 logging:
