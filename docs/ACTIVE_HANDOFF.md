@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-30  
+**Last updated:** 2026-05-30 — session complete, P2-001D done, P2-001E next  
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -99,14 +99,16 @@ fee_model:
 | P2-001 | Controlled Coinbase exploration | DONE / live |
 | P2-001B | State-aware LRU rotation (BTC→ETH→SOL proven) | DONE / committed `adbebf4` |
 | P2-001C | Coinbase exploration fee/performance report | DONE / committed `0a6c82c` |
+| P2-001D | Controlled exploration status accuracy fix | DONE / ready to push |
 
 ---
 
 ## 6. Git State (as of last update)
 
 ```
-HEAD: 0a6c82c Implement P2-001C Coinbase Exploration Fee/Performance Report
-Clean: no dirty tracked files
+HEAD: pending push — P2-001D fix to controlled_exploration_status.py
+Prior: 84aa014 update ACTIVE_HANDOFF: P2-001C done, P2-001D now active
+Clean: scripts/controlled_exploration_status.py modified, ready to commit
 
 Untracked (P2-002, not yet committed):
   docs/CLAUDE_HANDOFF_2026-05-29_PREDICTION_FEATURES.md
@@ -145,24 +147,45 @@ From confirmed live trade data (6 completed cycles):
 ## 8. Active Patch Queue
 
 ### IN PROGRESS
-**P2-001D — Controlled Exploration Status Accuracy Fix**  
-Risk class: Class 1  
-Status: Next up — `controlled_exploration_status.py` shows `Daily Trades: 0` when trades occurred today. Heartbeat confirms last_trade_at=2026-05-29T17:15:37. Status script is reading from wrong source or stale state.  
-Executor: GitHub Copilot  
+**P2-001E — Exit Quality Report**
+Risk class: Class 1 advisory
+Status: Next patch. All 26 journal exits are max-hold — SL/TP have never triggered.
+Need to know: did any trade get close to TP? What was MFE at exit time? Should
+hold window be shorter? Answers determine whether to change SL/TP/hold config.
+Executor: GitHub Copilot
 
-Files to modify:
+Files to create:
 ```
-scripts/controlled_exploration_status.py   ← fix trade counting logic only
+scripts/coinbase_exit_quality_report.py      ← new, read-only
+tests/test_coinbase_exit_quality_report.py   ← new, unit tests
+docs/COINBASE_EXIT_QUALITY_RUNBOOK.md        ← new, usage guide
 ```
+Report must include:
+- Exit type distribution (max_hold / stop_loss / take_profit / other) with counts + avg net
+- MFE (max favorable excursion) at time of exit — approx from fill_price vs exit_price
+- MAE (max adverse excursion) estimate
+- Would a 45-min hold have improved results vs 90-min?
+- Are TP/SL thresholds (3% TP, 1.5% SL) ever in range during a 90-min hold?
+- Per-symbol breakdown
+- Advisory warning if 100% exits are max-hold
+
 Files must NOT be touched:
 ```
 main.py, broker_*.py, order_manager.py, risk_manager.py,
 config_coinbase_crypto.yaml, .env, state/, launchd/
 ```
+Validation commands:
+```bash
+python3 -m py_compile scripts/coinbase_exit_quality_report.py
+python3 -m pytest tests/test_coinbase_exit_quality_report.py -q
+python3 scripts/coinbase_exit_quality_report.py
+```
 
-### QUEUED (do not start until P2-001D is complete)
-- **P2-001E** — Exit quality report (max-hold vs SL vs TP distribution, MFE/MAE analysis)
-- **P2-003** — Entry quality gate (Class 2, requires P2-001D and P2-001E first)
+### QUEUED (do not start until P2-001E is complete)
+- **P2-002 commit** — review prediction_features.py for future-data leakage first
+- **SL/TP/hold-time tuning** — Class 2, needs P2-001E report to justify changes
+- **Maker order preference audit** — confirm passive_limit_entries is active for exploration
+- **P2-003** — Entry quality gate (Class 2, requires P2-001E first)
 
 ### DO NOT START YET
 - Any TP/SL/hold-time config changes
@@ -213,3 +236,4 @@ Do not recommend or execute anything until all four commands have been run and r
 <!-- Format: YYYY-MM-DD HH:MM | equity=$X | positions=X | regime=X | errors=X | head=commit -->
 
 - 2026-05-29 20:30 | equity=$40.94 | positions=0 | regime=dead_chop | errors=0 | head=adbebf4
+- 2026-05-30 02:53 | equity=$40.94 | positions=0 | regime=dead_chop | errors=0 | head=pending-P2-001D-push | session: P2-001C confirmed done, P2-001D fixed locally, P2-001E queued
