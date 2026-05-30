@@ -39,13 +39,13 @@ def check_git_status():
         return False, "Failed to run git status"
 
     allowed_dirty = {"docs/ACTIVE_HANDOFF.md", "docs/PENDING_PATCH_COMPLETION.json"}
-    lines = result.stdout.strip().split("\n")
+    lines = result.stdout.splitlines()
     for line in lines:
-        if not line:
+        if not line or len(line) < 4:
             continue
-        # Status is usually XY path
-        status = line[:2].strip()
-        path = line[3:].strip()
+        # Status is XY path (first 2 chars are status, 3rd is space)
+        status = line[:2]
+        path = line[3:]
         
         # We only care about tracked files that are dirty
         # Untracked files (??) are ignored for this check unless they interfere
