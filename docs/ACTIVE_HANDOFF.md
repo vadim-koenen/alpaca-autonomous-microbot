@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-30 03:35 UTC — P2-001E committed+pushed; awaiting Class 2 approval gate
+**Last updated:** 2026-05-30 03:56 UTC — P2-001F committed+pushed; maker-order audit complete; Class 2 tuning still awaiting explicit approval
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -101,13 +101,14 @@ fee_model:
 | P2-001C | Coinbase exploration fee/performance report | DONE / committed `0a6c82c` |
 | P2-001D | Controlled exploration status accuracy fix | DONE / committed `e10a722` |
 | P2-001E | Coinbase exit quality report | DONE / committed `535298c` |
+| P2-001F | Coinbase maker order audit | DONE / committed `f835e74` |
 
 ---
 
 ## 6. Git State (as of last update)
 
 ```
-HEAD: 535298c P2-001E: add Coinbase exit quality report
+HEAD: f835e74 P2-001F: add Coinbase maker order audit
 Clean: no dirty tracked files
 Recent commits:
   8bbaae0 P2-001D done + add auto-sync handoff launchd job
@@ -155,9 +156,9 @@ From confirmed live trade data (6 completed cycles):
 ### IN PROGRESS
 **None — awaiting review / explicit approval before Class 2 live tuning**
 
-P2-001E is DONE at `535298c`.
+P2-001F is DONE at `f835e74`.
 
-Next candidate is SL/TP/hold-time tuning, but it is Class 2 and must not start without explicit Vadim approval after Claude/ChatGPT review of the P2-001E report.
+Maker Order Audit found 6/6 Coinbase exploration entries were likely passive-priced based on quote-position proxy. Actual Coinbase maker/taker fee-side remains unproven without liquidity/fee-side data.
 
 ### QUEUED (do not start until P2-001E is complete)
 - **P2-002 commit** — review prediction_features.py for future-data leakage first
@@ -216,3 +217,6 @@ Do not recommend or execute anything until all four commands have been run and r
 - 2026-05-29 20:30 | equity=$40.94 | positions=0 | regime=dead_chop | errors=0 | head=adbebf4
 - 2026-05-30 02:53 | equity=$40.94 | positions=0 | regime=dead_chop | errors=0 | head=8bbaae0 | P2-001D committed+pushed, auto-sync installed, P2-001E now active
 - 2026-05-30 03:35 UTC | head=535298c | P2-001E committed+pushed; Class 2 SL/TP/hold tuning awaiting explicit approval
+- 2026-05-30 03:52 UTC | head=REPLACE_WITH_HEAD | P2-001F committed+pushed; 6/6 entries likely passive-priced; actual maker/taker fee flags still unproven
+- 2026-05-30 03:53 UTC | head=f835e74 | P2-001F committed+pushed; 6/6 entries likely passive-priced; actual maker/taker fee flags still unproven
+- 2026-05-30 03:56 UTC | head=f835e74 | P2-001F committed+pushed; 6/6 entries likely passive-priced; actual maker/taker fee flags still unproven
