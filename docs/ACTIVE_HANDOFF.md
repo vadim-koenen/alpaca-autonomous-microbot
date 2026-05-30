@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-30 18:26 UTC — P2-006 committed; Adds advisory-only Coinbase sizing/execution reconciliation report, tests, and runbook. The report explains fixed-cap controlled exploration, legacy $0.50 vs $1.00 sizing, missing sell-fill data, fee drag, max-hold exits, and why P/L must remain unavailable when sell proceeds are not present.
+**Last updated:** 2026-05-30 19:15 UTC — P2-007 committed; Adds advisory-only Coinbase fill/proceeds reconciliation report, tests, and runbook. The report confirms local Coinbase journals contain exit rows but no direct sell proceeds or fee rows, so realized gross/net P/L must remain unavailable until immutable fill logging is fixed.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -117,17 +117,19 @@ fee_model:
 | P2-004 | Dynamic equity-based Coinbase sizing groundwork | DONE / committed `4903014` |
 | P2-005 | Coinbase Price-Path MFE/MAE Analyzer | DONE / committed `7ddf6d7` |
 | P2-006 | Coinbase Sizing / Execution / Profitability Reconciliation Report | DONE / committed `49135bc` |
+| P2-007 | Coinbase Fill / Proceeds Reconciliation Report | DONE / committed `1b6ce77` |
 
 ---
 
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 49135bc
+Latest functional patch commit: 1b6ce77
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
 Recent commits:
+  1b6ce77 P2-007: Coinbase Fill / Proceeds Reconciliation Report
   49135bc P2-006: Coinbase Sizing / Execution / Profitability Reconciliation Report
 ```
 
@@ -159,7 +161,7 @@ From confirmed live trade data (6 completed cycles):
 ## 8. Active Patch Queue
 
 ### IN PROGRESS
-**Use P2-006 with P2-005 and P2-003 data to diagnose sizing/execution quality. Continue collecting price-path samples. Class 2 notional, TP/SL, hold-time, and prediction-to-live changes remain blocked until evidence thresholds and explicit approval are met. Next advisory patch should improve sell-fill/order-fill reconciliation if local journals continue lacking exit proceeds.**
+**P2-007 confirms local Coinbase journals have exit rows but no direct sell proceeds and no fee rows, so realized gross/net P/L must remain `n/a`. Continue collecting price-path samples. Class 2 notional, TP/SL, hold-time, and prediction-to-live changes remain blocked. Next safe patch should be an advisory-only immutable Coinbase fill logging design/spec, or a tightly reviewed logging implementation only after explicit approval because it may touch live execution-path code.**
 
 ### QUEUED (blocked — data + explicit approval required)
 - **SL/TP/hold-time tuning** — Class 2; use P2-001E exit-quality and P2-005 MFE/MAE reports only after ≥20 price-path samples, ~2+ weeks of P2-003 data, and explicit human approval
@@ -226,3 +228,4 @@ Do not recommend or execute anything until all four commands have been run and r
 - 2026-05-30 14:28 UTC | head=4903014 | P2-004 complete; Adds Coinbase-only dynamic equity sizing framework while preserving hard $1 trade cap, exposure cap, stop-loss cap, and existing risk gates
 - 2026-05-30 14:44 UTC | head=7ddf6d7 | P2-005 complete; Adds advisory-only Coinbase price-path MFE/MAE analyzer, tests, and runbook to evaluate intra-hold excursions before any Class 2 tuning.
 - 2026-05-30 18:26 UTC | head=49135bc | P2-006 complete; Adds advisory-only Coinbase sizing/execution reconciliation report, tests, and runbook. The report explains fixed-cap controlled exploration, legacy $0.50 vs $1.00 sizing, missing sell-fill data, fee drag, max-hold exits, and why P/L must remain unavailable when sell proceeds are not present.
+- 2026-05-30 19:15 UTC | head=1b6ce77 | P2-007 complete; Adds advisory-only Coinbase fill/proceeds reconciliation report, tests, and runbook. Confirms 37 exit/sell rows, zero direct sell proceeds, zero fee rows, zero reconstructable gross/net P/L pairs; realized P/L must remain n/a until immutable fill/proceeds/fee logging is fixed.
