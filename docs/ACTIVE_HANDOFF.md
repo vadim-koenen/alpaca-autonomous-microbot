@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-30 14:23 UTC — P2-004 committed; Adds Coinbase-only dynamic equity sizing framework while preserving hard $1 trade cap, exposure cap, stop-loss cap, and existing risk gates
+**Last updated:** 2026-05-30 14:24 UTC — P2-004 committed; Adds Coinbase-only dynamic equity sizing framework while preserving hard $1 trade cap, exposure cap, stop-loss cap, and existing risk gates
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -114,19 +114,19 @@ fee_model:
 | P2-001I | Handoff automation daemon | DONE / committed `0028733` |
 | P2-002 | Review and commit advisory prediction features | DONE / committed `012ab07` |
 | P2-003 | Intra-hold price path logger | DONE / committed `bd89891` |
-| P2-004 | Dynamic equity-based Coinbase sizing groundwork | DONE / committed `303405e` |
+| P2-004 | Dynamic equity-based Coinbase sizing groundwork | DONE / committed `2ef9e4c` |
 
 ---
 
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 303405e
-Latest handoff commit: 6b14ee9
+Latest functional patch commit: 2ef9e4c
+Latest handoff commit: 73afceb
 Clean: no dirty tracked files (except handoff update)
 
 Recent commits:
-  303405e P2-004: Dynamic equity-based Coinbase sizing groundwork
+  2ef9e4c P2-004: Dynamic equity-based Coinbase sizing groundwork
 ```
 
 P2-002 files are advisory-only. Safe to commit after review of `prediction_features.py` for future-data leakage. Not urgent.
@@ -222,3 +222,4 @@ Do not recommend or execute anything until all four commands have been run and r
 - 2026-05-30 12:41 UTC | head=012ab07 | P2-002 complete; Shadow learner features reviewed for future-data leakage and committed
 - 2026-05-30 12:52 UTC | head=bd89891 | P2-003 complete; Adds read-only Coinbase price path logger to collect intra-hold snapshots for true MFE/MAE analysis before Class 2 tuning
 - 2026-05-30 14:23 UTC | head=303405e | P2-004 complete; Adds Coinbase-only dynamic equity sizing framework while preserving hard $1 trade cap, exposure cap, stop-loss cap, and existing risk gates
+- 2026-05-30 14:24 UTC | head=2ef9e4c | P2-004 complete; Adds Coinbase-only dynamic equity sizing framework while preserving hard $1 trade cap, exposure cap, stop-loss cap, and existing risk gates
