@@ -123,14 +123,16 @@ fee_model:
 
 ```
 Latest functional patch commit: 7ddf6d7
-Latest handoff commit: bf26106
-Clean: no dirty tracked files (except handoff update)
+Latest handoff commit: ae93ea3
+main HEAD: ae93ea3
+Clean: yes (no dirty tracked files)
 
 Recent commits:
-  7ddf6d7 P2-005: Coinbase Price-Path MFE/MAE Analyzer
+  ae93ea3 update ACTIVE_HANDOFF: P2-005 complete
+  7ddf6d7 P2-005: add Coinbase price-path MFE/MAE analyzer
 ```
 
-P2-002 files are advisory-only. Safe to commit after review of `prediction_features.py` for future-data leakage. Not urgent.
+P2-002 advisory prediction features are committed (`012ab07`); do not connect to live decisions without explicit approval.
 
 ---
 
@@ -160,8 +162,8 @@ From confirmed live trade data (6 completed cycles):
 ### IN PROGRESS
 **Collect more P2-003 price-path data; Class 2 SL/TP/hold-time and hard-cap tuning remains blocked until at least 20 paths, roughly 2+ weeks of data, and explicit human approval.**
 
-### QUEUED (do not start until P2-001E is complete)
-- **SL/TP/hold-time tuning** — Class 2, needs P2-001E report to justify changes
+### QUEUED (blocked — data + explicit approval required)
+- **SL/TP/hold-time tuning** — Class 2; use P2-001E exit-quality and P2-005 MFE/MAE reports only after ≥20 price-path samples, ~2+ weeks of P2-003 data, and explicit human approval
 
 ### DO NOT START YET
 - Any TP/SL/hold-time config changes
