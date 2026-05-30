@@ -52,6 +52,11 @@ TEXT_SUFFIXES: set[str] = {
     ".sh",
 }
 
+GENERATED_OR_VOLATILE_SKIP_PATHS: set[str] = {
+    "docs/ACTIVE_HANDOFF.md",
+    "docs/COINBASE_FILL_LOGGING_IMPLEMENTATION_DISCOVERY.md",
+}
+
 SKIP_DIRS: set[str] = {
     ".git",
     ".hg",
@@ -114,9 +119,16 @@ def _should_skip(path: Path, root: Path) -> bool:
     if _is_secret_or_env(path):
         return True
     try:
-        rel_parts = path.relative_to(root).parts
+        rel = path.relative_to(root)
+        rel_parts = rel.parts
+        rel_posix = rel.as_posix()
     except ValueError:
         rel_parts = path.parts
+        rel_posix = path.as_posix()
+
+    if rel_posix in GENERATED_OR_VOLATILE_SKIP_PATHS:
+        return True
+
     return any(part in SKIP_DIRS for part in rel_parts)
 
 

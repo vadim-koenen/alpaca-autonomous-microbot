@@ -98,3 +98,29 @@ def test_render_markdown_contains_required_gate_language(tmp_path):
     assert "Does not call Coinbase APIs" in markdown
     assert "Do not implement fill logging" in markdown
     assert "coinbase_client.py" in markdown
+
+def test_discovery_skips_generated_and_volatile_project_docs(tmp_path):
+    module = load_module()
+
+    docs = tmp_path / "docs"
+    docs.mkdir()
+
+    generated = docs / "COINBASE_FILL_LOGGING_IMPLEMENTATION_DISCOVERY.md"
+    handoff = docs / "ACTIVE_HANDOFF.md"
+
+    generated.write_text("Coinbase order fill fee proceeds self output", encoding="utf-8")
+    handoff.write_text("Coinbase order fill fee volatile handoff", encoding="utf-8")
+    (tmp_path / "broker_coinbase.py").write_text(
+        "def get_order_status(order_id):\n    return {'filled_size': '1', 'fee': '0.01'}\n",
+        encoding="utf-8",
+    )
+
+    report = module.discover_repository(tmp_path)
+    hit_paths = {hit.path for hit in report.file_hits}
+
+    assert "docs/COINBASE_FILL_LOGGING_IMPLEMENTATION_DISCOVERY.md" in report.skipped_paths
+    assert "docs/ACTIVE_HANDOFF.md" in report.skipped_paths
+    assert "docs/COINBASE_FILL_LOGGING_IMPLEMENTATION_DISCOVERY.md" not in hit_paths
+    assert "docs/ACTIVE_HANDOFF.md" not in hit_paths
+    assert "broker_coinbase.py" in hit_paths
+
