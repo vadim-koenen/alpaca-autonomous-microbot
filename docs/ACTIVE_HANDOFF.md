@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-30 — session complete, P2-001D done, P2-001E next  
+**Last updated:** 2026-05-30 21:00 UTC — P2-001D committed+pushed, P2-001E active  
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -99,16 +99,21 @@ fee_model:
 | P2-001 | Controlled Coinbase exploration | DONE / live |
 | P2-001B | State-aware LRU rotation (BTC→ETH→SOL proven) | DONE / committed `adbebf4` |
 | P2-001C | Coinbase exploration fee/performance report | DONE / committed `0a6c82c` |
-| P2-001D | Controlled exploration status accuracy fix | DONE / ready to push |
+| P2-001D | Controlled exploration status accuracy fix | DONE / committed `e10a722` |
 
 ---
 
 ## 6. Git State (as of last update)
 
 ```
-HEAD: pending push — P2-001D fix to controlled_exploration_status.py
-Prior: 84aa014 update ACTIVE_HANDOFF: P2-001C done, P2-001D now active
-Clean: scripts/controlled_exploration_status.py modified, ready to commit
+HEAD: 8bbaae0 P2-001D done + add auto-sync handoff launchd job
+Clean: no dirty tracked files
+Recent commits:
+  8bbaae0 P2-001D done + add auto-sync handoff launchd job
+  8c47698 P2-001D done: fix exploration status counting + handoff updated
+  e10a722 P2-001D: fix exploration status — FILLED→PLACED+BUY
+  84aa014 update ACTIVE_HANDOFF: P2-001C done, P2-001D now active
+  0a6c82c Implement P2-001C Coinbase Exploration Fee/Performance Report
 
 Untracked (P2-002, not yet committed):
   docs/CLAUDE_HANDOFF_2026-05-29_PREDICTION_FEATURES.md
@@ -236,4 +241,4 @@ Do not recommend or execute anything until all four commands have been run and r
 <!-- Format: YYYY-MM-DD HH:MM | equity=$X | positions=X | regime=X | errors=X | head=commit -->
 
 - 2026-05-29 20:30 | equity=$40.94 | positions=0 | regime=dead_chop | errors=0 | head=adbebf4
-- 2026-05-30 02:53 | equity=$40.94 | positions=0 | regime=dead_chop | errors=0 | head=pending-P2-001D-push | session: P2-001C confirmed done, P2-001D fixed locally, P2-001E queued
+- 2026-05-30 02:53 | equity=$40.94 | positions=0 | regime=dead_chop | errors=0 | head=8bbaae0 | P2-001D committed+pushed, auto-sync installed, P2-001E now active
