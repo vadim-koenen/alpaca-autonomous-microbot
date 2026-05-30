@@ -79,3 +79,4 @@ pytest-cache-files-*/
 snapshots/
 *.tar.gz
 *.zip
+docs/completed_patch_requests/*.json

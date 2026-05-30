@@ -49,9 +49,8 @@ def check_git_status():
         
         # We only care about tracked files that are dirty
         # Untracked files (??) are ignored for this check unless they interfere
-        if status in ["M", "MM", "AM"]: # Modified or Added/Modified
-            if path not in allowed_dirty:
-                return False, f"Unexpected dirty tracked file: {path}"
+        if "?" not in status and path not in allowed_dirty:
+            return False, f"Unexpected dirty tracked file: {path}"
                 
     return True, ""
 
