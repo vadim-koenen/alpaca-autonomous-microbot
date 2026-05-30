@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-30 19:55 UTC — P2-010B committed; Stabilizes the Coinbase fill logging discovery report so repeated local regeneration remains deterministic and does not create self-referential drift. P2-011 remains gated until the append-only fill/proceeds/fee logging seam is explicitly scoped.
+**Last updated:** 2026-05-30 20:00 UTC — P2-010C committed; Removes volatile `.git/` skipped-path preview entries from Coinbase fill logging discovery output so regeneration remains stable after commits. P2-011 remains gated until the append-only fill/proceeds/fee logging seam is explicitly scoped.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -122,17 +122,19 @@ fee_model:
 | P2-009 | Open-Source Bot Plumbing Survey | DONE / committed `1b49c11` |
 | P2-010 | Coinbase Fill Logging Implementation Discovery | DONE / committed `0bc4d87` |
 | P2-010B | Stabilize Coinbase Fill Logging Discovery Report | DONE / committed `d1de493` |
+| P2-010C | Remove Volatile Skipped Paths From Discovery Report | DONE / committed `3a7a953` |
 
 ---
 
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: d1de493
+Latest functional patch commit: 3a7a953
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
 Recent commits:
+  3a7a953 P2-010C: Remove Volatile Skipped Paths From Discovery Report
   d1de493 P2-010B: Stabilize Coinbase Fill Logging Discovery Report
   0bc4d87 P2-010: Coinbase Fill Logging Implementation Discovery
   1b49c11 P2-009: Open-Source Bot Plumbing Survey
@@ -169,7 +171,7 @@ From confirmed live trade data (6 completed cycles):
 ## 8. Active Patch Queue
 
 ### IN PROGRESS
-**P2-010B completed deterministic stabilization for the Coinbase fill logging discovery report. Current blocker remains measurement truth: `logs/coinbase_fills.csv` is missing, direct sell proceeds and fee rows are missing, realized gross/net P/L must remain `n/a`, and Class 2 tuning remains blocked. Next safe patch should be P2-011: narrow append-only Coinbase fill logger implementation plan/scaffold using the P2-010 discovery report to choose the safest seam. Do not tune TP/SL, hold time, notional size, symbols, predictions, or live strategy until fills/proceeds/fees are captured and reconciled.**
+**P2-010C completed deterministic stabilization by removing volatile `.git/` skipped-path preview entries from the Coinbase fill logging discovery report. Current blocker remains measurement truth: `logs/coinbase_fills.csv` is missing, direct sell proceeds and fee rows are missing, realized gross/net P/L must remain `n/a`, and Class 2 tuning remains blocked. Next safe patch should be P2-011: narrow append-only Coinbase fill logger implementation plan/scaffold using the P2-010/P2-010C discovery output to choose the safest seam. Do not tune TP/SL, hold time, notional size, symbols, predictions, or live strategy until fills/proceeds/fees are captured and reconciled.**
 
 ### QUEUED (blocked — data + explicit approval required)
 - **SL/TP/hold-time tuning** — Class 2; use P2-001E exit-quality and P2-005 MFE/MAE reports only after ≥20 price-path samples, ~2+ weeks of P2-003 data, and explicit human approval
@@ -241,3 +243,4 @@ Do not recommend or execute anything until all four commands have been run and r
 - 2026-05-30 19:45 UTC | head=1b49c11 | P2-009 complete; Adds open-source bot plumbing survey, read-only reference checker, and tests. Integrates Freqtrade, Hummingbot, Jesse, OctoBot, and CCXT as architecture references only. No external code copied, no installs, no live behavior changes, no strategy tuning. Next patch should be P2-010 read-only Coinbase fill logging implementation discovery.
 - 2026-05-30 19:50 UTC | head=0bc4d87 | P2-010 complete; Adds read-only Coinbase fill logging implementation discovery, generated report, scanner, and tests. Identifies broker/status/journal seams for future append-only fill logging. No live behavior changes, no external API calls, no config/risk/state/runtime/launchd changes, and no strategy tuning.
 - 2026-05-30 19:55 UTC | head=d1de493 | P2-010B complete; Stabilizes Coinbase fill logging discovery report generation and tests deterministic regeneration. No live behavior changes, no external API calls, no config/risk/state/runtime/launchd changes, and no strategy tuning.
+- 2026-05-30 20:00 UTC | head=3a7a953 | P2-010C complete; Removes volatile `.git/` skipped-path preview entries from the Coinbase fill logging discovery report and confirms deterministic regeneration. No live behavior changes, no external API calls, no config/risk/state/runtime/launchd changes, and no strategy tuning.
