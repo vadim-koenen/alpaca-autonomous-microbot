@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-30 04:05 UTC — P2-001G committed; Automates ACTIVE_HANDOFF updates, handoff commits, pushes, and raw GitHub verification
+**Last updated:** 2026-05-30 04:12 UTC — P2-001H committed; Re-baselines Coinbase exploration using live-only BTC/ETH/SOL data excluding dry_run, ALGO, probe, and recovered noise
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -103,18 +103,19 @@ fee_model:
 | P2-001E | Coinbase exit quality report | DONE / committed `535298c` |
 | P2-001F | Coinbase maker order audit | DONE / committed `f835e74` |
 | P2-001G | Patch completion automation | DONE / committed `5fcca5c` |
+| P2-001H | Coinbase live-only performance re-baseline | DONE / committed `9ac606a` |
 
 ---
 
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 5fcca5c
-Latest handoff commit: 8751d65
+Latest functional patch commit: 9ac606a
+Latest handoff commit: 466685f
 Clean: no dirty tracked files (except handoff update)
 
 Recent commits:
-  5fcca5c P2-001G: Patch completion automation
+  9ac606a P2-001H: Coinbase live-only performance re-baseline
 ```
 
 P2-002 files are advisory-only. Safe to commit after review of `prediction_features.py` for future-data leakage. Not urgent.
@@ -206,3 +207,4 @@ Do not recommend or execute anything until all four commands have been run and r
 - 2026-05-30 03:53 UTC | head=f835e74 | P2-001F committed+pushed; 6/6 entries likely passive-priced; actual maker/taker fee flags still unproven
 - 2026-05-30 03:56 UTC | head=f835e74 | P2-001F committed+pushed; 6/6 entries likely passive-priced; actual maker/taker fee flags still unproven
 - 2026-05-30 04:05 UTC | head=5fcca5c | P2-001G complete; Automates ACTIVE_HANDOFF updates, handoff commits, pushes, and raw GitHub verification
+- 2026-05-30 04:12 UTC | head=9ac606a | P2-001H complete; Re-baselines Coinbase exploration using live-only BTC/ETH/SOL data excluding dry_run, ALGO, probe, and recovered noise
