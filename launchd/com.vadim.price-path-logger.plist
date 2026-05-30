@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!-- ADVISORY ONLY — read-only price path logger. Does not place trades. -->
+<dict>
+    <key>Label</key>
+    <string>com.vadim.price-path-logger</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>cd /Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot &amp;&amp; /usr/bin/python3 scripts/coinbase_price_path_logger.py</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>60</integer>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>WorkingDirectory</key>
+    <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot</string>
+    <key>StandardOutPath</key>
+    <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/logs/price_path_logger.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/logs/price_path_logger.err.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
