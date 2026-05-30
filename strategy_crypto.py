@@ -119,6 +119,54 @@ class CryptoStrategy:
         self._last_bar_ts: dict[str, str] = {}
         # Controlled Exploration state (P2-001B) — now recovered from journal/state on demand
         self._exploration_proposed_this_cycle: bool = False
+        # Current equity for dynamic position sizing (P2-004)
+        self.current_equity: float | None = None
+
+    # -----------------------------------------------------------------------
+    # Dynamic Position Sizing (P2-004) — Equity retrieval
+    # -----------------------------------------------------------------------
+
+    def _get_current_equity(self) -> float | None:
+        """
+        Retrieve current account equity from the most recent journal entry.
+        Returns: equity amount or None if unavailable.
+        
+        This allows dynamic position sizing to work without requiring
+        main.py to set self.current_equity explicitly. The journal is
+        updated by the bot runtime on each trading cycle.
+        """
+        try:
+            logging_cfg = get_cfg("logging", default={})
+            if not logging_cfg:
+                return None
+            
+            journal_file = logging_cfg.get("journal_file", "journal_coinbase_crypto.csv")
+            journal_path = ROOT / journal_file
+            
+            if not journal_path.exists():
+                return None
+            
+            # Read journal and get equity from most recent row
+            with open(journal_path, "r", newline="") as f:
+                rows = list(csv.DictReader(f))
+                if not rows:
+                    return None
+                
+                # Iterate from end backwards to find first non-zero equity
+                for row in reversed(rows):
+                    equity_str = row.get("equity", "").strip()
+                    if equity_str and equity_str != "0.0":
+                        try:
+                            equity = float(equity_str)
+                            if equity > 0:
+                                return equity
+                        except (ValueError, TypeError):
+                            continue
+            
+            return None
+        except Exception as e:
+            logger.debug(f"Error retrieving current equity from journal: {e}")
+            return None
 
     # -----------------------------------------------------------------------
     # Controlled Exploration Helpers (P2-001B)
@@ -327,9 +375,83 @@ class CryptoStrategy:
             return None  # below exchange/config minimum — skip
         return notional
 
-    # -----------------------------------------------------------------------
-    # ATR-based dynamic exits
-    # -----------------------------------------------------------------------
+    def _compute_dynamic_notional(
+        self,
+        equity: float,
+        buying_power: float | None = None,
+    ) -> float:
+        """
+        Compute position notional based on equity percentage.
+        Falls back to min_notional on any error or if dynamic sizing disabled.
+
+        Scaling table (position_size_pct=2.5, min=1.00, max=25.00):
+          $40   → $1.00 (at min floor)
+          $100  → $2.50
+          $200  → $5.00
+          $500  → $12.50
+          $1000 → $25.00 (at max cap)
+        """
+        try:
+            ds_cfg = get_cfg("dynamic_sizing") or {}
+            if not ds_cfg.get("enabled", False):
+                return self._compute_notional(buying_power) or 1.00
+
+            min_notional = float(ds_cfg.get("min_notional_usd", 1.00))
+            max_notional = float(ds_cfg.get("max_notional_usd", 25.00))
+            threshold = float(ds_cfg.get("scaling_threshold_usd", 20.00))
+            size_pct = float(ds_cfg.get("position_size_pct", 2.5))
+
+            if not equity or equity < threshold:
+                return min_notional
+
+            notional = equity * (size_pct / 100.0)
+            notional = max(min_notional, min(notional, max_notional))
+
+            # Also respect available buying power
+            if buying_power:
+                buffer = float(get_cfg("crypto", "buying_power_safety_buffer", default=0.85))
+                notional = min(notional, buying_power * buffer)
+
+            if notional < min_notional:
+                return min_notional
+
+            return round(notional, 2)
+
+        except Exception:
+            # Fail safe: return minimum notional
+            return 1.00
+
+    def get_dynamic_daily_stop_loss(self) -> float | None:
+        """
+        Get daily stop loss limit, applying dynamic sizing if enabled and equity available.
+        Returns: USD amount or None if dynamic sizing disabled.
+        """
+        try:
+            ds_cfg = get_cfg("dynamic_sizing") or {}
+            if not ds_cfg.get("enabled", False) or not self.current_equity:
+                return None
+
+            daily_stop_loss_pct = float(ds_cfg.get("daily_stop_loss_pct", 7.5))
+            daily_stop_loss = self.current_equity * (daily_stop_loss_pct / 100.0)
+            return round(daily_stop_loss, 2)
+        except Exception:
+            return None
+
+    def get_dynamic_max_exposure(self) -> float | None:
+        """
+        Get max total exposure limit, applying dynamic sizing if enabled and equity available.
+        Returns: USD amount or None if dynamic sizing disabled.
+        """
+        try:
+            ds_cfg = get_cfg("dynamic_sizing") or {}
+            if not ds_cfg.get("enabled", False) or not self.current_equity:
+                return None
+
+            max_exposure_pct = float(ds_cfg.get("max_exposure_pct", 15.0))
+            max_exposure = self.current_equity * (max_exposure_pct / 100.0)
+            return round(max_exposure, 2)
+        except Exception:
+            return None
 
     def _build_dynamic_exit(
         self,
@@ -491,7 +613,7 @@ class CryptoStrategy:
 
         if not allowed:
             # 1. Controlled Exploration (P2-001)
-            exploration = self._coinbase_exploration(symbol, quote, df, buying_power, regime)
+            exploration = self._coinbase_exploration(symbol, quote, df, buying_power, regime, self._get_current_equity())
             if exploration is not None:
                 return [exploration]
 
@@ -518,7 +640,7 @@ class CryptoStrategy:
 
         if not candidates:
             # Main strategies sat out — try exploration/probe as fallbacks
-            exploration = self._coinbase_exploration(symbol, quote, df, buying_power, regime)
+            exploration = self._coinbase_exploration(symbol, quote, df, buying_power, regime, self.current_equity)
             if exploration is not None:
                 return [exploration]
 
@@ -560,7 +682,8 @@ class CryptoStrategy:
         quote: Quote,
         df: pd.DataFrame,
         buying_power: float | None,
-        regime: str
+        regime: str,
+        equity: float | None = None,
     ) -> Optional[TradeProposal]:
         """
         Controlled Coinbase exploration (P2-001B).
@@ -623,9 +746,17 @@ class CryptoStrategy:
                 return None
 
             # All good — Propose!
-            max_notional = float(cfg.get("max_single_trade_notional_usd", 1.00))
-            notional = self._compute_notional(buying_power) or 0.50
-            notional = min(notional, max_notional)
+            # Dynamic sizing: use equity-based notional if enabled
+            if equity:
+                notional = self._compute_dynamic_notional(
+                    equity=equity,
+                    buying_power=buying_power,
+                )
+            else:
+                # Fallback: existing behavior
+                max_notional = float(cfg.get("max_single_trade_notional_usd", 1.00))
+                notional = self._compute_notional(buying_power) or 0.50
+                notional = min(notional, max_notional)
 
             sl_pct = 1.50
             tp_pct = 3.25

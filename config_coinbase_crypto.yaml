@@ -118,6 +118,24 @@ crypto:
   coinbase_probe_buying_power_buffer: 0.80
   coinbase_probe_min_confidence_score: 0.60
 
+  # ── Dynamic Equity-Based Position Sizing (P2-004) ──────────
+  # Automatically scales position size and risk limits with account equity.
+  # Enables graceful scaling when equity increases due to profits or deposits.
+  dynamic_sizing:
+    enabled: true
+    # Position size as % of current equity
+    position_size_pct: 2.5
+    # Never trade less than this (protects against dust trades)
+    min_notional_usd: 1.00
+    # Never trade more than this regardless of equity (hard safety cap)
+    max_notional_usd: 25.00
+    # Only scale above this equity level (below = always use min_notional)
+    scaling_threshold_usd: 20.00
+    # Daily stop loss as % of equity (7.5% = $3 on $40 account — same as now)
+    daily_stop_loss_pct: 7.5
+    # Max total exposure as % of equity (15% = $6 on $40 — same as now)
+    max_exposure_pct: 15.0
+
 # ── Fee model ─────────────────────────────────────────────────
 fees:
   venue: "coinbase_advanced"
