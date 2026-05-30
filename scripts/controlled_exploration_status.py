@@ -8,6 +8,7 @@ Checks exploration status, symbol distribution, and risk cap integrity.
 from __future__ import annotations
 
 import csv
+import json
 import sys
 from collections import Counter
 from datetime import datetime, timezone
@@ -94,18 +95,29 @@ def report_status():
                         symbol = row.get("symbol", "")
                         
                         if strategy == "coinbase_exploration":
-                            if decision == "FILLED":
+                            # BUY + PLACED = a real entry order was submitted
+                            action = row.get("action", "")
+                            if decision == "PLACED" and action == "BUY":
                                 daily_trades += 1
                                 trades_by_symbol[symbol] += 1
                                 last_symbol = symbol
                             elif decision == "SKIPPED":
                                 reject_reasons.append(row.get("reason", "unknown"))
 
-                if rows:
-                    last_row = rows[-1]
-                    open_positions = int(safe_float(last_row.get("open_positions", 0)))
         except Exception as e:
             print(f"Error reading journal: {e}")
+
+    # Open positions: read from state file (authoritative) not journal last-row
+    state_file = ROOT / "state" / "coinbase" / "open_positions.json"
+    if state_file.exists():
+        try:
+            with open(state_file) as f:
+                state = json.load(f)
+                # State file format: {"positions": {...}, "saved_at": ..., ...}
+                pos = state.get("positions", state) if isinstance(state, dict) else state
+                open_positions = len(pos) if isinstance(pos, (dict, list)) else 0
+        except Exception:
+            pass
 
     print("=== Recent Activity (Last 24h) ===")
     print(f"Daily Trades (Exploration): {daily_trades}")
