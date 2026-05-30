@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-29  
+**Last updated:** 2026-05-30  
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -98,13 +98,14 @@ fee_model:
 | P1-006D | Scoring reconciliation | DONE / committed |
 | P2-001 | Controlled Coinbase exploration | DONE / live |
 | P2-001B | State-aware LRU rotation (BTC→ETH→SOL proven) | DONE / committed `adbebf4` |
+| P2-001C | Coinbase exploration fee/performance report | DONE / committed `0a6c82c` |
 
 ---
 
 ## 6. Git State (as of last update)
 
 ```
-HEAD: adbebf4 make Coinbase exploration rotation state aware
+HEAD: 0a6c82c Implement P2-001C Coinbase Exploration Fee/Performance Report
 Clean: no dirty tracked files
 
 Untracked (P2-002, not yet committed):
@@ -144,22 +145,24 @@ From confirmed live trade data (6 completed cycles):
 ## 8. Active Patch Queue
 
 ### IN PROGRESS
-**P2-001C — Coinbase Exploration Fee/Performance Report**  
-Risk class: Class 1 advisory  
-Status: Recommended, not yet executed  
+**P2-001D — Controlled Exploration Status Accuracy Fix**  
+Risk class: Class 1  
+Status: Next up — `controlled_exploration_status.py` shows `Daily Trades: 0` when trades occurred today. Heartbeat confirms last_trade_at=2026-05-29T17:15:37. Status script is reading from wrong source or stale state.  
 Executor: GitHub Copilot  
 
-Files to create:
+Files to modify:
 ```
-scripts/coinbase_exploration_performance_report.py
-tests/test_coinbase_exploration_performance_report.py
-docs/COINBASE_EXPLORATION_PERFORMANCE_RUNBOOK.md
+scripts/controlled_exploration_status.py   ← fix trade counting logic only
+```
+Files must NOT be touched:
+```
+main.py, broker_*.py, order_manager.py, risk_manager.py,
+config_coinbase_crypto.yaml, .env, state/, launchd/
 ```
 
-### QUEUED (do not start until P2-001C is complete)
-- **P2-001D** — Controlled exploration status accuracy fix (`controlled_exploration_status.py` shows 0 trades when trades occurred)
+### QUEUED (do not start until P2-001D is complete)
 - **P2-001E** — Exit quality report (max-hold vs SL vs TP distribution, MFE/MAE analysis)
-- **P2-003** — Entry quality gate (Class 2, requires P2-001C and P2-001E first)
+- **P2-003** — Entry quality gate (Class 2, requires P2-001D and P2-001E first)
 
 ### DO NOT START YET
 - Any TP/SL/hold-time config changes
