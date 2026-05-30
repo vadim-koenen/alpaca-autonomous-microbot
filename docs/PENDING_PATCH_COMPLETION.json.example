@@ -1,0 +1,9 @@
+{
+  "patch": "P2-001X",
+  "title": "Example Patch Title",
+  "patch_commit": "abc1234",
+  "summary": "One-line description of what the patch did and found.",
+  "next": "P2-001Y — Next patch description",
+  "created_at": "2026-05-30T10:00:00Z",
+  "created_by": "gemini"
+}
