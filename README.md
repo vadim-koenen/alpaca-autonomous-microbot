@@ -1,7 +1,11 @@
-# Alpaca Autonomous Micro-Trading Bot
+# Autonomous Crypto Trading Bot — Coinbase (Primary) + Alpaca (Secondary)
 
-A rule-bound, autonomous Python trading bot for a small Alpaca live account.
-Designed for disciplined experimentation with crypto spot as the primary live asset class.
+A rule-bound, autonomous Python trading bot running two live accounts under launchd.
+
+| Bot | Exchange | Status | Focus |
+|---|---|---|---|
+| **Coinbase bot** | Coinbase Advanced | ✅ PRIMARY — active | $1 controlled exploration, BTC/ETH/SOL |
+| **Alpaca bot** | Alpaca | ⏸ SECONDARY — on hold | Equity/crypto scanning, no active trades |
 
 > **Capital at risk.** This bot is an experiment. The entire funded amount may be lost.
 > The system is engineered for discipline, not profit guarantees.

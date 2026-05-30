@@ -11,11 +11,18 @@
 
 ## 1. Project Identity
 
-This is a live autonomous trading bot running on a Mac under launchd.  
-- **Coinbase bot** — primary live trading, crypto spot, $1.00 controlled exploration  
-- **Alpaca bot** — secondary, equity/crypto scanning, currently inactive due to after-hours stale quotes  
+Two bots, one repo, running on a Mac under launchd.
 
-The project has moved past execution plumbing. Current focus is measurement, fee analysis, and entry/exit quality improvement.
+| Bot | Exchange | Status | Config file |
+|---|---|---|---|
+| **Coinbase bot** | Coinbase Advanced | ✅ PRIMARY — active optimization | `config_coinbase_crypto.yaml` |
+| **Alpaca bot** | Alpaca | ⏸ SECONDARY — on hold | `config.yaml` |
+
+**Coinbase bot** is the active focus. Running $1 controlled exploration across BTC/USD, ETH/USD, SOL/USD. All current patches (P2-001x through P2-002) are Coinbase-only.
+
+**Alpaca bot** is running but on hold — constant stale quote skips during off-hours, zero trades placed, not current priority. Will revisit when equity market hours align or when Coinbase work reaches a stable plateau.
+
+Note: repo name (`alpaca-autonomous-microbot`) reflects the project's origin. Both bots live here.
 
 ---
 
