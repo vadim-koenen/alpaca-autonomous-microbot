@@ -99,3 +99,13 @@ Until enough evidence is collected:
 - no paper-to-live promotion
 
 Use this report to decide what should be tested in paper/shadow mode next, not to modify live risk directly.
+
+## Missing exit-fill handling
+
+Some Coinbase journal exit/status rows can confirm that a position was closed without carrying actual sell proceeds in the local journal row. P2-006 must treat those rows as `unavailable`, not `$0.00`.
+
+Required behavior:
+- Do not calculate `-100%` return from a missing sell fill.
+- Print an exit-fill warning.
+- Leave gross/net P/L and returns unavailable until actual sell proceeds are available.
+- Keep the report advisory-only.
