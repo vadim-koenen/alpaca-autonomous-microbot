@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-30 04:23 UTC — P2-001I committed; Adds polling daemon to automate ACTIVE_HANDOFF updates
+**Last updated:** 2026-05-30 12:41 UTC — P2-002 committed; Shadow learner features reviewed for future-data leakage and committed
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -50,15 +50,15 @@ ALWAYS:
 
 | Item | Value |
 |---|---|
-| Coinbase equity | ~$40.94 |
-| Coinbase status | RUNNING_BY_LAUNCHD (PID 44548, uptime ~11h) |
+| Coinbase equity | $40.94 |
+| Coinbase status | RUNNING_BY_LAUNCHD |
 | Alpaca equity | $10.00 |
-| Alpaca status | RUNNING_BY_LAUNCHD (PID 40509, outside market hours) |
+| Alpaca status | RUNNING_BY_LAUNCHD (outside market hours) |
 | Kill switch | INACTIVE (trading allowed) |
 | Open positions | 0 |
-| Last Coinbase trade | 2026-05-29T17:15:37 UTC |
-| Last Coinbase exit | 2026-05-29T18:46:11 UTC |
-| Current regime | dead_chop (bot correctly sitting out) |
+| Last Coinbase trade | 2026-05-25T12:06:37 UTC (journal; all SKIPPED — max trades/day) |
+| Last Coinbase exit | 2026-05-25T12:06:37 UTC |
+| Current regime | dead_chop (BTC/ETH/SOL — bot correctly sitting out) |
 
 ---
 
@@ -105,18 +105,19 @@ fee_model:
 | P2-001G | Patch completion automation | DONE / committed `5fcca5c` |
 | P2-001H | Coinbase live-only performance re-baseline | DONE / committed `9ac606a` |
 | P2-001I | Handoff automation daemon | DONE / committed `0028733` |
+| P2-002 | Review and commit advisory prediction features | DONE / committed `012ab07` |
 
 ---
 
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 0028733
-Latest handoff commit: 008cad6
+Latest functional patch commit: 012ab07
+Latest handoff commit: a67cfe5
 Clean: no dirty tracked files (except handoff update)
 
 Recent commits:
-  0028733 P2-001I: Handoff automation daemon
+  012ab07 P2-002: Review and commit advisory prediction features
 ```
 
 P2-002 files are advisory-only. Safe to commit after review of `prediction_features.py` for future-data leakage. Not urgent.
@@ -147,10 +148,9 @@ From confirmed live trade data (6 completed cycles):
 ## 8. Active Patch Queue
 
 ### IN PROGRESS
-**P2-002 — Prediction features review**
+**SL/TP/hold-time tuning**
 
 ### QUEUED (do not start until P2-001E is complete)
-- **P2-002 commit** — review prediction_features.py for future-data leakage first
 - **SL/TP/hold-time tuning** — Class 2, needs P2-001E report to justify changes
 - **P2-003** — Entry quality gate (Class 2, requires P2-001E first)
 
@@ -210,3 +210,5 @@ Do not recommend or execute anything until all four commands have been run and r
 - 2026-05-30 04:05 UTC | head=5fcca5c | P2-001G complete; Automates ACTIVE_HANDOFF updates, handoff commits, pushes, and raw GitHub verification
 - 2026-05-30 04:12 UTC | head=9ac606a | P2-001H complete; Re-baselines Coinbase exploration using live-only BTC/ETH/SOL data excluding dry_run, ALGO, probe, and recovered noise
 - 2026-05-30 04:23 UTC | head=0028733 | P2-001I complete; Adds polling daemon to automate ACTIVE_HANDOFF updates
+- 2026-05-30 12:41 | equity=$40.94 | positions=0 | regime=dead_chop | errors=0 | head=b4da00f
+- 2026-05-30 12:41 UTC | head=012ab07 | P2-002 complete; Shadow learner features reviewed for future-data leakage and committed
