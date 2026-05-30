@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-30 14:44 UTC — P2-005 committed; Adds advisory-only Coinbase price-path MFE/MAE analyzer, tests, and runbook to evaluate intra-hold excursions before any Class 2 tuning.
+**Last updated:** 2026-05-30 18:26 UTC — P2-006 committed; Adds advisory-only Coinbase sizing/execution reconciliation report, tests, and runbook. The report explains fixed-cap controlled exploration, legacy $0.50 vs $1.00 sizing, missing sell-fill data, fee drag, max-hold exits, and why P/L must remain unavailable when sell proceeds are not present.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -116,19 +116,19 @@ fee_model:
 | P2-003 | Intra-hold price path logger | DONE / committed `bd89891` |
 | P2-004 | Dynamic equity-based Coinbase sizing groundwork | DONE / committed `4903014` |
 | P2-005 | Coinbase Price-Path MFE/MAE Analyzer | DONE / committed `7ddf6d7` |
+| P2-006 | Coinbase Sizing / Execution / Profitability Reconciliation Report | DONE / committed `49135bc` |
 
 ---
 
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 7ddf6d7
-Latest handoff commit: ae93ea3
-Clean: yes (no dirty tracked files)
+Latest functional patch commit: 49135bc
+Latest handoff commit: 5745fa6
+Clean: no dirty tracked files (except handoff update)
 
 Recent commits:
-  ae93ea3 update ACTIVE_HANDOFF: P2-005 complete
-  7ddf6d7 P2-005: add Coinbase price-path MFE/MAE analyzer
+  49135bc P2-006: Coinbase Sizing / Execution / Profitability Reconciliation Report
 ```
 
 P2-002 advisory prediction features are committed (`012ab07`); do not connect to live decisions without explicit approval.
@@ -159,7 +159,7 @@ From confirmed live trade data (6 completed cycles):
 ## 8. Active Patch Queue
 
 ### IN PROGRESS
-**Collect more P2-003 price-path data; Class 2 SL/TP/hold-time and hard-cap tuning remains blocked until at least 20 paths, roughly 2+ weeks of data, and explicit human approval.**
+**Use P2-006 with P2-005 and P2-003 data to diagnose sizing/execution quality. Continue collecting price-path samples. Class 2 notional, TP/SL, hold-time, and prediction-to-live changes remain blocked until evidence thresholds and explicit approval are met. Next advisory patch should improve sell-fill/order-fill reconciliation if local journals continue lacking exit proceeds.**
 
 ### QUEUED (blocked — data + explicit approval required)
 - **SL/TP/hold-time tuning** — Class 2; use P2-001E exit-quality and P2-005 MFE/MAE reports only after ≥20 price-path samples, ~2+ weeks of P2-003 data, and explicit human approval
@@ -225,3 +225,4 @@ Do not recommend or execute anything until all four commands have been run and r
 - 2026-05-30 12:52 UTC | head=bd89891 | P2-003 complete; Adds read-only Coinbase price path logger to collect intra-hold snapshots for true MFE/MAE analysis before Class 2 tuning
 - 2026-05-30 14:28 UTC | head=4903014 | P2-004 complete; Adds Coinbase-only dynamic equity sizing framework while preserving hard $1 trade cap, exposure cap, stop-loss cap, and existing risk gates
 - 2026-05-30 14:44 UTC | head=7ddf6d7 | P2-005 complete; Adds advisory-only Coinbase price-path MFE/MAE analyzer, tests, and runbook to evaluate intra-hold excursions before any Class 2 tuning.
+- 2026-05-30 18:26 UTC | head=49135bc | P2-006 complete; Adds advisory-only Coinbase sizing/execution reconciliation report, tests, and runbook. The report explains fixed-cap controlled exploration, legacy $0.50 vs $1.00 sizing, missing sell-fill data, fee drag, max-hold exits, and why P/L must remain unavailable when sell proceeds are not present.
