@@ -131,7 +131,6 @@ Clean: no dirty tracked files (except handoff update)
 
 Recent commits:
   fbe3867 P2-008: Coinbase Immutable Fill Logging Contract Spec
-  fbe3867 P2-008: Coinbase Immutable Fill Logging Contract Spec
   1b6ce77 P2-007: Coinbase Fill / Proceeds Reconciliation Report
   49135bc P2-006: Coinbase Sizing / Execution / Profitability Reconciliation Report
 ```
