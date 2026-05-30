@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-30 19:35 UTC — P2-008 committed; Adds advisory-only Coinbase immutable fill logging contract spec, read-only contract checker, and tests. The checker confirms `logs/coinbase_fills.csv` does not exist yet and warns not to infer realized P/L from journal exit intent rows.
+**Last updated:** 2026-05-30 19:45 UTC — P2-009 committed; Adds advisory-only open-source bot plumbing survey, read-only reference checker, and tests. The survey captures Freqtrade, Hummingbot, Jesse, OctoBot, and CCXT as architecture references only, with no copied code, installs, live behavior changes, or strategy tuning.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -119,17 +119,19 @@ fee_model:
 | P2-006 | Coinbase Sizing / Execution / Profitability Reconciliation Report | DONE / committed `49135bc` |
 | P2-007 | Coinbase Fill / Proceeds Reconciliation Report | DONE / committed `1b6ce77` |
 | P2-008 | Coinbase Immutable Fill Logging Contract Spec | DONE / committed `fbe3867` |
+| P2-009 | Open-Source Bot Plumbing Survey | DONE / committed `1b49c11` |
 
 ---
 
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: fbe3867
+Latest functional patch commit: 1b49c11
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
 Recent commits:
+  1b49c11 P2-009: Open-Source Bot Plumbing Survey
   fbe3867 P2-008: Coinbase Immutable Fill Logging Contract Spec
   1b6ce77 P2-007: Coinbase Fill / Proceeds Reconciliation Report
   49135bc P2-006: Coinbase Sizing / Execution / Profitability Reconciliation Report
@@ -163,7 +165,7 @@ From confirmed live trade data (6 completed cycles):
 ## 8. Active Patch Queue
 
 ### IN PROGRESS
-**P2-008 defines the required immutable Coinbase fill log contract and adds a read-only checker. Current status: `logs/coinbase_fills.csv` is missing, so realized gross/net P/L must remain `n/a`. Continue collecting price-path samples. Class 2 notional, TP/SL, hold-time, and prediction-to-live changes remain blocked. Next safe patch should be P2-009: read-only implementation discovery to map where Coinbase order/fill data is available before any live execution-path logging implementation is attempted.**
+**P2-009 integrates public trading-bot plumbing ideas as architecture references only. Freqtrade, Hummingbot, Jesse, OctoBot, and CCXT are reference patterns, not dependencies or copied strategy code. Current blocker remains measurement truth: `logs/coinbase_fills.csv` is missing, realized gross/net P/L must remain `n/a`, and Class 2 tuning remains blocked. Next safe patch should be P2-010: read-only Coinbase fill logging implementation discovery to map order submission, response parsing, journal writing, and available fill/proceeds/fee fields before any execution-path implementation is attempted.**
 
 ### QUEUED (blocked — data + explicit approval required)
 - **SL/TP/hold-time tuning** — Class 2; use P2-001E exit-quality and P2-005 MFE/MAE reports only after ≥20 price-path samples, ~2+ weeks of P2-003 data, and explicit human approval
@@ -232,3 +234,4 @@ Do not recommend or execute anything until all four commands have been run and r
 - 2026-05-30 18:26 UTC | head=49135bc | P2-006 complete; Adds advisory-only Coinbase sizing/execution reconciliation report, tests, and runbook. The report explains fixed-cap controlled exploration, legacy $0.50 vs $1.00 sizing, missing sell-fill data, fee drag, max-hold exits, and why P/L must remain unavailable when sell proceeds are not present.
 - 2026-05-30 19:15 UTC | head=1b6ce77 | P2-007 complete; Adds advisory-only Coinbase fill/proceeds reconciliation report, tests, and runbook. Confirms 37 exit/sell rows, zero direct sell proceeds, zero fee rows, zero reconstructable gross/net P/L pairs; realized P/L must remain n/a until immutable fill/proceeds/fee logging is fixed.
 - 2026-05-30 19:35 UTC | head=fbe3867 | P2-008 complete; Adds Coinbase immutable fill logging contract spec, read-only contract checker, and tests. Confirms `logs/coinbase_fills.csv` is missing and realized P/L must remain n/a until actual fill/proceeds/fee logging is implemented safely.
+- 2026-05-30 19:45 UTC | head=1b49c11 | P2-009 complete; Adds open-source bot plumbing survey, read-only reference checker, and tests. Integrates Freqtrade, Hummingbot, Jesse, OctoBot, and CCXT as architecture references only. No external code copied, no installs, no live behavior changes, no strategy tuning. Next patch should be P2-010 read-only Coinbase fill logging implementation discovery.
