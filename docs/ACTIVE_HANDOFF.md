@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-30 23:06 UTC — P2-011A committed; Adds tested append-only Coinbase fill/proceeds/fee logger scaffold and implementation plan. No execution hook, no live behavior changes, and no strategy/config/risk/runtime changes. P2-011B remains gated until the exact broker response containing direct fill/proceeds/fee facts is identified.
+**Last updated:** 2026-05-30 23:26 UTC — P2-011B committed; Adds read-only Coinbase fill response discovery report, script, and tests. Confirms no logger hook yet: direct fill facts are visible from Coinbase order status handling, but sell proceeds and actual exit-leg fees are not proven from a current broker response path. P2-011C remains gated.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -124,17 +124,19 @@ fee_model:
 | P2-010B | Stabilize Coinbase Fill Logging Discovery Report | DONE / committed `d1de493` |
 | P2-010C | Remove Volatile Skipped Paths From Discovery Report | DONE / committed `3a7a953` |
 | P2-011A | Coinbase Fill Logger Scaffold | DONE / committed `818ded7` |
+| P2-011B | Coinbase Fill Response Discovery | DONE / committed `90f68fa` |
 
 ---
 
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 818ded7
+Latest functional patch commit: 90f68fa
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
 Recent commits:
+  90f68fa P2-011B: Coinbase Fill Response Discovery
   818ded7 P2-011A: Coinbase Fill Logger Scaffold
   3a7a953 P2-010C: Remove Volatile Skipped Paths From Discovery Report
   d1de493 P2-010B: Stabilize Coinbase Fill Logging Discovery Report
@@ -173,7 +175,7 @@ From confirmed live trade data (6 completed cycles):
 ## 8. Active Patch Queue
 
 ### IN PROGRESS
-**P2-011A completed the safe append-only Coinbase fill logger scaffold: `coinbase_fill_logger.py`, `tests/test_coinbase_fill_logger.py`, and `docs/COINBASE_FILL_LOGGER_IMPLEMENTATION_PLAN.md`. Tests passed. Current blocker remains measurement truth: the logger is not yet hooked into live execution, `logs/coinbase_fills.csv` is not yet populated from broker facts, direct sell proceeds and fee rows still must be captured, realized gross/net P/L must remain `n/a`, and Class 2 tuning remains blocked. Next safe patch should be P2-011B: inspect Coinbase order/fill response payloads and choose the narrowest append-only hook only if actual fill/proceeds/fee facts are available. Do not tune TP/SL, hold time, notional size, symbols, predictions, or live strategy until fills/proceeds/fees are captured and reconciled.**
+**P2-011B completed read-only Coinbase fill response discovery. Current finding: direct fill facts such as `filled_size` and `average_filled_price` appear in Coinbase order status handling, but direct sell proceeds and actual exit-leg fees are not proven from the current broker response path. The logger must not be hooked yet. Next safe patch should be P2-011C: narrow raw Coinbase order/status payload capture plus fixture-based tests at the identified seam, proving whether gross/net P/L can be reconstructed from captured facts. Do not tune TP/SL, hold time, notional size, symbols, predictions, or live strategy until fills/proceeds/fees are captured and reconciled.**
 
 ### QUEUED (blocked — data + explicit approval required)
 - **SL/TP/hold-time tuning** — Class 2; use P2-001E exit-quality and P2-005 MFE/MAE reports only after ≥20 price-path samples, ~2+ weeks of P2-003 data, and explicit human approval
@@ -247,3 +249,4 @@ Do not recommend or execute anything until all four commands have been run and r
 - 2026-05-30 19:55 UTC | head=d1de493 | P2-010B complete; Stabilizes Coinbase fill logging discovery report generation and tests deterministic regeneration. No live behavior changes, no external API calls, no config/risk/state/runtime/launchd changes, and no strategy tuning.
 - 2026-05-30 20:00 UTC | head=3a7a953 | P2-010C complete; Removes volatile `.git/` skipped-path preview entries from the Coinbase fill logging discovery report and confirms deterministic regeneration. No live behavior changes, no external API calls, no config/risk/state/runtime/launchd changes, and no strategy tuning.
 - 2026-05-30 23:06 UTC | head=818ded7 | P2-011A complete; Adds tested append-only Coinbase fill/proceeds/fee logger scaffold, deterministic CSV schema, append/header safety tests, raw payload serialization tests, and implementation plan. No broker/journal hook, no live behavior changes, no external API calls, no config/risk/state/runtime/launchd changes, and no strategy tuning.
+- 2026-05-30 23:26 UTC | head=90f68fa | P2-011B complete; Adds read-only Coinbase fill response discovery script, generated report, and tests. Confirms logger hook remains blocked because direct sell proceeds and actual exit-leg fees are not yet proven from current broker response handling. No broker/journal hook, no live behavior changes, no external API calls, no config/risk/state/runtime/launchd changes, and no strategy tuning.
