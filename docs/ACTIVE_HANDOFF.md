@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-30 04:12 UTC — P2-001H committed; Re-baselines Coinbase exploration using live-only BTC/ETH/SOL data excluding dry_run, ALGO, probe, and recovered noise
+**Last updated:** 2026-05-30 04:23 UTC — P2-001I committed; Adds polling daemon to automate ACTIVE_HANDOFF updates
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -104,18 +104,19 @@ fee_model:
 | P2-001F | Coinbase maker order audit | DONE / committed `f835e74` |
 | P2-001G | Patch completion automation | DONE / committed `5fcca5c` |
 | P2-001H | Coinbase live-only performance re-baseline | DONE / committed `9ac606a` |
+| P2-001I | Handoff automation daemon | DONE / committed `0028733` |
 
 ---
 
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 9ac606a
-Latest handoff commit: 466685f
+Latest functional patch commit: 0028733
+Latest handoff commit: 008cad6
 Clean: no dirty tracked files (except handoff update)
 
 Recent commits:
-  9ac606a P2-001H: Coinbase live-only performance re-baseline
+  0028733 P2-001I: Handoff automation daemon
 ```
 
 P2-002 files are advisory-only. Safe to commit after review of `prediction_features.py` for future-data leakage. Not urgent.
@@ -146,7 +147,7 @@ From confirmed live trade data (6 completed cycles):
 ## 8. Active Patch Queue
 
 ### IN PROGRESS
-**None — awaiting Claude review / explicit approval before Class 2 live tuning**
+**P2-002 — Prediction features review**
 
 ### QUEUED (do not start until P2-001E is complete)
 - **P2-002 commit** — review prediction_features.py for future-data leakage first
@@ -208,3 +209,4 @@ Do not recommend or execute anything until all four commands have been run and r
 - 2026-05-30 03:56 UTC | head=f835e74 | P2-001F committed+pushed; 6/6 entries likely passive-priced; actual maker/taker fee flags still unproven
 - 2026-05-30 04:05 UTC | head=5fcca5c | P2-001G complete; Automates ACTIVE_HANDOFF updates, handoff commits, pushes, and raw GitHub verification
 - 2026-05-30 04:12 UTC | head=9ac606a | P2-001H complete; Re-baselines Coinbase exploration using live-only BTC/ETH/SOL data excluding dry_run, ALGO, probe, and recovered noise
+- 2026-05-30 04:23 UTC | head=0028733 | P2-001I complete; Adds polling daemon to automate ACTIVE_HANDOFF updates
