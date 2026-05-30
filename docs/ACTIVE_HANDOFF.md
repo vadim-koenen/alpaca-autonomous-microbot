@@ -124,7 +124,6 @@ fee_model:
 ```
 Latest functional patch commit: 7ddf6d7
 Latest handoff commit: ae93ea3
-main HEAD: ae93ea3
 Clean: yes (no dirty tracked files)
 
 Recent commits:
