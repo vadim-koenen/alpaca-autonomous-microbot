@@ -163,7 +163,6 @@ Maker Order Audit found 6/6 Coinbase exploration entries were likely passive-pri
 ### QUEUED (do not start until P2-001E is complete)
 - **P2-002 commit** — review prediction_features.py for future-data leakage first
 - **SL/TP/hold-time tuning** — Class 2, needs P2-001E report to justify changes
-- **Maker order preference audit** — confirm passive_limit_entries is active for exploration
 - **P2-003** — Entry quality gate (Class 2, requires P2-001E first)
 
 ### DO NOT START YET
@@ -217,6 +216,5 @@ Do not recommend or execute anything until all four commands have been run and r
 - 2026-05-29 20:30 | equity=$40.94 | positions=0 | regime=dead_chop | errors=0 | head=adbebf4
 - 2026-05-30 02:53 | equity=$40.94 | positions=0 | regime=dead_chop | errors=0 | head=8bbaae0 | P2-001D committed+pushed, auto-sync installed, P2-001E now active
 - 2026-05-30 03:35 UTC | head=535298c | P2-001E committed+pushed; Class 2 SL/TP/hold tuning awaiting explicit approval
-- 2026-05-30 03:52 UTC | head=REPLACE_WITH_HEAD | P2-001F committed+pushed; 6/6 entries likely passive-priced; actual maker/taker fee flags still unproven
 - 2026-05-30 03:53 UTC | head=f835e74 | P2-001F committed+pushed; 6/6 entries likely passive-priced; actual maker/taker fee flags still unproven
 - 2026-05-30 03:56 UTC | head=f835e74 | P2-001F committed+pushed; 6/6 entries likely passive-priced; actual maker/taker fee flags still unproven
