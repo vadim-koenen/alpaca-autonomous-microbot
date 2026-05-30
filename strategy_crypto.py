@@ -119,21 +119,28 @@ class CryptoStrategy:
         self._last_bar_ts: dict[str, str] = {}
         # Controlled Exploration state (P2-001B) — now recovered from journal/state on demand
         self._exploration_proposed_this_cycle: bool = False
-        # Current equity for dynamic position sizing (P2-004)
+        # Runtime equity from the bot loop (P2-004). Preferred when set.
         self.current_equity: float | None = None
 
     # -----------------------------------------------------------------------
-    # Dynamic Position Sizing (P2-004) — Equity retrieval
+    # Dynamic Position Sizing (P2-004) — Coinbase exploration only
     # -----------------------------------------------------------------------
 
-    def _get_current_equity(self) -> float | None:
+    def _resolve_equity_for_sizing(self) -> float | None:
         """
-        Retrieve current account equity from the most recent journal entry.
-        Returns: equity amount or None if unavailable.
-        
-        This allows dynamic position sizing to work without requiring
-        main.py to set self.current_equity explicitly. The journal is
-        updated by the bot runtime on each trading cycle.
+        Equity for P2-004 sizing on Coinbase controlled exploration only.
+
+        Prefers ``self.current_equity`` when the runtime has set it (live cycle).
+        Otherwise falls back to journal-derived equity, which may be stale — it
+        reflects the last logged row, not a fresh broker balance.
+        """
+        if self.current_equity is not None and self.current_equity > 0:
+            return float(self.current_equity)
+        return self._get_journal_equity()
+
+    def _get_journal_equity(self) -> float | None:
+        """
+        Fallback equity from the most recent journal row (may be stale).
         """
         try:
             logging_cfg = get_cfg("logging", default={})
@@ -375,81 +382,113 @@ class CryptoStrategy:
             return None  # below exchange/config minimum — skip
         return notional
 
-    def _compute_dynamic_notional(
-        self,
-        equity: float,
-        buying_power: float | None = None,
-    ) -> float:
-        """
-        Compute position notional based on equity percentage.
-        Falls back to min_notional on any error or if dynamic sizing disabled.
+    def _exploration_hard_trade_cap_usd(self) -> float:
+        exp_cfg = get_cfg("crypto", "controlled_exploration", default={}) or {}
+        return float(exp_cfg.get("max_single_trade_notional_usd", 1.00))
 
-        Scaling table (position_size_pct=2.5, min=1.00, max=25.00):
-          $40   → $1.00 (at min floor)
-          $100  → $2.50
-          $200  → $5.00
-          $500  → $12.50
-          $1000 → $25.00 (at max cap)
+    def _compute_equity_scaled_notional(self, equity: float) -> float:
         """
+        Equity-percent notional before Class 2 hard caps (exploration path only).
+
+        Clamped to dynamic_sizing min/max band only; caller applies trade caps.
+        """
+        ds_cfg = get_cfg("crypto", "dynamic_sizing", default={}) or {}
+        min_notional = float(ds_cfg.get("min_notional_usd", 1.00))
+        max_notional = float(ds_cfg.get("max_notional_usd", 25.00))
+        threshold = float(ds_cfg.get("scaling_threshold_usd", 20.00))
+        size_pct = float(ds_cfg.get("position_size_pct", 2.5))
+
+        if equity < threshold:
+            return min_notional
+
+        notional = equity * (size_pct / 100.0)
+        return max(min_notional, min(notional, max_notional))
+
+    def _resolve_exploration_notional(self, buying_power: float | None) -> float:
+        """
+        Final Coinbase exploration notional with all hard caps applied (P2-004).
+
+        When dynamic sizing is off or equity is missing/invalid, uses the legacy
+        exploration path: ``_compute_notional`` capped by
+        ``controlled_exploration.max_single_trade_notional_usd``.
+
+        Otherwise::
+
+            min(
+                equity_scaled_notional,
+                dynamic_sizing.max_notional_usd,
+                controlled_exploration.max_single_trade_notional_usd,
+                buying_power * buying_power_safety_buffer  (if buying_power > 0),
+            )
+        """
+        hard_trade_cap = self._exploration_hard_trade_cap_usd()
+        ds_cfg = get_cfg("crypto", "dynamic_sizing", default={}) or {}
+        if not ds_cfg.get("enabled", False):
+            notional = self._compute_notional(buying_power) or 0.50
+            return round(min(notional, hard_trade_cap), 2)
+
+        equity = self._resolve_equity_for_sizing()
+        if equity is None or equity <= 0:
+            notional = self._compute_notional(buying_power) or 0.50
+            return round(min(notional, hard_trade_cap), 2)
+
         try:
-            ds_cfg = get_cfg("dynamic_sizing") or {}
-            if not ds_cfg.get("enabled", False):
-                return self._compute_notional(buying_power) or 1.00
-
-            min_notional = float(ds_cfg.get("min_notional_usd", 1.00))
-            max_notional = float(ds_cfg.get("max_notional_usd", 25.00))
-            threshold = float(ds_cfg.get("scaling_threshold_usd", 20.00))
-            size_pct = float(ds_cfg.get("position_size_pct", 2.5))
-
-            if not equity or equity < threshold:
-                return min_notional
-
-            notional = equity * (size_pct / 100.0)
-            notional = max(min_notional, min(notional, max_notional))
-
-            # Also respect available buying power
-            if buying_power:
-                buffer = float(get_cfg("crypto", "buying_power_safety_buffer", default=0.85))
-                notional = min(notional, buying_power * buffer)
-
-            if notional < min_notional:
-                return min_notional
-
-            return round(notional, 2)
-
+            dynamic = self._compute_equity_scaled_notional(equity)
+            ds_max = float(ds_cfg.get("max_notional_usd", 25.00))
+            buf = float(get_cfg("crypto", "buying_power_safety_buffer", default=0.85))
+            caps = [dynamic, ds_max, hard_trade_cap]
+            if buying_power is not None and buying_power > 0:
+                caps.append(buying_power * buf)
+            return round(min(caps), 2)
         except Exception:
-            # Fail safe: return minimum notional
-            return 1.00
+            notional = self._compute_notional(buying_power) or 0.50
+            return round(min(notional, hard_trade_cap), 2)
 
     def get_dynamic_daily_stop_loss(self) -> float | None:
         """
-        Get daily stop loss limit, applying dynamic sizing if enabled and equity available.
-        Returns: USD amount or None if dynamic sizing disabled.
+        ADVISORY ONLY (P2-004): not wired to risk_manager live gates.
+
+        Returns min(equity * daily_stop_loss_pct, controlled_exploration.daily_stop_loss_usd)
+        when dynamic sizing is enabled and equity is available.
         """
         try:
-            ds_cfg = get_cfg("dynamic_sizing") or {}
-            if not ds_cfg.get("enabled", False) or not self.current_equity:
+            ds_cfg = get_cfg("crypto", "dynamic_sizing", default={}) or {}
+            if not ds_cfg.get("enabled", False):
                 return None
 
+            equity = self._resolve_equity_for_sizing()
+            if equity is None or equity <= 0:
+                return None
+
+            exp_cfg = get_cfg("crypto", "controlled_exploration", default={}) or {}
+            absolute_cap = float(exp_cfg.get("daily_stop_loss_usd", 3.00))
             daily_stop_loss_pct = float(ds_cfg.get("daily_stop_loss_pct", 7.5))
-            daily_stop_loss = self.current_equity * (daily_stop_loss_pct / 100.0)
-            return round(daily_stop_loss, 2)
+            dynamic = equity * (daily_stop_loss_pct / 100.0)
+            return round(min(dynamic, absolute_cap), 2)
         except Exception:
             return None
 
     def get_dynamic_max_exposure(self) -> float | None:
         """
-        Get max total exposure limit, applying dynamic sizing if enabled and equity available.
-        Returns: USD amount or None if dynamic sizing disabled.
+        ADVISORY ONLY (P2-004): not wired to risk_manager live gates.
+
+        Returns min(equity * max_exposure_pct, controlled_exploration.max_total_exploration_exposure_usd)
+        when dynamic sizing is enabled and equity is available.
         """
         try:
-            ds_cfg = get_cfg("dynamic_sizing") or {}
-            if not ds_cfg.get("enabled", False) or not self.current_equity:
+            ds_cfg = get_cfg("crypto", "dynamic_sizing", default={}) or {}
+            if not ds_cfg.get("enabled", False):
                 return None
 
+            equity = self._resolve_equity_for_sizing()
+            if equity is None or equity <= 0:
+                return None
+
+            exp_cfg = get_cfg("crypto", "controlled_exploration", default={}) or {}
+            absolute_cap = float(exp_cfg.get("max_total_exploration_exposure_usd", 6.00))
             max_exposure_pct = float(ds_cfg.get("max_exposure_pct", 15.0))
-            max_exposure = self.current_equity * (max_exposure_pct / 100.0)
-            return round(max_exposure, 2)
+            dynamic = equity * (max_exposure_pct / 100.0)
+            return round(min(dynamic, absolute_cap), 2)
         except Exception:
             return None
 
@@ -613,7 +652,7 @@ class CryptoStrategy:
 
         if not allowed:
             # 1. Controlled Exploration (P2-001)
-            exploration = self._coinbase_exploration(symbol, quote, df, buying_power, regime, self._get_current_equity())
+            exploration = self._coinbase_exploration(symbol, quote, df, buying_power, regime)
             if exploration is not None:
                 return [exploration]
 
@@ -640,7 +679,7 @@ class CryptoStrategy:
 
         if not candidates:
             # Main strategies sat out — try exploration/probe as fallbacks
-            exploration = self._coinbase_exploration(symbol, quote, df, buying_power, regime, self.current_equity)
+            exploration = self._coinbase_exploration(symbol, quote, df, buying_power, regime)
             if exploration is not None:
                 return [exploration]
 
@@ -683,7 +722,6 @@ class CryptoStrategy:
         df: pd.DataFrame,
         buying_power: float | None,
         regime: str,
-        equity: float | None = None,
     ) -> Optional[TradeProposal]:
         """
         Controlled Coinbase exploration (P2-001B).
@@ -745,18 +783,8 @@ class CryptoStrategy:
                 logger.info(f"EXPLORE {selected_symbol} | rejected: spread {spread_pct_val:.3f}% > max {max_spread:.3f}%")
                 return None
 
-            # All good — Propose!
-            # Dynamic sizing: use equity-based notional if enabled
-            if equity:
-                notional = self._compute_dynamic_notional(
-                    equity=equity,
-                    buying_power=buying_power,
-                )
-            else:
-                # Fallback: existing behavior
-                max_notional = float(cfg.get("max_single_trade_notional_usd", 1.00))
-                notional = self._compute_notional(buying_power) or 0.50
-                notional = min(notional, max_notional)
+            # All good — Propose! (P2-004 sizing: single resolver, all hard caps)
+            notional = self._resolve_exploration_notional(buying_power)
 
             sl_pct = 1.50
             tp_pct = 3.25

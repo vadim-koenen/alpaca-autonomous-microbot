@@ -119,8 +119,9 @@ crypto:
   coinbase_probe_min_confidence_score: 0.60
 
   # ── Dynamic Equity-Based Position Sizing (P2-004) ──────────
-  # Automatically scales position size and risk limits with account equity.
-  # Enables graceful scaling when equity increases due to profits or deposits.
+  # Coinbase controlled_exploration notional only; Alpaca/equity strategies unchanged.
+  # daily_stop_loss_pct / max_exposure_pct helpers are ADVISORY (not live risk gates).
+  # Trade size never exceeds controlled_exploration.max_single_trade_notional_usd.
   dynamic_sizing:
     enabled: true
     # Position size as % of current equity
