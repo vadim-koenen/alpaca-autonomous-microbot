@@ -124,3 +124,23 @@ def test_discovery_skips_generated_and_volatile_project_docs(tmp_path):
     assert "docs/ACTIVE_HANDOFF.md" not in hit_paths
     assert "broker_coinbase.py" in hit_paths
 
+def test_discovery_does_not_record_volatile_git_skipped_paths(tmp_path):
+    module = load_module()
+
+    git_objects = tmp_path / ".git" / "objects" / "aa"
+    git_logs = tmp_path / ".git" / "logs" / "refs" / "heads"
+    git_objects.mkdir(parents=True)
+    git_logs.mkdir(parents=True)
+
+    (git_objects / "volatile-object").write_text("coinbase order fill fee", encoding="utf-8")
+    (git_logs / "main").write_text("coinbase order fill fee", encoding="utf-8")
+    (tmp_path / "broker_coinbase.py").write_text(
+        "def get_order_status(order_id):\n    return {'filled_size': '1', 'fee': '0.01'}\n",
+        encoding="utf-8",
+    )
+
+    report = module.discover_repository(tmp_path)
+
+    assert "broker_coinbase.py" in {hit.path for hit in report.file_hits}
+    assert not any(path.startswith(".git/") for path in report.skipped_paths)
+

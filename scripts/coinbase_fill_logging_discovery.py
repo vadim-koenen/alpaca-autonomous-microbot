@@ -235,9 +235,19 @@ def discover_repository(root: str | Path) -> DiscoveryReport:
             continue
         if _should_skip(path, repo_root):
             try:
-                report.skipped_paths.append(path.relative_to(repo_root).as_posix())
+                rel = path.relative_to(repo_root).as_posix()
             except ValueError:
-                report.skipped_paths.append(path.as_posix())
+                rel = path.as_posix()
+
+            # Do not record volatile skip previews for ignored directories such
+            # as .git object/log paths. Including them makes the generated
+            # discovery report change after every commit, which defeats the
+            # purpose of a deterministic read-only report.
+            parts = Path(rel).parts
+            if parts and parts[0] == ".git":
+                continue
+
+            report.skipped_paths.append(rel)
 
     for path in iter_candidate_files(repo_root):
         rel = path.relative_to(repo_root).as_posix()
