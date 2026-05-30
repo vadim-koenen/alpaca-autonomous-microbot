@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-30 21:00 UTC — P2-001D committed+pushed, P2-001E active  
+**Last updated:** 2026-05-30 03:35 UTC — P2-001E committed+pushed; awaiting Class 2 approval gate
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -100,13 +100,14 @@ fee_model:
 | P2-001B | State-aware LRU rotation (BTC→ETH→SOL proven) | DONE / committed `adbebf4` |
 | P2-001C | Coinbase exploration fee/performance report | DONE / committed `0a6c82c` |
 | P2-001D | Controlled exploration status accuracy fix | DONE / committed `e10a722` |
+| P2-001E | Coinbase exit quality report | DONE / committed `535298c` |
 
 ---
 
 ## 6. Git State (as of last update)
 
 ```
-HEAD: 8bbaae0 P2-001D done + add auto-sync handoff launchd job
+HEAD: 535298c P2-001E: add Coinbase exit quality report
 Clean: no dirty tracked files
 Recent commits:
   8bbaae0 P2-001D done + add auto-sync handoff launchd job
@@ -152,39 +153,11 @@ From confirmed live trade data (6 completed cycles):
 ## 8. Active Patch Queue
 
 ### IN PROGRESS
-**P2-001E — Exit Quality Report**
-Risk class: Class 1 advisory
-Status: Next patch. All 26 journal exits are max-hold — SL/TP have never triggered.
-Need to know: did any trade get close to TP? What was MFE at exit time? Should
-hold window be shorter? Answers determine whether to change SL/TP/hold config.
-Executor: GitHub Copilot
+**None — awaiting review / explicit approval before Class 2 live tuning**
 
-Files to create:
-```
-scripts/coinbase_exit_quality_report.py      ← new, read-only
-tests/test_coinbase_exit_quality_report.py   ← new, unit tests
-docs/COINBASE_EXIT_QUALITY_RUNBOOK.md        ← new, usage guide
-```
-Report must include:
-- Exit type distribution (max_hold / stop_loss / take_profit / other) with counts + avg net
-- MFE (max favorable excursion) at time of exit — approx from fill_price vs exit_price
-- MAE (max adverse excursion) estimate
-- Would a 45-min hold have improved results vs 90-min?
-- Are TP/SL thresholds (3% TP, 1.5% SL) ever in range during a 90-min hold?
-- Per-symbol breakdown
-- Advisory warning if 100% exits are max-hold
+P2-001E is DONE at `535298c`.
 
-Files must NOT be touched:
-```
-main.py, broker_*.py, order_manager.py, risk_manager.py,
-config_coinbase_crypto.yaml, .env, state/, launchd/
-```
-Validation commands:
-```bash
-python3 -m py_compile scripts/coinbase_exit_quality_report.py
-python3 -m pytest tests/test_coinbase_exit_quality_report.py -q
-python3 scripts/coinbase_exit_quality_report.py
-```
+Next candidate is SL/TP/hold-time tuning, but it is Class 2 and must not start without explicit Vadim approval after Claude/ChatGPT review of the P2-001E report.
 
 ### QUEUED (do not start until P2-001E is complete)
 - **P2-002 commit** — review prediction_features.py for future-data leakage first
@@ -242,3 +215,4 @@ Do not recommend or execute anything until all four commands have been run and r
 
 - 2026-05-29 20:30 | equity=$40.94 | positions=0 | regime=dead_chop | errors=0 | head=adbebf4
 - 2026-05-30 02:53 | equity=$40.94 | positions=0 | regime=dead_chop | errors=0 | head=8bbaae0 | P2-001D committed+pushed, auto-sync installed, P2-001E now active
+- 2026-05-30 03:35 UTC | head=535298c | P2-001E committed+pushed; Class 2 SL/TP/hold tuning awaiting explicit approval
