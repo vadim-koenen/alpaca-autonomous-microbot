@@ -1,233 +1,244 @@
-# ADVISORY ONLY — read-only analysis, no live trading calls.
-# Do not import from: broker, order_manager, risk_manager, main.
-
-"""Tests for P2-006 Coinbase sizing / execution reconciliation report."""
-
+# ADVISORY ONLY — tests for read-only diagnostics, no live trading calls.
 from __future__ import annotations
 
 import csv
+import importlib.util
+import sys
 from pathlib import Path
 
-import pytest
+MODULE_PATH = Path(__file__).resolve().parents[1] / 'scripts' / 'coinbase_sizing_execution_reconciliation_report.py'
+spec = importlib.util.spec_from_file_location('coinbase_sizing_execution_reconciliation_report', MODULE_PATH)
+report = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = report
+assert spec.loader is not None
+spec.loader.exec_module(report)
 
-from scripts import coinbase_sizing_execution_reconciliation_report as report
+
+def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not rows:
+        path.write_text('', encoding='utf-8')
+        return
+    with path.open('w', encoding='utf-8', newline='') as fh:
+        writer = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
 
 
-def _write_config(tmp_path: Path) -> Path:
-    path = tmp_path / "config_coinbase_crypto.yaml"
+def write_config(path: Path) -> None:
     path.write_text(
-        """
-crypto:
-  max_trade_notional_usd: 2.00
-  buying_power_safety_buffer: 0.85
-  coinbase_probe_notional_usd: 0.50
-  controlled_exploration:
-    max_single_trade_notional_usd: 1.00
-  dynamic_sizing:
-    enabled: true
-    min_notional_usd: 1.00
-    max_notional_usd: 25.00
-    scaling_threshold_usd: 20.00
-    position_size_pct: 2.5
+        '''
+account:
+  expected_starting_equity: 40.00
+controlled_exploration:
+  max_single_trade_notional_usd: 1.00
+  max_total_exploration_exposure_usd: 6.00
+  max_open_positions: 2
+coinbase_probe_notional_usd: 0.50
+dynamic_sizing:
+  position_size_pct: 2.5
+  min_notional_usd: 1.00
+  max_notional_usd: 25.00
+  scaling_threshold_usd: 20.00
 fees:
   maker_fee_pct: 0.006
   taker_fee_pct: 0.012
-""".strip()
-        + "\n",
-        encoding="utf-8",
+''',
+        encoding='utf-8',
     )
-    return path
 
 
-def _journal_row(**kwargs: str) -> dict[str, str]:
-    base = {
-        "timestamp": "2026-05-29T13:00:00Z",
-        "symbol": "BTC/USD",
-        "strategy": "coinbase_exploration",
-        "action": "BUY",
-        "decision": "PLACED",
-        "notional": "1.0",
-        "qty": "0.00001",
-        "fill_price": "0",
-        "exit_price": "0",
-        "gross_pnl": "0",
-        "fees_paid": "0",
-        "pnl_usd": "0",
-        "reason": "",
-        "equity": "40.94",
-        "buying_power": "40.0",
-    }
-    base.update(kwargs)
-    return base
-
-
-def test_load_sizing_config_from_yaml(tmp_path: Path) -> None:
-    cfg_path = _write_config(tmp_path)
-    cfg = report.load_sizing_config(cfg_path)
-    assert cfg.config_found is True
-    assert cfg.probe_notional_usd == 0.50
-    assert cfg.max_single_trade_notional_usd == 1.00
-    assert cfg.dynamic_enabled is True
-
-
-def test_compute_dynamic_clamped_to_hard_cap(tmp_path: Path) -> None:
-    cfg = report.load_sizing_config(_write_config(tmp_path))
-    # equity 40 < threshold 20? threshold is 20, 40 > 20 so 40*2.5% = 1.0
-    dynamic = report.compute_dynamic_notional(40.94, 40.0, cfg)
-    assert dynamic == 1.00
-
-
-def test_extract_cycle_pairing(tmp_path: Path) -> None:
-    cfg = report.SizingConfig(
-        probe_notional_usd=0.50,
-        max_single_trade_notional_usd=1.00,
-        dynamic_enabled=True,
-    )
-    rows = [
-        _journal_row(
-            timestamp="2026-05-29T13:00:00Z",
-            action="BUY",
-            decision="PLACED",
-            notional="1.0",
-        ),
-        _journal_row(
-            timestamp="2026-05-29T14:30:00Z",
-            action="EXIT",
-            decision="PLACED",
-            notional="0",
-            fill_price="100.0",
-            exit_price="100.5",
-            qty="0.01",
-            gross_pnl="0.005",
-            fees_paid="0.012",
-            pnl_usd="-0.007",
-            reason="max hold time 90min exceeded",
-        ),
-    ]
-    cycles = report.extract_cycles(rows, cfg)
-    assert len(cycles) == 1
-    c = cycles[0]
-    assert c.journal_proposed_notional == 1.0
-    assert c.filled_buy_notional == 1.0
-    assert c.filled_sell_notional == pytest.approx(1.005)
-    assert c.net_pnl == pytest.approx(-0.007)
-    assert "hard cap" in c.winning_cap or "1.00" in c.winning_cap or "journal" in c.winning_cap
-
-
-def test_missing_journal_handled(tmp_path: Path) -> None:
-    cfg_path = _write_config(tmp_path)
-    out = report.run_analysis(cfg_path, journal_path=tmp_path / "missing.csv")
-    assert "Journal: not found" in out or "No completed exploration" in out
-    assert "fixed-cap controlled exploration" in out
-
-
-def test_summary_messages_present(tmp_path: Path) -> None:
-    cfg_path = _write_config(tmp_path)
-    journal = tmp_path / "journal.csv"
-    with open(journal, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(_journal_row().keys()))
-        writer.writeheader()
-        writer.writerow(_journal_row(timestamp="2026-05-29T13:00:00Z", action="BUY", decision="PLACED"))
-        writer.writerow(
-            _journal_row(
-                timestamp="2026-05-29T14:00:00Z",
-                action="EXIT",
-                decision="PLACED",
-                fill_price="100",
-                exit_price="100.2",
-                qty="0.01",
-                gross_pnl="0.002",
-                fees_paid="0.012",
-                pnl_usd="-0.01",
-                reason="max hold",
-            )
-        )
-    out = report.run_analysis(cfg_path, journal)
-    assert "fixed-cap controlled exploration" in out
-    assert "Sells close the same position quantity" in out
-    assert "Class 2" in out and "BLOCKED" in out
-
-
-def test_probe_notional_path_detection(tmp_path: Path) -> None:
-    cfg = report.SizingConfig(probe_notional_usd=0.50, max_single_trade_notional_usd=1.00)
-    cap, final = report.determine_winning_cap(0.50, None, cfg, "coinbase_probe")
-    assert final == 0.50
-    assert "0.50" in cap
-
-
-def test_price_path_mfe_attachment(tmp_path: Path) -> None:
-    path_csv = tmp_path / "coinbase_price_path.csv"
-    with open(path_csv, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(
-            f,
-            fieldnames=[
-                "timestamp_utc",
-                "symbol",
-                "position_id",
-                "entry_price",
-                "current_price",
-                "unrealized_pct",
-                "hold_minutes",
-                "entry_timestamp",
-            ],
-        )
-        writer.writeheader()
-        writer.writerow(
+def sample_journal(path: Path) -> None:
+    write_csv(
+        path,
+        [
             {
-                "timestamp_utc": "2026-05-29T14:00:00Z",
-                "symbol": "BTC/USD",
-                "position_id": "p1",
-                "entry_price": "100",
-                "current_price": "100.8",
-                "unrealized_pct": "0.8",
-                "hold_minutes": "30",
-                "entry_timestamp": "2026-05-29T13:00:00Z",
-            }
-        )
-    mfe_index = {}
-    with open(path_csv, newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            symbol = row["symbol"]
-            entry_ts = row["entry_timestamp"]
-            u = float(row["unrealized_pct"])
-            key = (symbol, entry_ts)
-            prev, count = mfe_index.get(key, (u, 0))
-            mfe_index[key] = (max(prev, u), count + 1)
-    cycles = [
-        report.TradeCycle(
-            symbol="BTC/USD",
-            strategy="coinbase_exploration",
-            entry_timestamp="2026-05-29T13:00:00Z",
-            exit_timestamp="2026-05-29T14:00:00Z",
-            configured_probe_notional=0.5,
-            exploration_hard_cap=1.0,
-            dynamic_calculated_notional=1.0,
-            journal_proposed_notional=1.0,
-            winning_cap="cap",
-            final_applied_notional=1.0,
-            filled_buy_notional=1.0,
-            filled_sell_notional=1.0,
-            qty=0.01,
-            entry_price=100.0,
-            exit_price=100.2,
-            gross_pnl=0.002,
-            total_fees=0.012,
-            net_pnl=-0.01,
-            exit_reason="max hold",
-            hold_minutes=60.0,
-        )
+                'timestamp': '2026-05-30T10:00:00Z',
+                'symbol': 'BTC/USD',
+                'side': 'buy',
+                'quantity': '0.00001',
+                'price': '100000',
+                'notional': '1.00',
+                'fee_usd': '0.006',
+                'reason': 'controlled_exploration_entry',
+            },
+            {
+                'timestamp': '2026-05-30T11:30:00Z',
+                'symbol': 'BTC/USD',
+                'side': 'sell',
+                'quantity': '0.00001',
+                'price': '100500',
+                'notional': '1.005',
+                'fee_usd': '0.00603',
+                'reason': 'max_hold_exit',
+            },
+        ],
+    )
+
+
+def sample_price_path(path: Path) -> None:
+    write_csv(
+        path,
+        [
+            {
+                'timestamp_utc': '2026-05-30T10:15:00Z',
+                'symbol': 'BTC/USD',
+                'position_id': 'BTC-1',
+                'entry_timestamp': '2026-05-30T10:00:00+00:00',
+                'entry_price': '100000',
+                'current_price': '100700',
+                'unrealized_pct': '0.70',
+                'hold_minutes': '15',
+            },
+            {
+                'timestamp_utc': '2026-05-30T10:45:00Z',
+                'symbol': 'BTC/USD',
+                'position_id': 'BTC-1',
+                'entry_timestamp': '2026-05-30T10:00:00+00:00',
+                'entry_price': '100000',
+                'current_price': '99700',
+                'unrealized_pct': '-0.30',
+                'hold_minutes': '45',
+            },
+            {
+                'timestamp_utc': '2026-05-30T11:00:00Z',
+                'symbol': 'BTC/USD',
+                'position_id': 'BTC-1',
+                'entry_timestamp': '2026-05-30T10:00:00+00:00',
+                'entry_price': '100000',
+                'current_price': '101300',
+                'unrealized_pct': '1.30',
+                'hold_minutes': '60',
+            },
+        ],
+    )
+
+
+def test_missing_journal_is_tolerated(tmp_path):
+    config = tmp_path / 'config.yaml'
+    write_config(config)
+    output = report.build_report(config, tmp_path / 'missing.csv', tmp_path / 'missing_path.csv')
+    assert 'Journal warning: missing:' in output
+    assert 'Completed cycles: 0' in output
+
+
+def test_empty_journal_is_tolerated(tmp_path):
+    config = tmp_path / 'config.yaml'
+    journal = tmp_path / 'journal.csv'
+    price_path = tmp_path / 'path.csv'
+    write_config(config)
+    write_csv(journal, [])
+    write_csv(price_path, [])
+    output = report.build_report(config, journal, price_path)
+    assert 'no recognized buy/sell rows' in output
+    assert 'Completed cycles: 0' in output
+
+
+def test_missing_price_path_is_tolerated(tmp_path):
+    config = tmp_path / 'config.yaml'
+    journal = tmp_path / 'journal.csv'
+    write_config(config)
+    sample_journal(journal)
+    output = report.build_report(config, journal, tmp_path / 'missing_path.csv')
+    assert 'Price-path warning: missing:' in output
+    assert 'Cycle 1: BTC/USD' in output
+
+
+def test_one_completed_cycle_gross_fee_net(tmp_path):
+    config = tmp_path / 'config.yaml'
+    journal = tmp_path / 'journal.csv'
+    price_path = tmp_path / 'path.csv'
+    write_config(config)
+    sample_journal(journal)
+    write_csv(price_path, [])
+    output = report.build_report(config, journal, price_path)
+    assert 'Entry notional: $1.0000 | Exit notional: $1.0050' in output
+    assert 'Gross P/L: $0.0050 | Fees: $0.0120 | Net P/L: $-0.0070' in output
+
+
+def test_max_hold_classification(tmp_path):
+    config = tmp_path / 'config.yaml'
+    journal = tmp_path / 'journal.csv'
+    write_config(config)
+    sample_journal(journal)
+    output = report.build_report(config, journal, tmp_path / 'missing.csv')
+    assert 'Exit kind: max_hold | Max-hold exit: yes' in output
+    assert 'Max-hold exits: 1' in output
+
+
+def test_symbol_summary_present(tmp_path):
+    config = tmp_path / 'config.yaml'
+    journal = tmp_path / 'journal.csv'
+    write_config(config)
+    sample_journal(journal)
+    output = report.build_report(config, journal, tmp_path / 'missing.csv')
+    assert 'BTC/USD: cycles=1' in output
+    assert 'status=inconclusive' in output
+
+
+def test_threshold_crossing_merge_with_price_path(tmp_path):
+    config = tmp_path / 'config.yaml'
+    journal = tmp_path / 'journal.csv'
+    path = tmp_path / 'logs' / 'coinbase_price_path.csv'
+    write_config(config)
+    sample_journal(journal)
+    sample_price_path(path)
+    output = report.build_report(config, journal, path)
+    assert 'MFE: +1.300%' in output
+    assert 'MAE: -0.300%' in output
+    assert '+0.60%=yes at 15.0m' in output
+    assert '+1.20%=yes at 60.0m' in output
+
+
+def test_dynamic_sizing_explanation_hard_cap_wins(tmp_path):
+    config = tmp_path / 'config.yaml'
+    journal = tmp_path / 'journal.csv'
+    write_config(config)
+    sample_journal(journal)
+    output = report.build_report(config, journal, tmp_path / 'missing.csv')
+    assert 'Dynamic theoretical: $1.0000' in output
+    assert 'Limiting factor: controlled_exploration.max_single_trade_notional_usd' in output
+    assert 'Current behavior is fixed-cap controlled exploration' in output
+
+
+def test_decision_gate_blocks_with_small_sample(tmp_path):
+    config = tmp_path / 'config.yaml'
+    journal = tmp_path / 'journal.csv'
+    write_config(config)
+    sample_journal(journal)
+    output = report.build_report(config, journal, tmp_path / 'missing.csv')
+    assert 'Class 2 tuning: BLOCKED' in output
+    assert 'Notional increase: BLOCKED' in output
+    assert 'Prediction/betting: SHADOW ONLY' in output
+
+
+def test_reconstructs_notional_from_quantity_price(tmp_path):
+    config = tmp_path / 'config.yaml'
+    journal = tmp_path / 'journal.csv'
+    write_config(config)
+    write_csv(
+        journal,
+        [
+            {'timestamp': '2026-05-30T10:00:00Z', 'symbol': 'ETH/USD', 'side': 'buy', 'quantity': '0.01', 'price': '100', 'fee_usd': '0.01', 'reason': 'entry'},
+            {'timestamp': '2026-05-30T10:10:00Z', 'symbol': 'ETH/USD', 'side': 'sell', 'quantity': '0.01', 'price': '101', 'fee_usd': '0.01', 'reason': 'tp'},
+        ],
+    )
+    output = report.build_report(config, journal, tmp_path / 'missing.csv')
+    assert 'Entry notional: $1.0000 | Exit notional: $1.0100' in output
+    assert 'Exit kind: take_profit' in output
+
+
+def test_forbidden_live_imports_absent():
+    source = MODULE_PATH.read_text(encoding='utf-8')
+    forbidden_patterns = [
+        'import broker',
+        'from broker',
+        'import order_manager',
+        'from order_manager',
+        'import risk_manager',
+        'from risk_manager',
+        'from main import',
+        'import main',
     ]
-    report.attach_mfe(cycles, mfe_index)
-    assert cycles[0].mfe_pct == 0.8
-    assert cycles[0].beat_maker_be is True
-    assert cycles[0].beat_taker_be is False
-
-
-def test_no_forbidden_imports() -> None:
-    text = Path(report.__file__).read_text(encoding="utf-8")
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith(("import ", "from ")):
-            lower = stripped.lower()
-            for mod in ("broker", "order_manager", "risk_manager", "main"):
-                assert mod not in lower, stripped
+    for pattern in forbidden_patterns:
+        assert pattern not in source
