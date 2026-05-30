@@ -124,7 +124,7 @@ fee_model:
 
 ```
 Latest functional patch commit: 49135bc
-Latest handoff commit: 5745fa6
+Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
 Recent commits:
