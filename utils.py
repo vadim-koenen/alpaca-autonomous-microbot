@@ -692,7 +692,12 @@ def acquire_process_lock(force: bool = False) -> bool:
             # Process is alive — refuse to start
             return False
         except (ProcessLookupError, PermissionError):
-            # Stale lock — dead process, safe to overwrite
+            # Stale lock — dead process, safe to overwrite. Log for ops visibility.
+            logger = logging.getLogger("runtime_safety")
+            logger.warning(
+                f"Recovered stale process lock (PID {existing_pid} is dead). "
+                "This can happen after hard kills or unclean shutdowns."
+            )
             pass
         except ValueError:
             # Corrupt lock file — overwrite it

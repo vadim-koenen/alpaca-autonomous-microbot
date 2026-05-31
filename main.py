@@ -30,6 +30,7 @@ import sys
 import time
 import logging
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 
 from browser_monitor import BrowserMonitor
@@ -62,6 +63,9 @@ from utils import (
     safe_float,
     setup_logging,
 )
+
+# P2-011K runtime safety (reconstruction). Imported here for startup hardening only.
+from runtime_safety import apply_reconstructed_counters, reconstruct_daily_counters_from_journal
 
 # ---------------------------------------------------------------------------
 # Globals for graceful shutdown
@@ -448,6 +452,25 @@ def main() -> None:
     order_manager = OrderManager(_broker, journal)
     _position_mgr = PositionManager(_broker, journal)
     reporter = ReportGenerator()
+
+    # P2-011K: restart-safe counter reconstruction (conservative, from journal).
+    # This runs once at startup. If we are still in the same UTC day and the
+    # journal shows trades, we backfill instead of starting from a false zero.
+    # This prevents the "DAILY RESET after trades already happened today" bug.
+    try:
+        journal_path = Path(get_cfg("logging", "journal_file", default="journal.csv"))
+        if journal_path.exists():
+            recon = reconstruct_daily_counters_from_journal(journal_path)
+            apply_reconstructed_counters(_session, recon)
+            if recon.get("daily_trade_count", 0) > 0:
+                logger.info(
+                    f"RECONSTRUCTED daily counters from journal for today: "
+                    f"trades={recon.get('daily_trade_count')}, "
+                    f"pnl={recon.get('daily_realized_pnl')}, "
+                    f"consecutive_losses={recon.get('consecutive_losses')}"
+                )
+    except Exception as e:
+        logger.warning(f"Counter reconstruction skipped (non-fatal): {e}")
 
     # Restore persisted position state from previous session (if any)
     # This rebuilds stop/TP levels so managed exits survive a restart

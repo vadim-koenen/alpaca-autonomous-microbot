@@ -77,7 +77,13 @@ def get_process_count_for_namespace(namespace: str) -> int:
 
 
 def build_status() -> Dict[str, Any]:
-    namespace = get_runtime_namespace()
+    try:
+        namespace = get_runtime_namespace()
+    except RuntimeError:
+        # This script is Coinbase-specific and must be safe to run from an
+        # empty shell/test environment. Runtime startup can remain strict;
+        # ops status defaults to Coinbase for read-only diagnostics.
+        namespace = "coinbase"
     lock_file = RUNTIME_DIR / f"{namespace}.lock"
     heartbeat_file = RUNTIME_DIR / f"{namespace}_heartbeat.json"
     open_positions_file = Path("state") / namespace / "open_positions.json"
