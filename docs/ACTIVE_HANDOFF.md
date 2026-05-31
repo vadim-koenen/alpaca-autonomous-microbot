@@ -6,36 +6,39 @@ Functional patch commit: `2f2ab7a`
 
 P2-015A added an explicit opt-in Coinbase live broker reconciliation probe:
 
-- new script: `scripts/coinbase_live_broker_reconciliation_probe.py`
-- new tests: `tests/test_coinbase_live_broker_reconciliation_probe.py`
-- default mode performs ZERO broker/API calls
-- live broker reads require explicit `--live-read-only`
-- `--json` emits valid machine-readable output in both default and live-read-only paths
-- default JSON includes `live_read_only=false` and `broker_calls_made=false`
-- probe is designed to compare direct broker account/position/order/fill truth against local SOL/USD orphan/reconciliation evidence
+* new script: `scripts/coinbase_live_broker_reconciliation_probe.py`
+* new tests: `tests/test_coinbase_live_broker_reconciliation_probe.py`
+* default mode performs ZERO broker/API calls
+* live broker reads require explicit `--live-read-only`
+* `--json` emits valid machine-readable output in both default and live-read-only paths
+* default JSON includes `live_read_only=false` and `broker_calls_made=false`
+* probe is designed to compare direct broker account/position/order/fill truth against local SOL/USD orphan/reconciliation evidence
 
 Current default result:
-- `verdict`: `BLOCKED`
-- `profit_readout`: `unsafe_to_aggregate`
-- `live_read_only`: `false`
-- `broker_calls_made`: `false`
-- next action: re-run with `--live-read-only` after confirming read-only Coinbase API credentials
+
+* `verdict`: `BLOCKED`
+* `profit_readout`: `unsafe_to_aggregate`
+* `live_read_only`: `false`
+* `broker_calls_made`: `false`
+* next action: re-run with `--live-read-only` after confirming read-only Coinbase API credentials
 
 Safety / scope:
-- no runtime/config/order/risk/strategy files changed
-- no default broker/API calls
-- no order placement/cancel/close/modify calls
-- no file mutation calls in production script
-- no journal/state/runtime/log writes
-- no `logs/coinbase_fills.csv` writes
-- no `append_coinbase_fill_row` production call
-- no `.replace()` call in production script per conservative safety gate
-- no leverage, margin, futures, perps, options, commodities, GOLD/SILVER/XAU/XAG enabled
+
+* no runtime/config/order/risk/strategy files changed
+* no default broker/API calls
+* no order placement/cancel/close/modify calls
+* no file mutation calls in production script
+* no journal/state/runtime/log writes
+* no `logs/coinbase_fills.csv` writes
+* no `append_coinbase_fill_row` production call
+* no `.replace()` call in production script per conservative safety gate
+* no leverage, margin, futures, perps, options, commodities, GOLD/SILVER/XAU/XAG enabled
 
 Profit / momentum readout:
-- build momentum: strong positive
-- trading/profit readout: unsafe-to-aggregate
-- no risk/cap/aggressiveness increase is justified until direct broker close/fill/proceeds/fees truth is proven
+
+* build momentum: strong positive
+* trading/profit readout: unsafe-to-aggregate
+* no risk/cap/aggressiveness increase is justified until direct broker close/fill/proceeds/fees truth is proven
 
 ## P2-014E complete — read-only Coinbase operator status aggregator
 
