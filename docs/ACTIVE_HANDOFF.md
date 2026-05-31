@@ -1,5 +1,37 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-014D complete — read-only open/orphan Coinbase position status report
+
+Functional patch commit: `39a3408`
+
+P2-014D added a read-only operator report for Coinbase open/orphan position status:
+- current/open position evidence
+- dropped/re-associated/orphan evidence
+- broker close capability status
+- manual-review requirements
+- profit/readout blockers
+- machine-readable `--json` output
+
+Current report result:
+- SOL/USD unresolved/re-associated broker-close blocker detected from local journal evidence
+- broker close capability remains unconfirmed unless direct later evidence proves otherwise
+- realized P/L remains unsafe-to-aggregate while open/orphan status is unresolved
+- report is intentionally conservative and advisory-only
+
+Safety / scope:
+- no runtime/config/order/risk/strategy files changed
+- no broker API calls added
+- no `.env` reads added
+- no fill logger writes enabled
+- no `logs/coinbase_fills.csv` changes
+- no `append_coinbase_fill_row` production call
+- no leverage, margin, futures, perps, options, commodities, GOLD/SILVER/XAU/XAG enabled
+
+Profit / momentum readout:
+- build momentum: strong positive
+- trading/profit readout: unsafe-to-aggregate
+- no risk/cap/aggressiveness increase is justified
+
 ## P2-014C complete — local review-gate automation for Grok/Codex patches
 
 Functional patch commit: `1e66b94`
@@ -265,7 +297,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 1e66b94
+Latest functional patch commit: `39a3408`
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -423,3 +455,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 18:30 | equity=$45.73 | positions=1 | regime=downtrend | errors=4 | head=b0bdca6 | SOL/USD open (broker_close_capability_unconfirmed); close failures logged — asset may be held in consumer wallet, position dropped from tracking after 3 retries
 - 2026-05-31 18:30 UTC | head=b0bdca6 | P2-014 preflight/live status; Coinbase equity around $45.73, one SOL/USD bot-origin position open/re-associated, broker close capability unconfirmed, close failures logged, and visible recent journal exits remain negative. Preserve risk gates; no sizing/risk increase.
 - 2026-05-31 (P2-014A) | head= (to be filled on commit) | P2-014A docs patch complete: ACTIVE_HANDOFF.md cleanly updated on review/p2-014a-... branch to preserve exact live SOL/USD reconciliation blocker status (equity ~$45.73, open/re-associated, unconfirmed close, failures logged, dropped from tracking possible). Added explicit P2-014 preflight section on unsafe-to-aggregate profit readout until direct fill/proceeds/fees reconciliation proven via reuse of existing P2-011F/G modules + tests. No runtime/strategy/risk/config/order/logger changes. git status clean, only doc changed. All invariants preserved.
+- 2026-05-31 | head=39a3408 | P2-014D complete; Added read-only Coinbase open/orphan position status report with JSON output. SOL/USD broker-close/orphan blocker remains unresolved from local evidence. Realized P/L remains unsafe-to-aggregate. No runtime/config/order/risk/strategy changes. No fill logger writes. No leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
