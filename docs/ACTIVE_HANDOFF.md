@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 04:04 UTC — P2-011G committed; inert Coinbase entry/exit capture wiring proof completed. Helper remains uncalled by live trading paths and performs no writes. Logger hook remains blocked. Next safe patch is P2-011H narrow opt-in dry-run capture seam proof in actual entry/exit flow, still no writes. No live behavior, config, risk, runtime, strategy, sizing, TP/SL, symbol, .env, or LaunchAgent changes.
+**Last updated:** 2026-05-31 04:21 UTC — P2-011H committed; opt-in dry-run Coinbase capture seam proof completed in actual entry/exit flow. The seam is disabled by default via dry_run_capture=False, stores in-memory results only when explicitly enabled, and performs no logger writes. Logger hook remains blocked. Next safe patch is P2-011I controlled dry-run broker-data capture/probe proof, still no writes. No default live behavior, config, risk, runtime, strategy, sizing, TP/SL, symbol, .env, LaunchAgent, scheduler, or order-submission behavior changes.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -134,7 +134,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 6ccf1fe
+Latest functional patch commit: 20ce3df
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -178,7 +178,7 @@ From confirmed live trade data (6 completed cycles):
 ## 8. Active Patch Queue
 
 ### IN PROGRESS
-**P2-011G completed the inert Coinbase entry/exit capture wiring proof. Key finding: `coinbase_entry_exit_capture.py` now provides an inert helper that can combine order/status payloads, historical fills, leg type, symbol/product_id, order IDs, raw broker payloads, direct fees/proceeds when present, stable idempotency checks, and explicit logger-readiness blockers. The helper is not imported by live trading paths and performs no I/O or logger writes. Logger hook remains blocked. Next safe patch: P2-011H — narrow opt-in dry-run capture seam proof in the actual entry/exit flow, still no writes. Do not tune TP/SL, hold time, notional size, symbols, predictions, risk caps, config, runtime, or live strategy until actual fills/proceeds/fees are captured and reconciled.**
+**P2-011H completed the narrow opt-in dry-run Coinbase capture seam proof in the actual entry/exit flow. Key finding: `position_manager.py` now has a disabled-by-default `dry_run_capture=False` seam that can call the inert capture/reconciliation helpers only when explicitly enabled, storing results in memory via `_dry_run_captures` and performing no writes. Dedicated tests prove default constructor compatibility, default-disabled behavior, opt-in entry/exit capture behavior, no `append_coinbase_fill_row` calls, no logger writes, and logger readiness remaining blocked when broker facts are missing. Logger hook remains blocked. Next safe patch: P2-011I — controlled dry-run broker-data capture/probe proof to exercise the seam with real or captured broker payloads, still no writes. Do not tune TP/SL, hold time, notional size, symbols, predictions, risk caps, config, runtime, or live strategy until actual fills/proceeds/fees are captured and reconciled.**
 
 ### QUEUED (blocked — data + explicit approval required)
 - **SL/TP/hold-time tuning** — Class 2; use P2-001E exit-quality and P2-005 MFE/MAE reports only after ≥20 price-path samples, ~2+ weeks of P2-003 data, and explicit human approval
@@ -277,3 +277,4 @@ Next patch after P2-011F was P2-011G narrow inert capture wiring at entry/exit s
 
 No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-submission changes were made.
 - 2026-05-31 04:04 UTC | head=6ccf1fe | P2-011G complete; Added inert Coinbase entry/exit capture wiring proof with helper, tests, and docs. The helper can structure entry/exit reconciliation readiness and missing broker facts, but is not imported by live trading paths and performs no writes. Logger hook remains blocked pending opt-in dry-run proof in actual entry/exit flow and direct broker proof of sell proceeds, stable fill IDs, and fees. No live behavior/config/risk/runtime/strategy changes.
+- 2026-05-31 04:21 UTC | head=20ce3df | P2-011H complete; Added opt-in dry-run Coinbase capture seam in actual entry/exit flow plus dedicated tests. The seam is disabled by default, stores in-memory dry-run results only when explicitly enabled, performs no logger writes, and does not call append_coinbase_fill_row. Logger hook remains blocked pending controlled broker-data proof of direct sell proceeds, stable fill IDs, and fees. No default live behavior/config/risk/runtime/strategy/order-submission changes.
