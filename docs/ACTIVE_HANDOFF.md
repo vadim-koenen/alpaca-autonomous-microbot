@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 04:21 UTC — P2-011H committed; opt-in dry-run Coinbase capture seam proof completed in actual entry/exit flow. The seam is disabled by default via dry_run_capture=False, stores in-memory results only when explicitly enabled, and performs no logger writes. Logger hook remains blocked. Next safe patch is P2-011I controlled dry-run broker-data capture/probe proof, still no writes. No default live behavior, config, risk, runtime, strategy, sizing, TP/SL, symbol, .env, LaunchAgent, scheduler, or order-submission behavior changes.
+**Last updated:** 2026-05-31 13:14 UTC — P2-011I committed; controlled dry-run broker-data capture/probe proof added via doc/script/test. The probe exercises the opt-in `dry_run_capture=True` seam with controlled Coinbase-like broker payloads, preserves raw payload structure for proof purposes, performs no logger writes, does not call `append_coinbase_fill_row`, and leaves default live behavior/order submission unchanged. Logger hook remains blocked. Next safe patch is P2-011J — read-only Coinbase broker-fact discovery/probe proof, still no writes and no order submission. No default live behavior, config, risk, runtime, strategy, sizing, TP/SL, symbol, .env, LaunchAgent, scheduler, or order-submission behavior changes.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -134,7 +134,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 20ce3df
+Latest functional patch commit: 5fb6ffa
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -278,3 +278,4 @@ Next patch after P2-011F was P2-011G narrow inert capture wiring at entry/exit s
 No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-submission changes were made.
 - 2026-05-31 04:04 UTC | head=6ccf1fe | P2-011G complete; Added inert Coinbase entry/exit capture wiring proof with helper, tests, and docs. The helper can structure entry/exit reconciliation readiness and missing broker facts, but is not imported by live trading paths and performs no writes. Logger hook remains blocked pending opt-in dry-run proof in actual entry/exit flow and direct broker proof of sell proceeds, stable fill IDs, and fees. No live behavior/config/risk/runtime/strategy changes.
 - 2026-05-31 04:21 UTC | head=20ce3df | P2-011H complete; Added opt-in dry-run Coinbase capture seam in actual entry/exit flow plus dedicated tests. The seam is disabled by default, stores in-memory dry-run results only when explicitly enabled, performs no logger writes, and does not call append_coinbase_fill_row. Logger hook remains blocked pending controlled broker-data proof of direct sell proceeds, stable fill IDs, and fees. No default live behavior/config/risk/runtime/strategy/order-submission changes.
+- 2026-05-31 13:14 UTC | head=5fb6ffa | P2-011I complete; Added controlled dry-run broker-data capture/probe proof with documentation, script, and tests. The probe uses controlled Coinbase-like broker payloads through the opt-in dry-run seam, remains in-memory/test-only, performs no logger writes, does not call append_coinbase_fill_row, and does not change live behavior/config/risk/runtime/strategy/order-submission behavior. Logger hook remains blocked pending direct broker proof of sell proceeds, stable fill IDs, and fees.
