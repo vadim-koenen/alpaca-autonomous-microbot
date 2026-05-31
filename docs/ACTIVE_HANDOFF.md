@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 14:03 UTC — P2-011K committed; controlled aggressive live runtime hardening added. The patch adds namespace-aware single-process locking, conservative restart-safe counter reconstruction, honest startup logging, and a read-only Coinbase ops status script. Exploration/live trading remains enabled under tiny caps. No notional, exposure, strategy, TP/SL, hold-time, symbol, .env, LaunchAgent, or logger-write behavior was increased or enabled. Logger hook remains blocked. Profit/readout discipline is now required in every status update and handoff. Next safe step is supervised runtime observation plus reconciliation of realized exits/profit after BTC/ETH close.
+**Last updated:** 2026-05-31 14:12 UTC — P2-011L committed; Coinbase ops status accuracy fixed. The read-only status script now reports live process count, open position count, and local exposure correctly from the active lock/state shape. Current controlled-aggressive posture continues: live exploration remains enabled under tiny caps, logger hook remains blocked, and no strategy/risk/notional/TP/SL/hold-time/symbol/order behavior was changed. Next safe step is P2-012A prediction telemetry and derivative-style market feature logging, with no leverage or derivatives trading yet.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -134,7 +134,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 0ac6112
+Latest functional patch commit: 33b3ef1
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -281,3 +281,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 13:14 UTC | head=5fb6ffa | P2-011I complete; Added controlled dry-run broker-data capture/probe proof with documentation, script, and tests. The probe uses controlled Coinbase-like broker payloads through the opt-in dry-run seam, remains in-memory/test-only, performs no logger writes, does not call append_coinbase_fill_row, and does not change live behavior/config/risk/runtime/strategy/order-submission behavior. Logger hook remains blocked pending direct broker proof of sell proceeds, stable fill IDs, and fees.
 - 2026-05-31 13:26 UTC | head=5b7e73e | P2-011J complete; Added read-only Coinbase broker-fact discovery/probe proof with documentation, script, and tests. The probe remains disabled by default for live calls, redacts sensitive identifiers, performs no writes, does not call append_coinbase_fill_row, and does not add or call order submission/cancel/modify paths. Logger hook remains blocked pending direct broker proof of sell proceeds, stable fill IDs, and per-fill fees.
 - 2026-05-31 14:03 UTC | head=0ac6112 | P2-011K complete; Added controlled aggressive live runtime hardening: namespace-aware single-process lock, stale-lock recovery, conservative journal-driven counter reconstruction, honest startup logging, and read-only Coinbase ops status script. Live exploration remains enabled under tiny caps. Logger hook remains blocked; append_coinbase_fill_row is not called. Profit/readout metric must be included in every future status/handoff. Grok usage was around half during this run, so future Grok prompts should be compact and used only when local verification cannot resolve the issue.
+- 2026-05-31 14:12 UTC | head=33b3ef1 | P2-011L complete; Fixed Coinbase ops status accuracy. Status now trusts the active lock PID on macOS/launchd, counts actual symbols under state/coinbase/open_positions.json, and calculates local exposure from notional with qty*entry fallback. No strategy/risk/notional/exposure/TP/SL/hold-time/symbol/order/logger changes. Profit/readout remains required in every status update and handoff.
