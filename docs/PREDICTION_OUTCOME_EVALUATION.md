@@ -1,4 +1,4 @@
-# P2-013A — Prediction Outcome Evaluation + Trade Attribution (Read-Only)
+# P2-013A / P2-013B — Prediction Outcome Evaluation + Trade Attribution (Read-Only)
 
 This document describes the read-only measurement layer added in P2-013A.
 
@@ -54,7 +54,7 @@ python3 scripts/coinbase_prediction_outcomes.py --telemetry logs/prediction_tele
 - All existing P2-012x telemetry, scanning, and risk behavior remains unchanged.
 - Tests use only synthetic fixtures or local files — no network.
 
-## Limitations (by design for P2-013A)
+## Limitations (by design for P2-013A/P2-013B)
 
 - MFE/MAE are endpoint approximations unless a full-bar series provider is injected.
 - Attribution is best-effort (no perfect unique trade ID linking yet — that is future work once fill logger facts are proven).

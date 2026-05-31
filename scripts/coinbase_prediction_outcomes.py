@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-P2-013A — Read-only Prediction Outcome Evaluator + Trade Attribution CLI.
+P2-013B — Prediction Outcome Data Quality + Trade Attribution Matching (Read-Only)
 
 Usage (offline, no network):
     python3 scripts/coinbase_prediction_outcomes.py
@@ -24,7 +24,7 @@ from prediction_telemetry import PredictionOutcomeEvaluator, load_prediction_tel
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="P2-013A Prediction Outcome Evaluator (read-only)")
+    parser = argparse.ArgumentParser(description="P2-013B Prediction Outcome Evaluator (read-only, improved attribution + data quality)")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--telemetry", type=str, default=None, help="Path to prediction_telemetry.jsonl")
     parser.add_argument("--journal", type=str, default=None, help="Path to journal CSV (optional for attribution)")
