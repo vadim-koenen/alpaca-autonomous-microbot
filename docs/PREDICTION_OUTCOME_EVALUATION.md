@@ -75,4 +75,24 @@ Interpretation tips:
 - "None" hit rate almost always means insufficient local price data covering the proposal timestamps + horizons.
 - Use the unmatched sections and no_price_data counts to diagnose data gaps before tuning signals.
 
-P2-013B read-only data quality + attribution improvements complete. No trading behavior or risk parameters changed.
+## P2-013C — Read-only Local Price Data for Outcome Horizons
+
+Added tools to discover and build local price series for 15/30/60/90m horizons without live network calls:
+
+- `discover_local_price_coverage`, `extract_price_points_from_telemetry`, `build_derived_price_series` (in prediction_telemetry.py).
+- These prefer existing telemetry reference_price events + data/manual_prices/ samples.
+- Safe optional derived output under reports/ or data/derived/.
+- New/ extended scripts provide --price-data-status (or the dedicated coinbase_prediction_price_data_status.py) showing:
+  - Symbols with local prices
+  - Coverage counts per horizon
+  - Earliest/latest timestamps
+  - How many telemetry rows are now evaluable with local data
+- Evaluator and outcomes script now surface more precise no_price_data vs evaluable counts.
+- Default runs remain fully read-only and non-blocking.
+
+Interpretation:
+- Low/zero evaluable horizons usually means the local sample data does not cover the specific proposal timestamps in your telemetry.
+- Run the price status script to see exactly what is missing and add more bars to data/manual_prices/ (or let the bot accumulate more telemetry reference prices over time).
+- Once local coverage improves, re-running the outcomes script will show higher evaluable counts and real hit rates.
+
+P2-013C read-only price data availability complete. No trading behavior or risk parameters changed.

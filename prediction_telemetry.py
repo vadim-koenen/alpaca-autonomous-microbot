@@ -486,13 +486,231 @@ def _default_price_loader(symbol: str, ref_ts: str, horizon_min: int) -> Optiona
     return None
 
 
+def normalize_product_id(pid: str) -> str:
+    """Canonical 'BASE/QUOTE' upper form. Accepts BTC-USD, btc/usd etc."""
+    if not pid:
+        return ""
+    s = str(pid).strip().upper().replace("-", "/")
+    parts = [p.strip() for p in s.split("/") if p.strip()]
+    if len(parts) == 2:
+        return f"{parts[0]}/{parts[1]}"
+    return s
+
+
+# P2-013C: Read-only local price data discovery for outcome horizons
+# Prefer existing telemetry reference prices + manual samples. Never network by default.
+
+def extract_price_points_from_telemetry(rows: List[Dict[str, Any]]) -> Dict[str, List[tuple[datetime, float]]]:
+    """Build sparse price series from reference_price in telemetry rows. Read-only."""
+    series: Dict[str, List[tuple[datetime, float]]] = defaultdict(list)
+    for r in rows:
+        sym = normalize_product_id(r.get("symbol") or r.get("product_id", ""))
+        price = _safe_float(r.get("reference_price"))
+        ts = r.get("timestamp")
+        if not sym or price is None or not ts:
+            continue
+        dt = _parse_iso(ts)
+        if dt:
+            series[sym].append((dt, price))
+    for sym in series:
+        series[sym].sort(key=lambda x: x[0])
+        # dedup by time
+        deduped = []
+        seen = set()
+        for dt, p in series[sym]:
+            key = dt.isoformat()
+            if key not in seen:
+                seen.add(key)
+                deduped.append((dt, p))
+        series[sym] = deduped
+    return dict(series)
+
+
+def build_derived_price_series(telemetry_path: Optional[Path] = None,
+                               output_path: Optional[Path] = None) -> Dict[str, List[dict]]:
+    """Read-only: build a derived price series from telemetry references (+ manual if present).
+    If output_path under safe locations (reports/ or data/derived/), writes JSON for reuse.
+    Never writes to logs/ or coinbase_fills.
+    """
+    rows = load_prediction_telemetry_rows(telemetry_path)
+    series = extract_price_points_from_telemetry(rows)
+
+    # Also fold in manual samples if present (read-only)
+    manual_dir = Path(__file__).resolve().parent / "data" / "manual_prices"
+    if manual_dir.exists():
+        for fname in ("sample_prices.jsonl", "equity_sample_prices.jsonl"):
+            p = manual_dir / fname
+            if p.exists():
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        for line in f:
+                            try:
+                                bar = json.loads(line.strip())
+                                sym = normalize_product_id(bar.get("symbol", ""))
+                                price = _safe_float(bar.get("close"))
+                                ts = bar.get("timestamp_utc")
+                                if sym and price is not None and ts:
+                                    dt = _parse_iso(ts)
+                                    if dt:
+                                        series.setdefault(sym, []).append((dt, price))
+                            except Exception:
+                                continue
+                except Exception:
+                    continue
+        # re-sort/dedup
+        for sym in list(series.keys()):
+            series[sym].sort(key=lambda x: x[0])
+            dedup = []
+            seen = set()
+            for dt, p in series[sym]:
+                k = dt.isoformat()
+                if k not in seen:
+                    seen.add(k)
+                    dedup.append((dt, p))
+            series[sym] = dedup
+
+    derived: Dict[str, List[dict]] = {}
+    for sym, points in series.items():
+        derived[sym] = [{"timestamp": dt.isoformat(), "close": p} for dt, p in points]
+
+    if output_path:
+        outp = Path(output_path)
+        safe_dirs = [
+            Path(__file__).resolve().parent / "reports",
+            Path(__file__).resolve().parent / "data" / "derived",
+        ]
+        if any(str(outp).startswith(str(sd)) for sd in safe_dirs):
+            try:
+                outp.parent.mkdir(parents=True, exist_ok=True)
+                with open(outp, "w", encoding="utf-8") as f:
+                    json.dump({"series": derived, "generated_from": "telemetry+manual", "note": "read-only derived price data for outcome evaluation"}, f, indent=2, default=str)
+            except Exception:
+                pass  # never break read-only run
+    return derived
+
+
+def get_price_loader_from_series(series: Dict[str, List[dict]]) -> Callable[[str, str, int], Optional[float]]:
+    """Create a price loader from a derived series (in-memory or loaded)."""
+    indexed: Dict[str, List[tuple[datetime, float]]] = {}
+    for sym, pts in series.items():
+        lst = []
+        for pt in pts:
+            dt = _parse_iso(pt.get("timestamp", ""))
+            p = _safe_float(pt.get("close"))
+            if dt and p is not None:
+                lst.append((dt, p))
+        lst.sort(key=lambda x: x[0])
+        indexed[sym] = lst
+
+    def loader(symbol: str, ref_ts: str, horizon_min: int) -> Optional[float]:
+        sym = normalize_product_id(symbol)
+        ref_dt = _parse_iso(ref_ts)
+        if not ref_dt or sym not in indexed:
+            return None
+        target = ref_dt + timedelta(minutes=horizon_min)
+        for dt, p in indexed[sym]:
+            if dt >= target:
+                return p
+        return None
+    return loader
+
+
+def discover_local_price_coverage(telemetry_path: Optional[Path] = None) -> Dict[str, Any]:
+    """Read-only status of available price data for outcome horizons."""
+    rows = load_prediction_telemetry_rows(telemetry_path)
+    series = extract_price_points_from_telemetry(rows)
+
+    # Also include manual samples
+    manual_dir = Path(__file__).resolve().parent / "data" / "manual_prices"
+    if manual_dir.exists():
+        for fname in ("sample_prices.jsonl", "equity_sample_prices.jsonl"):
+            p = manual_dir / fname
+            if p.exists():
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        for line in f:
+                            try:
+                                bar = json.loads(line.strip())
+                                sym = normalize_product_id(bar.get("symbol", ""))
+                                price = _safe_float(bar.get("close"))
+                                ts = bar.get("timestamp_utc")
+                                if sym and price is not None and ts:
+                                    dt = _parse_iso(ts)
+                                    if dt:
+                                        series.setdefault(sym, []).append((dt, price))
+                            except Exception:
+                                continue
+                except Exception:
+                    continue
+
+    # re-sort/dedup
+    for sym in list(series.keys()):
+        series[sym].sort(key=lambda x: x[0])
+        ded = []
+        seen = set()
+        for dt, p in series[sym]:
+            k = dt.isoformat()
+            if k not in seen:
+                seen.add(k)
+                ded.append((dt, p))
+        series[sym] = ded
+
+    symbols = sorted(series.keys())
+    horizons = [15, 30, 60, 90]
+    coverage: Dict[str, Dict[int, int]] = {s: {h: 0 for h in horizons} for s in symbols}
+    earliest: Dict[str, Optional[str]] = {}
+    latest: Dict[str, Optional[str]] = {}
+
+    for sym, pts in series.items():
+        if not pts:
+            continue
+        earliest[sym] = pts[0][0].isoformat()
+        latest[sym] = pts[-1][0].isoformat()
+        for h in horizons:
+            for dt, _ in pts:
+                target = dt + timedelta(minutes=h)
+                if any(pdt >= target for pdt, _ in pts):
+                    coverage[sym][h] += 1
+                    break
+
+    evaluable_rows = 0
+    for r in rows:
+        if r.get("decision_status") not in ("candidate", "placed", "filled"):
+            continue
+        sym = normalize_product_id(r.get("symbol") or r.get("product_id", ""))
+        ref_ts = r.get("timestamp")
+        if not ref_ts or sym not in series or not series[sym]:
+            continue
+        ref_dt = _parse_iso(ref_ts)
+        if not ref_dt:
+            continue
+        has_future = False
+        for h in horizons:
+            target = ref_dt + timedelta(minutes=h)
+            if any(pdt >= target for pdt, _ in series[sym]):
+                has_future = True
+                break
+        if has_future:
+            evaluable_rows += 1
+
+    return {
+        "symbols": symbols,
+        "coverage_by_horizon": coverage,
+        "earliest_by_symbol": earliest,
+        "latest_by_symbol": latest,
+        "evaluable_telemetry_rows_with_local_prices": evaluable_rows,
+        "total_candidate_placed_rows": sum(1 for r in rows if r.get("decision_status") in ("candidate", "placed", "filled")),
+        "note": "Coverage based on telemetry reference prices + manual samples. Use --price-data-status for details.",
+    }
+
+
 @dataclass
 class OutcomeEvaluation:
     row: Dict[str, Any]
     horizon_min: int
     future_price: Optional[float]
     pct_move: Optional[float]
-    direction_outcome: str  # "hit", "miss", "neutral", "insufficient_data"
+    direction_outcome: str  # "hit", "miss", "neutral", "insufficient_data", "no_price_data"
     mfe: Optional[float]
     mae: Optional[float]
     symbol: str

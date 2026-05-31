@@ -20,7 +20,11 @@ from typing import Any, Dict
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from prediction_telemetry import PredictionOutcomeEvaluator, load_prediction_telemetry_rows
+from prediction_telemetry import (
+    PredictionOutcomeEvaluator,
+    load_prediction_telemetry_rows,
+    discover_local_price_coverage,
+)
 
 
 def main() -> None:
@@ -28,7 +32,12 @@ def main() -> None:
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--telemetry", type=str, default=None, help="Path to prediction_telemetry.jsonl")
     parser.add_argument("--journal", type=str, default=None, help="Path to journal CSV (optional for attribution)")
+    parser.add_argument("--price-data-status", action="store_true", help="P2-013C: show local price coverage for outcome horizons instead of full evaluation")
     args = parser.parse_args()
+
+    if args.price_data_status:
+        price_data_status_main(["--telemetry", args.telemetry] if args.telemetry else [])
+        return
 
     evaluator = PredictionOutcomeEvaluator()
     tpath = Path(args.telemetry) if args.telemetry else None
@@ -70,3 +79,34 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+# P2-013C: --price-data-status mode (can also be run as standalone thin script)
+def price_data_status_main(argv=None):
+    """Entry for price data status. Read-only, explains coverage and how to improve local data."""
+    import argparse
+    p = argparse.ArgumentParser(description="P2-013C Read-only local price data status for outcome horizons")
+    p.add_argument("--telemetry", type=str, default=None)
+    p.add_argument("--json", action="store_true")
+    args = p.parse_args(argv)
+
+    cov = discover_local_price_coverage(Path(args.telemetry) if args.telemetry else None)
+    if args.json:
+        print(json.dumps(cov, indent=2, default=str))
+        return
+
+    print("=== P2-013C Local Price Data Coverage for Outcome Horizons (read-only) ===")
+    print(f"Symbols with local prices: {cov.get('symbols', [])}")
+    print(f"Evaluable telemetry rows (have at least one future price in local data): {cov.get('evaluable_telemetry_rows_with_local_prices', 0)}")
+    print(f"Total candidate/placed rows considered: {cov.get('total_candidate_placed_rows', 0)}")
+    print()
+    print("Coverage by horizon (count of points that have a later price >= +H):")
+    for sym, hmap in cov.get("coverage_by_horizon", {}).items():
+        print(f"  {sym}: {hmap}")
+    print()
+    print(f"Earliest prices: {cov.get('earliest_by_symbol', {})}")
+    print(f"Latest prices : {cov.get('latest_by_symbol', {})}")
+    print()
+    print(cov.get("note", ""))
+    print("To improve: add more bars to data/manual_prices/ or ensure telemetry has dense reference_price events.")
+    print("This run is 100% read-only and does not collect live data.")
