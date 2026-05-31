@@ -1,36 +1,27 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
-## P2-013C complete — read-only local price data coverage diagnostics
+## P2-014A — ACTIVE_HANDOFF live status preservation + P2-014 preflight (docs-only)
 
-Functional patch commit: `e90e678`
+Functional patch commit (latest complete): `e90e678` (P2-013C: read-only local price data coverage diagnostics + targeted regressions)
 
-P2-013C merged the read-only local price data status path for prediction outcome horizons and added targeted regression coverage.
+P2-014A (this patch): docs-only update to preserve latest live Coinbase operational/reconciliation blocker status in ACTIVE_HANDOFF.md. No runtime strategy, config, risk, order, .env, LaunchAgent, or logging behavior changes of any kind. This patch exists solely to improve operational/profit truth by documenting grim reality accurately.
 
-Changed files:
-- `docs/PREDICTION_OUTCOME_EVALUATION.md`
-- `prediction_telemetry.py`
-- `scripts/coinbase_prediction_outcomes.py`
-- `scripts/coinbase_prediction_price_data_status.py`
-- `tests/test_prediction_outcome_evaluator.py`
+**Preserved live status (as of latest local auto-sync; treat strictly as operational/reconciliation blocker, NOT strategy success):**
+- Coinbase equity around $45.73
+- SOL/USD open/re-associated (bot-origin position)
+- broker close capability unconfirmed
+- close failures logged (position may have been dropped from tracking after 3 failed close attempts)
+- latest functional patch remains e90e678
+- no risk/aggressiveness increase justified
 
-Verified:
-- `tests/test_prediction_outcome_evaluator.py`: 17 passed
-- `tests/test_prediction_telemetry.py`: 5 passed
-- `tests/test_live_prediction_telemetry_integration.py`: 5 passed
-- `tests/test_coinbase_multi_asset_live_expansion.py`: 11 passed
-- `tests/test_coinbase_ops_status.py`: 2 passed
-- `git diff --check`: clean
-- outcome evaluator smoke passed
-- price data status smoke passed
-
-Current local diagnostic result:
+P2-013C diagnostic results (retained for continuity):
 - outcome evaluator remains read-only
 - price data status remains read-only
 - local run still reports `Evaluable telemetry rows: 0`
 - hit rates remain non-actionable until dense local price coverage exists
 - strategy tuning remains premature
 
-Safety / scope:
+Safety / scope (unchanged):
 - no strategy/order/risk/symbol/cap/config/runtime changes
 - no leverage, margin, futures, perps, options, commodities, GOLD/SILVER/XAU/XAG order placement enabled
 - fill logger remains blocked
@@ -41,15 +32,35 @@ Safety / scope:
 Profit / momentum readout:
 - last verified realized P&L remains `-$0.0358` unless newer journal/status output proves otherwise
 - current outcome scoring is still not actionable because evaluable telemetry rows remain `0`
+- **current profit readout is unsafe-to-aggregate until direct fill/proceeds/fees reconciliation is proven** (see P2-014 preflight below)
 - no risk/cap/aggressiveness increase is justified
 
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 18:30 UTC — P2-013C complete; live auto-sync shows Coinbase equity around $45.73, one SOL/USD bot-origin position open/re-associated, broker close capability unconfirmed, and close failures logged. Treat this as an operational/reconciliation blocker before P2-014. Latest functional patch remains e90e678. No strategy/order/risk/symbol/cap/config/runtime behavior should be changed.
-**Updated by:** Claude  
+**Last updated:** 2026-05-31 — P2-014A docs patch: ACTIVE_HANDOFF updated to preserve Coinbase equity ~$45.73, SOL/USD open/re-associated, broker close unconfirmed, close failures logged, as operational/reconciliation blocker. Latest functional patch e90e678. No risk increase. Added explicit P2-014 preflight on unsafe profit aggregation pending reconciliation proof.
+**Updated by:** Grok (per P2-014A ritual)
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
-**Branch:** main
+**Branch:** review/p2-014a-coinbase-live-status-and-reconciliation-preflight
+
+## P2-014 Preflight — Profit Readout Safety (reconciliation blocker)
+
+**Current profit readout (realized P&L, outcome scoring, hit rates) is unsafe-to-aggregate** until direct fill/proceeds/fees reconciliation is proven from broker data for entry and exit legs.
+
+This is especially critical given the open SOL/USD position (broker close capability unconfirmed after logged close failures; position possibly dropped from tracking).
+
+Existing reconciliation modules/scripts/tests already exist and should be reused for the next step:
+- `coinbase_order_fills_reconciliation.py` (P2-011F) — pure `reconcile_order_with_fills()` returning `ReconciliationResult` with `direct_broker_fact` / `locally_derived` / `unavailable` classifications for proceeds, fees, filled_value, logger_ready gate, raw payloads preserved, blocking_reasons.
+- `coinbase_entry_exit_capture.py` (P2-011G) — inert `capture_leg` / `capture_entry` / `capture_exit` wrappers over the above (never called from live paths in current code).
+- `scripts/coinbase_fill_proceeds_reconciliation_report.py` + `tests/test_coinbase_fill_proceeds_reconciliation_report.py`
+- `tests/test_coinbase_fill_logging_contract_check.py`
+- `tests/test_coinbase_entry_exit_capture.py`
+
+**Next patch should focus on read-only reconciliation reporting**: exercise the above modules against the current journal (and any available local broker history/fixtures for the open SOL position and recent exits) to determine whether stable per-fill trade_ids, actual sell proceeds on exits, and per-fill fees are recoverable. Produce advisory report only. No network calls in tests, no writes, no append_coinbase_fill_row, no live behavior changes, no config/risk/strategy modifications.
+
+Until that proof exists, all P&L, expectancy, and "profit" numbers must be treated as provisional/unsafe-to-aggregate. The SOL position with unconfirmed broker close is an explicit reconciliation blocker.
+
+No risk/aggressiveness increase or strategy changes are justified while this state persists.
 
 ---
 
@@ -335,3 +346,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 18:03 UTC | head=6e3b939 | P2-013B complete; Improved prediction outcome data-quality diagnostics and attribution matching. Script now reports evaluable/unevaluable horizon counts, no_price_data counts, candidate-to-trade conversions, unmatched telemetry candidates, unmatched journal trades, and clearer None-hit-rate explanations. Tests and script smoke passed. No strategy/order/risk/symbol/cap/config/runtime changes. No leverage/perps/futures/gold/silver/commodities enabled. Fill logger remains blocked; append_coinbase_fill_row is not called. Profit/readout remains required in every status update and handoff.
 - 2026-05-31 18:30 | equity=$45.73 | positions=1 | regime=downtrend | errors=4 | head=b0bdca6 | SOL/USD open (broker_close_capability_unconfirmed); close failures logged — asset may be held in consumer wallet, position dropped from tracking after 3 retries
 - 2026-05-31 18:30 UTC | head=b0bdca6 | P2-014 preflight/live status; Coinbase equity around $45.73, one SOL/USD bot-origin position open/re-associated, broker close capability unconfirmed, close failures logged, and visible recent journal exits remain negative. Preserve risk gates; no sizing/risk increase.
+- 2026-05-31 (P2-014A) | head= (to be filled on commit) | P2-014A docs patch complete: ACTIVE_HANDOFF.md cleanly updated on review/p2-014a-... branch to preserve exact live SOL/USD reconciliation blocker status (equity ~$45.73, open/re-associated, unconfirmed close, failures logged, dropped from tracking possible). Added explicit P2-014 preflight section on unsafe-to-aggregate profit readout until direct fill/proceeds/fees reconciliation proven via reuse of existing P2-011F/G modules + tests. No runtime/strategy/risk/config/order/logger changes. git status clean, only doc changed. All invariants preserved.
