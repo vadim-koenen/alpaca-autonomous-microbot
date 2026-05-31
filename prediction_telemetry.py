@@ -15,6 +15,7 @@ This is scaffolding for future measurement of every candidate (skipped or placed
 from __future__ import annotations
 
 import json
+import logging
 import math
 from dataclasses import dataclass, asdict, field
 from datetime import datetime, timezone
@@ -248,7 +249,14 @@ def log_prediction_telemetry(
 
 
 # Convenience wrappers used by strategy / risk code
-def log_proposal_candidate(proposal: Any, *, regime: Optional[str] = None, source: str = "strategy_router") -> Dict[str, Any]:
+def log_proposal_candidate(
+    proposal: Any,
+    *,
+    regime: Optional[str] = None,
+    source: str = "strategy_router",
+    features: Optional[Dict[str, Any]] = None,
+    raw_payload: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     if hasattr(proposal, "symbol"):
         p = proposal
     else:
@@ -268,11 +276,20 @@ def log_proposal_candidate(proposal: Any, *, regime: Optional[str] = None, sourc
         ask=getattr(p, "ask", None),
         decision_status="candidate",
         source=source,
-        raw_payload=getattr(p, "__dict__", dict(proposal) if isinstance(proposal, dict) else {}),
+        features=features,
+        raw_payload=raw_payload or getattr(p, "__dict__", dict(proposal) if isinstance(proposal, dict) else {}),
     )
 
 
-def log_skipped_proposal(proposal: Any, reason: str, *, regime: Optional[str] = None, source: str = "risk_manager") -> Dict[str, Any]:
+def log_skipped_proposal(
+    proposal: Any,
+    reason: str,
+    *,
+    regime: Optional[str] = None,
+    source: str = "risk_manager",
+    features: Optional[Dict[str, Any]] = None,
+    raw_payload: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     if hasattr(proposal, "symbol"):
         p = proposal
     else:
@@ -290,5 +307,51 @@ def log_skipped_proposal(proposal: Any, reason: str, *, regime: Optional[str] = 
         decision_status="skipped",
         reason=reason,
         source=source,
-        raw_payload=getattr(p, "__dict__", dict(proposal) if isinstance(proposal, dict) else {}),
+        features=features,
+        raw_payload=raw_payload or getattr(p, "__dict__", dict(proposal) if isinstance(proposal, dict) else {}),
     )
+
+
+# P2-012B: safe non-fatal wrappers. Telemetry must never break live scan/order paths.
+def safe_log_prediction_telemetry(**kwargs) -> Dict[str, Any]:
+    """Append telemetry; never raises. Returns the row or error dict."""
+    try:
+        return log_prediction_telemetry(**kwargs)
+    except Exception as e:
+        logging.getLogger(__name__).debug("prediction telemetry write non-fatal: %s", e)
+        return {"error": str(e), "symbol": kwargs.get("symbol", "UNKNOWN"), "decision_status": kwargs.get("decision_status")}
+
+
+def safe_log_proposal_candidate(
+    proposal: Any,
+    *,
+    regime: Optional[str] = None,
+    source: str = "strategy_router",
+    features: Optional[Dict[str, Any]] = None,
+    raw_payload: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    try:
+        return log_proposal_candidate(
+            proposal, regime=regime, source=source, features=features, raw_payload=raw_payload
+        )
+    except Exception as e:
+        logging.getLogger(__name__).debug("prediction telemetry (candidate) non-fatal: %s", e)
+        return {"error": str(e), "symbol": getattr(proposal, "symbol", "UNKNOWN")}
+
+
+def safe_log_skipped_proposal(
+    proposal: Any,
+    reason: str,
+    *,
+    regime: Optional[str] = None,
+    source: str = "risk_manager",
+    features: Optional[Dict[str, Any]] = None,
+    raw_payload: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    try:
+        return log_skipped_proposal(
+            proposal, reason, regime=regime, source=source, features=features, raw_payload=raw_payload
+        )
+    except Exception as e:
+        logging.getLogger(__name__).debug("prediction telemetry (skipped) non-fatal: %s", e)
+        return {"error": str(e), "symbol": getattr(proposal, "symbol", "UNKNOWN"), "reason": reason}

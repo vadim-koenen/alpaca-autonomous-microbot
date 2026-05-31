@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-P2-012A — Read-only Prediction Telemetry Status.
+P2-012A / P2-012B — Read-only Prediction Telemetry Status.
 
 Safe reporter for the dedicated prediction_telemetry.jsonl file.
+Now includes real live scan/proposal telemetry (candidates + skips) from strategy path.
 Never touches coinbase_fills.csv or calls append_coinbase_fill_row.
+Telemetry writes are non-fatal to trading.
 """
 
 from __future__ import annotations

@@ -828,6 +828,18 @@ def main() -> None:
                         consecutive_losses=_session.consecutive_losses,
                         mode=mode,
                     )
+                    # P2-012B: log risk skips to prediction telemetry (non-fatal)
+                    try:
+                        from prediction_telemetry import safe_log_skipped_proposal
+                        safe_log_skipped_proposal(
+                            proposal,
+                            reason=reason,
+                            regime=(proposal.meta or {}).get("regime") if hasattr(proposal, "meta") else None,
+                            source="risk_manager",
+                        )
+                    except Exception as e:
+                        # never let telemetry affect order path
+                        pass
                     continue
 
                 # Risk manager approved — execute

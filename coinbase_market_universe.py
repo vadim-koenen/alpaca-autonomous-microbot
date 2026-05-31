@@ -231,3 +231,102 @@ class CoinbaseMarketUniverse:
             indent=indent,
             default=str,
         )
+
+    # ------------------------------------------------------------------
+    # P2-012B: conservative multi-asset spot candidate plumbing (read-only)
+    # ------------------------------------------------------------------
+
+    def get_spot_crypto_candidates(
+        self,
+        configured_symbols: Optional[Iterable[str]] = None,
+        supported_quotes: Optional[Set[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Controlled multi-asset spot expansion candidate generator.
+
+        - Starts from (or augments with) currently configured live symbols.
+        - Filters ingested products to spot_crypto only.
+        - Excludes: trading_disabled, non-enabled, unsupported quotes, any leverage,
+          perps/futures, gold/silver/commodity-linked (by ID patterns).
+        - All *newly discovered* candidates have allow_live_trading=False (policy only).
+        - Placeholder ranking scores for future use (not used for orders).
+        - Never enables trading; purely advisory/scaffolding for next intentional expansion.
+        """
+        if supported_quotes is None:
+            supported_quotes = {"USD", "USDC", "USDT"}
+
+        configured: Set[str] = {
+            (s or "").replace("/", "-").upper() for s in (configured_symbols or [])
+        }
+
+        candidates: List[Dict[str, Any]] = []
+        excluded: List[Dict[str, Any]] = []
+
+        for p in self._products.values():
+            pid = (p.product_id or "").replace("/", "-").upper()
+            reason = None
+
+            if p.product_type != PRODUCT_TYPE_SPOT_CRYPTO:
+                reason = f"not_spot_crypto:{p.product_type}"
+            elif p.is_trading_disabled or not p.product_enabled:
+                reason = "trading_disabled_or_not_enabled"
+            elif p.quote_currency.upper() not in {q.upper() for q in supported_quotes}:
+                reason = f"unsupported_quote:{p.quote_currency}"
+            elif p.leverage_allowed or (p.max_leverage and p.max_leverage > 1):
+                reason = "leverage_or_margin_enabled"
+            elif p.is_gold_or_silver_like or any(x in pid for x in ("PERP", "FUTURE", "FUT", "SWAP")):
+                reason = "derivative_or_commodity_linked"
+            elif "GOLD" in pid or "SILVER" in pid or "XAU" in pid or "XAG" in pid:
+                reason = "gold_silver_like"
+
+            if reason:
+                excluded.append(
+                    {
+                        "product_id": p.product_id,
+                        "base": p.base_currency,
+                        "quote": p.quote_currency,
+                        "product_type": p.product_type,
+                        "reason": reason,
+                        "allow_live_trading": p.allow_live_trading,
+                    }
+                )
+                continue
+
+            # placeholder scores (future: liquidity/spread/vol from real data)
+            is_current_live = pid in configured or p.allow_live_trading
+            liquidity = p.liquidity_score if p.liquidity_score is not None else (0.9 if is_current_live else 0.5)
+            rec = {
+                "product_id": p.product_id,
+                "base_currency": p.base_currency,
+                "quote_currency": p.quote_currency,
+                "min_order_size": p.min_order_size,
+                "price_increment": p.price_increment,
+                "size_increment": p.size_increment,
+                "allow_live_trading": p.allow_live_trading,  # False for anything not in CURRENT_LIVE
+                "is_currently_configured_live": is_current_live,
+                "liquidity_score": liquidity,
+                "spread_score": p.spread_score if p.spread_score is not None else 0.6,
+                "volatility_score": p.volatility_score if p.volatility_score is not None else 0.5,
+                "prediction_score": p.prediction_score if p.prediction_score is not None else 0.0,
+                "risk_score": p.risk_score if p.risk_score is not None else 0.25,
+            }
+            candidates.append(rec)
+
+        # rank: prefer currently configured, then liquidity placeholder
+        candidates.sort(key=lambda r: (-int(r["is_currently_configured_live"]), -r["liquidity_score"]))
+
+        return {
+            "candidates": candidates,
+            "candidates_count": len(candidates),
+            "excluded": excluded,
+            "excluded_count": len(excluded),
+            "excluded_reasons": sorted({e["reason"] for e in excluded}),
+            "configured_live_symbols": sorted(configured),
+            "total_products_considered": len(self._products),
+            "note": (
+                "P2-012B scaffolding only. "
+                "Newly discovered spot assets are classified but have allow_live_trading=False. "
+                "No live orders or notional changes for any new symbol. "
+                "Explicit config + safety review required for expansion."
+            ),
+        }

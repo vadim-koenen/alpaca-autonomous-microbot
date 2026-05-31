@@ -34,6 +34,29 @@ from market_data import MarketData, Quote, add_indicators
 from risk_manager import TradeProposal
 from utils import get_cfg, now_utc, safe_float, spread_pct as calc_spread, load_saved_positions
 
+# P2-012B: prediction telemetry integration (live scan decisions).
+# Safe import + no-op fallbacks so telemetry can never break strategy loading or execution.
+try:
+    from prediction_telemetry import (
+        compute_derivative_features,
+        safe_log_proposal_candidate,
+        safe_log_skipped_proposal,
+    )
+
+    _HAS_PREDICTION_TELEMETRY = True
+except Exception:
+    _HAS_PREDICTION_TELEMETRY = False
+
+    def compute_derivative_features(*args, **kwargs):  # type: ignore
+        return {}
+
+    def safe_log_proposal_candidate(*args, **kwargs):  # type: ignore
+        return {}
+
+    def safe_log_skipped_proposal(*args, **kwargs):  # type: ignore
+        return {}
+
+
 logger = logging.getLogger("strategy.crypto")
 
 ROOT = Path(__file__).resolve().parent
@@ -626,6 +649,14 @@ class CryptoStrategy:
                 f"SCAN {symbol}: invalid quote — "
                 f"bid={quote.bid} ask={quote.ask} stale={quote.is_stale}{age_s}"
             )
+            if _HAS_PREDICTION_TELEMETRY:
+                safe_log_skipped_proposal(
+                    {"symbol": symbol, "strategy": "none", "product_type": "spot_crypto"},
+                    reason="invalid_quote",
+                    regime=None,
+                    source="strategy_crypto",
+                    raw_payload={"scan_stage": "quote"},
+                )
             return []
 
         bars_limit = get_cfg("crypto", "bars_limit", default=100)
@@ -634,12 +665,28 @@ class CryptoStrategy:
         df = self._md.get_crypto_bars_df(symbol, limit=bars_limit)
         if df.empty or len(df) < min_bars:
             logger.info(f"SCAN {symbol}: only {len(df)} bars (need {min_bars}), skipping")
+            if _HAS_PREDICTION_TELEMETRY:
+                safe_log_skipped_proposal(
+                    {"symbol": symbol, "strategy": "none", "product_type": "spot_crypto"},
+                    reason="insufficient_bars",
+                    regime=None,
+                    source="strategy_crypto",
+                    raw_payload={"bars": len(df) if df is not None else 0, "min_required": min_bars},
+                )
             return []
 
         # Once-per-closed-bar guard
         latest_bar_ts = str(df.index[-1]) if hasattr(df.index, '__getitem__') else ""
         if latest_bar_ts and self._last_bar_ts.get(symbol) == latest_bar_ts:
             logger.debug(f"SCAN {symbol}: same closed bar as last cycle, skipping entry scan")
+            if _HAS_PREDICTION_TELEMETRY:
+                safe_log_skipped_proposal(
+                    {"symbol": symbol, "strategy": "none", "product_type": "spot_crypto"},
+                    reason="same_closed_bar_guard",
+                    regime=None,
+                    source="strategy_crypto",
+                    raw_payload={"last_bar_ts": latest_bar_ts},
+                )
             return []
         self._last_bar_ts[symbol] = latest_bar_ts
 
@@ -650,18 +697,46 @@ class CryptoStrategy:
         allowed = REGIME_STRATEGIES.get(regime, [])
         logger.info(f"SCAN {symbol}: regime={regime} | allowed_strategies={allowed}")
 
+        # P2-012B: live prediction telemetry for every scanned symbol (non-fatal, never blocks proposals)
+        _scan_features: Dict[str, Any] = {}
+        try:
+            closes = [float(x) for x in df["c"].tolist()[-40:]] if len(df) > 0 and "c" in df.columns else []
+            _scan_features = compute_derivative_features(
+                closes, bid=quote.bid, ask=quote.ask, current_price=(quote.bid + quote.ask) / 2 if quote.bid and quote.ask else None
+            )
+        except Exception:
+            _scan_features = {}
+        _scan_raw = {"allowed_strategies": allowed, "regime": regime, "scan_source": "generate_proposals"}
+
         if not allowed:
             # 1. Controlled Exploration (P2-001)
             exploration = self._coinbase_exploration(symbol, quote, df, buying_power, regime)
             if exploration is not None:
+                if _HAS_PREDICTION_TELEMETRY:
+                    safe_log_proposal_candidate(
+                        exploration, regime=regime, source="strategy_crypto", features=_scan_features, raw_payload=_scan_raw
+                    )
                 return [exploration]
 
             # 2. Legacy Probe
             probe = self._coinbase_probe(symbol, quote, df, prefer_no_trade, buying_power, regime)
             if probe is not None:
+                if _HAS_PREDICTION_TELEMETRY:
+                    safe_log_proposal_candidate(
+                        probe, regime=regime, source="strategy_crypto", features=_scan_features, raw_payload=_scan_raw
+                    )
                 return [probe]
 
             logger.info(f"SCAN {symbol}: no strategies allowed in {regime} regime — sitting out")
+            if _HAS_PREDICTION_TELEMETRY:
+                safe_log_skipped_proposal(
+                    {"symbol": symbol, "strategy": "none", "product_type": "spot_crypto"},
+                    reason=f"no_strategies_allowed_in_{regime}_regime_sitting_out",
+                    regime=regime,
+                    source="strategy_crypto",
+                    features=_scan_features,
+                    raw_payload=_scan_raw,
+                )
             return []
 
         # Run all regime-allowed strategies; collect proposals
@@ -681,11 +756,28 @@ class CryptoStrategy:
             # Main strategies sat out — try exploration/probe as fallbacks
             exploration = self._coinbase_exploration(symbol, quote, df, buying_power, regime)
             if exploration is not None:
+                if _HAS_PREDICTION_TELEMETRY:
+                    safe_log_proposal_candidate(
+                        exploration, regime=regime, source="strategy_crypto", features=_scan_features, raw_payload=_scan_raw
+                    )
                 return [exploration]
 
             probe = self._coinbase_probe(symbol, quote, df, prefer_no_trade, buying_power, regime)
             if probe is not None:
+                if _HAS_PREDICTION_TELEMETRY:
+                    safe_log_proposal_candidate(
+                        probe, regime=regime, source="strategy_crypto", features=_scan_features, raw_payload=_scan_raw
+                    )
                 return [probe]
+            if _HAS_PREDICTION_TELEMETRY:
+                safe_log_skipped_proposal(
+                    {"symbol": symbol, "strategy": "none", "product_type": "spot_crypto"},
+                    reason="no_valid_candidate_after_regime_strategies",
+                    regime=regime,
+                    source="strategy_crypto",
+                    features=_scan_features,
+                    raw_payload=_scan_raw,
+                )
             return []
 
         # Select best proposal by (net_expected_edge_pct, confidence, reward_risk_ratio)
@@ -704,6 +796,10 @@ class CryptoStrategy:
                 f"(edge={best.meta.get('net_expected_edge_pct', 0):.2f}% "
                 f"conf={best.confidence:.2f} "
                 f"r:r={best.meta.get('reward_risk_ratio', 0):.2f})"
+            )
+        if _HAS_PREDICTION_TELEMETRY:
+            safe_log_proposal_candidate(
+                best, regime=regime, source="strategy_crypto", features=_scan_features, raw_payload=_scan_raw
             )
         return [best]
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-P2-012A — Read-only Coinbase Market Universe Status.
+P2-012A / P2-012B — Read-only Coinbase Market Universe Status.
 
 Safe, offline-capable reporter. No network calls by default.
 Can load a previously saved universe JSON (produced by external tooling or fixtures)
-and print a human-readable summary.
+and print a human-readable summary + multi-asset spot candidate view (P2-012B plumbing).
 
 Usage:
     python3 scripts/coinbase_market_universe_status.py

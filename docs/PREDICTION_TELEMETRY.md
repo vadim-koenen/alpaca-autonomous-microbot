@@ -74,3 +74,18 @@ This telemetry + feature set is intended to feed future prediction models and pe
 ---
 
 P2-012A prediction telemetry component complete. No trading behavior or logger writes were changed.
+
+## P2-012B: Live Integration
+
+Prediction telemetry is now wired (via safe non-fatal wrappers) into the real Coinbase crypto scan path in `strategy_crypto.generate_proposals`:
+
+- Every symbol scan emits a row (candidate if proposal produced, skipped with specific reason otherwise).
+- Captures: symbol, regime (uptrend/range/etc), allowed_strategies, decision_status, reason for skips, proposed notional/side/confidence/price, derivative-style features (computed from the same bar df used for the decision), raw_payload with extra context.
+- Risk manager skips (in main.py) also emit skipped rows.
+- All writes wrapped in safe_log_* — any failure (disk, permissions, schema) is logged at DEBUG and never propagates to block proposals, risk checks, or order execution.
+- No change to signal logic, notional, TP/SL, hold times, or live symbols.
+- Existing live symbols (BTC/USD, ETH/USD, SOL/USD) continue exactly as before; new telemetry is purely observational.
+
+See also: `scripts/coinbase_prediction_status.py`, `tests/test_live_prediction_telemetry_integration.py`, and the multi-asset expansion doc.
+
+P2-012B live wiring complete. Telemetry failure is non-fatal. No live behavior changed.
