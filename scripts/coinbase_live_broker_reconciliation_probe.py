@@ -108,6 +108,30 @@ def _normalize_symbol_for_match(s: str) -> str:
     return s
 
 
+def _build_safe_default_report() -> dict:
+    """Return a valid JSON structure when running without --live-read-only.
+    This path must never make any broker or network calls.
+    """
+    return {
+        "verdict": "BLOCKED",
+        "profit_readout": "unsafe_to_aggregate",
+        "live_read_only": False,
+        "broker_calls_made": False,
+        "blockers": [
+            "Live broker mode not enabled (no --live-read-only flag). No API calls were made.",
+            "Local journal still shows unresolved SOL/USD broker-close / dropped / re-associated position evidence from prior runs (broker close capability remains unconfirmed)."
+        ],
+        "next_action": "Re-run with --live-read-only (after confirming read-only Coinbase API credentials) to fetch current broker positions, open orders, and recent fills for direct comparison against local state.",
+        "safety": {
+            "message": "This run performed zero network calls to any broker or external service.",
+            "how_to_enable_live_reads": "python3 scripts/coinbase_live_broker_reconciliation_probe.py --live-read-only [--json]",
+            "purpose": "The probe is a read-only diagnostic to help resolve the long-standing SOL/USD orphan / broker-close uncertainty."
+        },
+        "symbols_checked": ["SOL-USD", "ETH-USD", "BTC-USD", "ADA-USD", "AVAX-USD"],
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def _safe_get_open_orders(broker, symbols: List[str]) -> List[Dict[str, Any]]:
     try:
         orders = broker.get_open_orders() or []
@@ -297,15 +321,19 @@ def main(argv: Optional[List[str]] = None) -> int:
     symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
 
     if not args.live_read_only:
-        print("=== Coinbase Live Broker Reconciliation Probe (P2-015A) ===")
-        print("SAFETY: This script performs ZERO live broker calls by default.")
-        print("To fetch real account/position/order/fill data from Coinbase, re-run with:")
-        print("    python3 scripts/coinbase_live_broker_reconciliation_probe.py --live-read-only [--json]")
-        print()
-        print("This is a READ-ONLY diagnostic only. No orders will be placed, cancelled, or modified.")
-        print("No files will be written. No append_coinbase_fill_row is called.")
-        print()
-        print("The probe is designed to help resolve the SOL/USD broker-close/orphan uncertainty.")
+        default_report = _build_safe_default_report()
+        if args.json:
+            print(json.dumps(default_report, indent=2, default=str))
+        else:
+            print("=== Coinbase Live Broker Reconciliation Probe (P2-015A) ===")
+            print("SAFETY: This script performs ZERO live broker calls by default.")
+            print("To fetch real account/position/order/fill data from Coinbase, re-run with:")
+            print("    python3 scripts/coinbase_live_broker_reconciliation_probe.py --live-read-only [--json]")
+            print()
+            print("This is a READ-ONLY diagnostic only. No orders will be placed, cancelled, or modified.")
+            print("No files will be written. No append_coinbase_fill_row is called.")
+            print()
+            print("The probe is designed to help resolve the SOL/USD broker-close/orphan uncertainty.")
         return 0
 
     # === LIVE READ-ONLY PATH (user explicitly opted in) ===
