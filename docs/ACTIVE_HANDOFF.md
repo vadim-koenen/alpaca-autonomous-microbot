@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 13:26 UTC — P2-011J committed; read-only Coinbase broker-fact discovery/probe proof added via doc/script/test. The probe is disabled by default for live calls, requires explicit read-only opt-in for any live broker read, redacts secret-like and account identifier fields, performs no logger writes, does not call append_coinbase_fill_row, and adds no order submission/cancel/modify path. Logger hook remains blocked. Next safe step is a controlled read-only broker-fact run/review to inspect direct sell proceeds, stable per-fill IDs, and per-fill fees without writes or order submission. No default live behavior, config, risk, runtime, strategy, sizing, TP/SL, symbol, .env, LaunchAgent, scheduler, or order-submission behavior changes.
+**Last updated:** 2026-05-31 14:03 UTC — P2-011K committed; controlled aggressive live runtime hardening added. The patch adds namespace-aware single-process locking, conservative restart-safe counter reconstruction, honest startup logging, and a read-only Coinbase ops status script. Exploration/live trading remains enabled under tiny caps. No notional, exposure, strategy, TP/SL, hold-time, symbol, .env, LaunchAgent, or logger-write behavior was increased or enabled. Logger hook remains blocked. Profit/readout discipline is now required in every status update and handoff. Next safe step is supervised runtime observation plus reconciliation of realized exits/profit after BTC/ETH close.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -134,7 +134,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 5b7e73e
+Latest functional patch commit: 0ac6112
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -280,3 +280,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 04:21 UTC | head=20ce3df | P2-011H complete; Added opt-in dry-run Coinbase capture seam in actual entry/exit flow plus dedicated tests. The seam is disabled by default, stores in-memory dry-run results only when explicitly enabled, performs no logger writes, and does not call append_coinbase_fill_row. Logger hook remains blocked pending controlled broker-data proof of direct sell proceeds, stable fill IDs, and fees. No default live behavior/config/risk/runtime/strategy/order-submission changes.
 - 2026-05-31 13:14 UTC | head=5fb6ffa | P2-011I complete; Added controlled dry-run broker-data capture/probe proof with documentation, script, and tests. The probe uses controlled Coinbase-like broker payloads through the opt-in dry-run seam, remains in-memory/test-only, performs no logger writes, does not call append_coinbase_fill_row, and does not change live behavior/config/risk/runtime/strategy/order-submission behavior. Logger hook remains blocked pending direct broker proof of sell proceeds, stable fill IDs, and fees.
 - 2026-05-31 13:26 UTC | head=5b7e73e | P2-011J complete; Added read-only Coinbase broker-fact discovery/probe proof with documentation, script, and tests. The probe remains disabled by default for live calls, redacts sensitive identifiers, performs no writes, does not call append_coinbase_fill_row, and does not add or call order submission/cancel/modify paths. Logger hook remains blocked pending direct broker proof of sell proceeds, stable fill IDs, and per-fill fees.
+- 2026-05-31 14:03 UTC | head=0ac6112 | P2-011K complete; Added controlled aggressive live runtime hardening: namespace-aware single-process lock, stale-lock recovery, conservative journal-driven counter reconstruction, honest startup logging, and read-only Coinbase ops status script. Live exploration remains enabled under tiny caps. Logger hook remains blocked; append_coinbase_fill_row is not called. Profit/readout metric must be included in every future status/handoff. Grok usage was around half during this run, so future Grok prompts should be compact and used only when local verification cannot resolve the issue.
