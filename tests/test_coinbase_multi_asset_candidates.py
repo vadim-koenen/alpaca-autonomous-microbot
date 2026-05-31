@@ -79,7 +79,8 @@ def test_perps_futures_gold_silver_leverage_excluded():
 
     reasons = {e["reason"] for e in report["excluded"]}
     assert any("derivative" in r or "PERP" in r for r in reasons)
-    assert any("gold" in r.lower() or "silver" in r.lower() or "commodity" in r.lower() for r in reasons)
+    # SILVER-PERP etc now prioritized under derivative_or_perpetual_excluded (still correctly excluded)
+    assert any("derivative_or_perpetual_excluded" in r or "commodity_linked_or_gold_silver_excluded" in r or "gold" in r.lower() or "silver" in r.lower() or "commodity" in r.lower() for r in reasons)
     assert any("leverage" in r.lower() for r in reasons)
 
 

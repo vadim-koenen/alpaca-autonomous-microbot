@@ -99,9 +99,9 @@ def test_allowlist_is_required_nothing_gets_through_without_it():
 
     assert effective == base
     assert report["selected_new_count"] == 0
-    # the good candidates should be excluded with the specific reason
+    # the good candidates (ADA etc) should be excluded because not allowlisted
     reasons = [e.get("reason", "") for e in report.get("excluded", [])]
-    assert any("not_in_explicit_allow_live_trading_symbols" in r for r in reasons)
+    assert "not_in_explicit_allowlist_excluded" in reasons
 
 
 def test_hard_filters_never_let_perps_gold_silver_leverage_through_even_if_allowlisted():
@@ -121,12 +121,12 @@ def test_hard_filters_never_let_perps_gold_silver_leverage_through_even_if_allow
     for bad in ["BTC-PERP", "GOLD-PERP", "XAU-USD", "LEVERAGED-USD", "DISABLED-USD"]:
         assert bad.replace("/", "-").upper() not in eff_norm
 
-    # they must appear in excluded with appropriate reasons
+    # they must appear in excluded with the exact preferred deterministic reasons
     reasons = {e.get("reason", "") for e in report.get("excluded", [])}
-    assert any("derivative" in r or "PERP" in r for r in reasons)
-    assert any("gold" in r.lower() or "silver" in r.lower() or "XAU" in r or "XAG" in r or "commodity" in r.lower() for r in reasons)
-    assert any("leverage" in r.lower() for r in reasons)
-    assert any("disabled" in r for r in reasons)
+    assert "derivative_or_perpetual_excluded" in reasons
+    assert "commodity_linked_or_gold_silver_excluded" in reasons
+    assert "leverage_or_margin_excluded" in reasons
+    assert "trading_disabled_excluded" in reasons
 
 
 def test_expanded_symbols_still_emit_prediction_telemetry(tmp_path, monkeypatch):

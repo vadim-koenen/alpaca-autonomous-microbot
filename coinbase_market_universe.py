@@ -266,18 +266,19 @@ class CoinbaseMarketUniverse:
             pid = (p.product_id or "").replace("/", "-").upper()
             reason = None
 
-            if p.product_type != PRODUCT_TYPE_SPOT_CRYPTO:
-                reason = f"not_spot_crypto:{p.product_type}"
-            elif p.is_trading_disabled or not p.product_enabled:
-                reason = "trading_disabled_or_not_enabled"
+            # P2-012C: deterministic explicit exclusion reasons (preferred strings)
+            if p.is_trading_disabled or not p.product_enabled:
+                reason = "trading_disabled_excluded"
             elif p.quote_currency.upper() not in {q.upper() for q in supported_quotes}:
-                reason = f"unsupported_quote:{p.quote_currency}"
+                reason = "unsupported_quote_currency_excluded"
             elif p.leverage_allowed or (p.max_leverage and p.max_leverage > 1):
-                reason = "leverage_or_margin_enabled"
-            elif p.is_gold_or_silver_like or any(x in pid for x in ("PERP", "FUTURE", "FUT", "SWAP")):
-                reason = "derivative_or_commodity_linked"
-            elif "GOLD" in pid or "SILVER" in pid or "XAU" in pid or "XAG" in pid:
-                reason = "gold_silver_like"
+                reason = "leverage_or_margin_excluded"
+            elif any(x in pid for x in ("PERP", "FUTURE", "FUT", "SWAP")) or (p.product_type in ("perpetual_future", "expiring_future")):
+                reason = "derivative_or_perpetual_excluded"
+            elif p.is_gold_or_silver_like or any(x in pid for x in ["GOLD", "SILVER", "XAU", "XAG"]):
+                reason = "commodity_linked_or_gold_silver_excluded"
+            elif p.product_type != PRODUCT_TYPE_SPOT_CRYPTO:
+                reason = "not_spot_crypto_excluded"
 
             if reason:
                 excluded.append(
@@ -416,7 +417,7 @@ class CoinbaseMarketUniverse:
             if pid not in allowlist:
                 excluded_details.append({
                     "product_id": cand.get("product_id"),
-                    "reason": "not_in_explicit_allow_live_trading_symbols",
+                    "reason": "not_in_explicit_allowlist_excluded",
                 })
                 continue
             # passed all hard spot filters + explicit allowlist
