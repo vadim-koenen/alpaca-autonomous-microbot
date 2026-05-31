@@ -134,7 +134,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: af1eb87
+Latest functional patch commit: 989292b
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -178,7 +178,7 @@ From confirmed live trade data (6 completed cycles):
 ## 8. Active Patch Queue
 
 ### IN PROGRESS
-**P2-011E completed the minimal inert Coinbase get_historical_fills wrapper proof. Key finding: BrokerCoinbase now has a wrapper that can preserve raw/normalized historical fill facts, including trade_id/entry_id, per-fill fee, size, price, and liquidity fields when present. The wrapper is not called from live trading paths. Logger hook remains blocked because end-to-end order + fills capture/reconciliation for both entry and exit legs has not yet been wired or proven. Next safe patch: P2-011F narrow order-status + historical-fills capture/reconciliation seam proof. Do not tune TP/SL, hold time, notional size, symbols, predictions, risk caps, config, runtime, or live strategy until actual fills/proceeds/fees are captured and reconciled.**
+**P2-011E completed the minimal inert Coinbase get_historical_fills wrapper proof. Key finding: BrokerCoinbase now has a wrapper that can preserve raw/normalized historical fill facts, including trade_id/entry_id, per-fill fee, size, price, and liquidity fields when present. The wrapper is not called from live trading paths. Logger hook remains blocked because end-to-end order + fills capture/reconciliation for both entry and exit legs has not yet been wired or proven. Next safe patch: P2-011G — narrow inert entry/exit capture wiring, still no writes
 
 ### QUEUED (blocked — data + explicit approval required)
 - **SL/TP/hold-time tuning** — Class 2; use P2-001E exit-quality and P2-005 MFE/MAE reports only after ≥20 price-path samples, ~2+ weeks of P2-003 data, and explicit human approval
@@ -256,3 +256,23 @@ Do not recommend or execute anything until all four commands have been run and r
 - 2026-05-31 03:34 UTC | head=081c04b | P2-011C complete; Added raw Coinbase order/status + fills fixture proof and committed required fixtures. Tests passed. Logger hook remains blocked because direct sell proceeds and current exit-leg stable fill-level idempotency are still not proven from the current broker response path. No live behavior/config/risk/runtime/strategy changes.
 - 2026-05-31 03:38 UTC | head=0b2a629 | P2-011D-alt complete; Added Coinbase fills payload discovery with fixtures/tests. Finding: no fills/history wrapper exists; historical fills path is required for per-fill fee/liquidity/stable fill IDs, and order/status alone is insufficient. Logger hook remains blocked. No live behavior/config/risk/runtime/strategy changes.
 - 2026-05-31 03:44 UTC | head=af1eb87 | P2-011E complete; Added minimal inert BrokerCoinbase.get_historical_fills wrapper proof with tests/docs. Wrapper is not called by live paths. Logger hook remains blocked pending end-to-end order + fills capture/reconciliation for entry and exit legs. No live behavior/config/risk/runtime/strategy changes.
+
+## P2-011F complete — Coinbase Order/Fills Reconciliation Proof
+
+Last updated: 2026-05-31 03:56 UTC
+
+Latest functional patch commit: 989292b
+
+P2-011F completed pure Coinbase order-status + historical-fills reconciliation proof.
+
+Added side-effect-free reconcile_order_with_fills() helper.
+
+The helper preserves raw order/fill payloads, direct broker facts, stable per-fill idempotency keys, and blocks logger readiness when fees, stable IDs, or exit proceeds are missing.
+
+The helper is not called by live trading paths.
+
+Logger hook remains blocked.
+
+Next safe patch: P2-011G narrow inert capture wiring at entry/exit seams, still no writes.
+
+No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-submission changes were made.
