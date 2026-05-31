@@ -438,8 +438,20 @@ def load_journal_rows(journal_path: Optional[Path] = None) -> List[Dict[str, Any
 
 
 def _default_price_loader(symbol: str, ref_ts: str, horizon_min: int) -> Optional[float]:
-    """Fallback loader using data/manual_prices/sample_prices.jsonl if present."""
-    prices_dir = ROOT / "data" / "manual_prices"
+    """Fallback loader using data/manual_prices/*.jsonl if present.
+    Completely self-contained: computes its own root from __file__ to avoid any import/NameError.
+    Returns None (graceful) if the data directory or files are missing.
+    """
+    try:
+        # prediction_telemetry.py lives in repo root, so parent is the project root
+        module_root = Path(__file__).resolve().parent
+        prices_dir = module_root / "data" / "manual_prices"
+    except Exception:
+        return None
+
+    if not prices_dir.exists() or not prices_dir.is_dir():
+        return None
+
     for fname in ("sample_prices.jsonl", "equity_sample_prices.jsonl"):
         p = prices_dir / fname
         if not p.exists():
@@ -467,7 +479,8 @@ def _default_price_loader(symbol: str, ref_ts: str, horizon_min: int) -> Optiona
                                 best_delta = delta
                     except Exception:
                         continue
-            return best
+            if best is not None:
+                return best
         except Exception:
             continue
     return None
@@ -517,7 +530,7 @@ class PredictionOutcomeEvaluator:
             if future is None or ref_price <= 0:
                 results.append(OutcomeEvaluation(
                     row=row, horizon_min=h, future_price=None, pct_move=None,
-                    direction_outcome="insufficient_data", mfe=None, mae=None,
+                    direction_outcome="no_price_data", mfe=None, mae=None,
                     symbol=symbol, strategy=strategy, regime=regime, decision_status=decision
                 ))
                 continue

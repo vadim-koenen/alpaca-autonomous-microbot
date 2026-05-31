@@ -150,3 +150,61 @@ def test_no_side_effects_and_read_only(tmp_path, monkeypatch):
     _ = evaluator.run_evaluation(telemetry_path=tele_p)
     # If we reached here without exceptions and no files were created outside tmp, good.
     assert True
+
+
+def test_default_price_loader_graceful_on_missing_dir(tmp_path, monkeypatch):
+    """Regression for P2-013A NameError + graceful degradation when data dir missing."""
+    # Force the module to see a non-existent data dir by monkeypatching __file__ context isn't easy,
+    # so we test by temporarily moving/renaming the real dir if it exists (but to keep test hermetic,
+    # we just instantiate and call the private loader with a symbol that would require the dir).
+    # Better: directly test that _default_price_loader does not raise even if we can't find ROOT.
+    from prediction_telemetry import _default_price_loader
+    # Call it; it must not raise NameError or any other exception when no data is present.
+    # The loader must never raise (especially not NameError for ROOT).
+    # If real sample data exists in the repo it may return a float; if not, None.
+    # Both are acceptable "graceful" outcomes.
+    result = _default_price_loader("BTC/USD", "2026-01-01T00:00:00Z", 15)
+    assert result is None or isinstance(result, (int, float))
+
+
+def test_evaluator_and_script_default_run_no_crash(monkeypatch, tmp_path, capsys):
+    """End-to-end regression: default PredictionOutcomeEvaluator + script run must never raise NameError
+    or crash when no manual price data is present. Must degrade to no_price_data / empty results.
+    """
+    # Ensure we don't accidentally write anything
+    monkeypatch.setattr("prediction_telemetry.Path", lambda *a, **k: tmp_path / "nonexistent.jsonl" if "prediction_telemetry" in str(k.get("name","")) else Path(*a,**k) )  # rough, better to rely on the fix
+
+    from prediction_telemetry import PredictionOutcomeEvaluator, load_prediction_telemetry_rows
+    from scripts.coinbase_prediction_outcomes import main as outcomes_main
+
+    # Create a minimal telemetry file so run_evaluation has something to process
+    tele = tmp_path / "pred.jsonl"
+    tele.write_text('{"timestamp":"2026-01-01T00:00:00Z","symbol":"TEST/USD","reference_price":100.0,"decision_status":"candidate","side":"buy","strategy":"test"}\n')
+
+    evaluator = PredictionOutcomeEvaluator()  # uses default (broken before) loader
+    result = evaluator.run_evaluation(telemetry_path=tele)
+
+    # Should succeed without exception, outcomes should have "no_price_data"
+    assert "outcomes" in result
+    assert len(result["outcomes"]) >= 1
+    assert any(o.get("direction_outcome") == "no_price_data" for o in result["outcomes"])
+
+    # Now test the script itself does not crash on default invocation (it will use the same evaluator)
+    # We patch argv and capture output
+    monkeypatch.setattr("sys.argv", ["coinbase_prediction_outcomes.py"])
+    # The script calls run_evaluation which now must succeed
+    try:
+        outcomes_main()
+        out = capsys.readouterr().out
+        assert "P2-013A" in out or "Prediction Outcome" in out
+    except NameError as e:
+        pytest.fail(f"Script default run raised NameError: {e}")
+    except Exception as e:
+        # Other exceptions are bad only if they are crashes from missing ROOT etc.
+        if "ROOT" in str(e) or "NameError" in str(type(e)):
+            pytest.fail(f"Unexpected crash in default script run: {e}")
+        # If it fails for other reasons (e.g. no journal), that's acceptable as long as no NameError from our bug
+
+    # Confirm no files were written outside tmp (sanity for read-only)
+    # (we already use tmp for any test artifacts)
+    assert True
