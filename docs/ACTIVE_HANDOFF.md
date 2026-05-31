@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 03:56 UTC — P2-011F committed; Coinbase order/fills reconciliation proof completed. Helper is not called from live trading paths. Logger hook remains blocked. Next safe patch is P2-011G narrow inert entry/exit capture wiring, still no writes. No live behavior, config, risk, runtime, or strategy changes.
+**Last updated:** 2026-05-31 04:04 UTC — P2-011G committed; inert Coinbase entry/exit capture wiring proof completed. Helper remains uncalled by live trading paths and performs no writes. Logger hook remains blocked. Next safe patch is P2-011H narrow opt-in dry-run capture seam proof in actual entry/exit flow, still no writes. No live behavior, config, risk, runtime, strategy, sizing, TP/SL, symbol, .env, or LaunchAgent changes.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -134,7 +134,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 989292b
+Latest functional patch commit: 6ccf1fe
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -178,7 +178,7 @@ From confirmed live trade data (6 completed cycles):
 ## 8. Active Patch Queue
 
 ### IN PROGRESS
-**P2-011F completed the pure Coinbase order-status + historical-fills reconciliation proof. Key finding: `reconcile_order_with_fills()` now preserves raw order/fill payloads, direct broker facts, stable per-fill idempotency keys, and blocks logger readiness when fees, stable IDs, or exit proceeds are missing. The helper is side-effect free and is not called from live trading paths. Logger hook remains blocked. Next safe patch: P2-011G — narrow inert entry/exit capture wiring at entry/exit seams, still no writes. Do not tune TP/SL, hold time, notional size, symbols, predictions, risk caps, config, runtime, or live strategy until actual fills/proceeds/fees are captured and reconciled.**
+**P2-011G completed the inert Coinbase entry/exit capture wiring proof. Key finding: `coinbase_entry_exit_capture.py` now provides an inert helper that can combine order/status payloads, historical fills, leg type, symbol/product_id, order IDs, raw broker payloads, direct fees/proceeds when present, stable idempotency checks, and explicit logger-readiness blockers. The helper is not imported by live trading paths and performs no I/O or logger writes. Logger hook remains blocked. Next safe patch: P2-011H — narrow opt-in dry-run capture seam proof in the actual entry/exit flow, still no writes. Do not tune TP/SL, hold time, notional size, symbols, predictions, risk caps, config, runtime, or live strategy until actual fills/proceeds/fees are captured and reconciled.**
 
 ### QUEUED (blocked — data + explicit approval required)
 - **SL/TP/hold-time tuning** — Class 2; use P2-001E exit-quality and P2-005 MFE/MAE reports only after ≥20 price-path samples, ~2+ weeks of P2-003 data, and explicit human approval
@@ -261,7 +261,7 @@ Do not recommend or execute anything until all four commands have been run and r
 
 Last updated: 2026-05-31 03:56 UTC
 
-Latest functional patch commit: 989292b
+Latest functional patch commit: 6ccf1fe
 
 P2-011F completed pure Coinbase order-status + historical-fills reconciliation proof.
 
@@ -276,3 +276,4 @@ Logger hook remains blocked.
 Next safe patch: P2-011G narrow inert capture wiring at entry/exit seams, still no writes.
 
 No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-submission changes were made.
+- 2026-05-31 04:04 UTC | head=6ccf1fe | P2-011G complete; Added inert Coinbase entry/exit capture wiring proof with helper, tests, and docs. The helper can structure entry/exit reconciliation readiness and missing broker facts, but is not imported by live trading paths and performs no writes. Logger hook remains blocked pending opt-in dry-run proof in actual entry/exit flow and direct broker proof of sell proceeds, stable fill IDs, and fees. No live behavior/config/risk/runtime/strategy changes.
