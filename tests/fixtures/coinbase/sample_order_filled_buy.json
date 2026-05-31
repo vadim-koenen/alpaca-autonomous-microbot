@@ -1,0 +1,20 @@
+{
+  "order": {
+    "order_id": "00000000-0000-0000-0000-000000000001",
+    "client_order_id": "cb-coinbase-BTC-USD-buy-20260530T120000Z-entry-abc123",
+    "product_id": "BTC-USD",
+    "side": "BUY",
+    "status": "FILLED",
+    "time_in_force": "GTC",
+    "created_time": "2026-05-30T12:00:00.123Z",
+    "completion_percentage": "100",
+    "filled_size": "0.00123456",
+    "average_filled_price": "65000.50",
+    "filled_value": "80.25",
+    "total_fees": "0.4815",
+    "settled": true,
+    "last_fill_time": "2026-05-30T12:00:05.789Z",
+    "last_update_time": "2026-05-30T12:00:05.789Z",
+    "number_of_fills": "1"
+  }
+}

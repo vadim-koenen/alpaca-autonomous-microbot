@@ -1,0 +1,18 @@
+{
+  "fills": [
+    {
+      "entry_id": "fill-entry-0001",
+      "order_id": "00000000-0000-0000-0000-000000000001",
+      "product_id": "BTC-USD",
+      "side": "BUY",
+      "price": "65000.50",
+      "size": "0.00123456",
+      "fee": "0.4815",
+      "fee_currency": "USD",
+      "liquidity_indicator": "MAKER",
+      "time": "2026-05-30T12:00:05.789Z",
+      "trade_id": "trade-9876543210"
+    }
+  ],
+  "cursor": null
+}
