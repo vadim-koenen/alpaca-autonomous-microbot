@@ -32,6 +32,7 @@ BUY_VALUE_KEYS = ("buy_cost", "cost", "entry_notional", "notional", "quote_amoun
 SELL_VALUE_KEYS = ("sell_proceeds", "proceeds", "gross_proceeds", "exit_proceeds", "quote_amount", "quote_size", "filled_value", "value", "amount_usd", "usd_value", "proceeds_usd")
 FEE_KEYS = ("fee", "fees", "commission", "fee_usd", "fees_usd", "total_fee")
 PNL_KEYS = ("pnl", "realized_pnl", "profit_loss", "net_pnl", "gross_pnl")
+REASON_KEYS = ("reason", "error", "message", "notes", "warning", "detail", "action", "decision")
 
 ENTRY = "entry/buy"
 EXIT = "exit/sell"
@@ -56,6 +57,7 @@ class EvidenceRow:
     fee: Optional[float]
     pnl: Optional[float]
     missing_fields: Tuple[str, ...]
+    notes: str = ""  # free-text reason/error/warning for blocker detection (e.g. "broker close capability remains unconfirmed")
 
 
 @dataclass(frozen=True)
@@ -192,6 +194,7 @@ def evidence_row(source: Path, row_number: int, row: Dict[str, str]) -> Evidence
     sell_proceeds = as_float(first(row, SELL_VALUE_KEYS)) if role == EXIT else None
     fee = as_float(first(row, FEE_KEYS))
     pnl = as_float(first(row, PNL_KEYS))
+    notes = first(row, REASON_KEYS)
 
     missing: List[str] = []
     if role in (ENTRY, EXIT):
@@ -228,6 +231,7 @@ def evidence_row(source: Path, row_number: int, row: Dict[str, str]) -> Evidence
         fee=fee,
         pnl=pnl,
         missing_fields=tuple(missing),
+        notes=notes,
     )
 
 
@@ -333,6 +337,70 @@ def pair_rows(evidence: Sequence[EvidenceRow]) -> List[PairResult]:
     return pairs
 
 
+def detect_direct_facts(evidence: Sequence[EvidenceRow]) -> Dict[str, int]:
+    """Count rows that contain direct broker facts (vs derived/missing)."""
+    return {
+        "rows_with_order_id": sum(1 for r in evidence if r.order_id),
+        "rows_with_direct_proceeds": sum(1 for r in evidence if r.sell_proceeds is not None),
+        "rows_with_direct_fees": sum(1 for r in evidence if r.fee is not None),
+        "rows_with_buy_cost": sum(1 for r in evidence if r.buy_cost is not None),
+        "rows_with_pair_id": sum(1 for r in evidence if r.pair_id),
+    }
+
+
+def detect_unsafe_reasons(evidence: Sequence[EvidenceRow], pairs: Sequence[PairResult]) -> List[str]:
+    """Return human-readable unsafe-to-aggregate reasons."""
+    reasons: List[str] = []
+    exit_rows = [r for r in evidence if r.role == EXIT]
+    missing_proceeds_exits = [r for r in exit_rows if r.sell_proceeds is None]
+    if missing_proceeds_exits:
+        reasons.append(f"{len(missing_proceeds_exits)} exit/sell row(s) lack direct sell_proceeds from broker fill (cannot compute realized P/L without immutable broker fact)")
+    missing_fees = [r for r in evidence if r.role in (ENTRY, EXIT) and r.fee is None]
+    if missing_fees:
+        reasons.append(f"{len(missing_fees)} entry/exit row(s) lack explicit fee fields (net P/L unsafe; gross may be locally derivable)")
+    missing_order = [r for r in evidence if r.role in (ENTRY, EXIT) and not r.order_id]
+    if missing_order:
+        reasons.append(f"{len(missing_order)} entry/exit row(s) lack stable order_id / client_order_id (cannot tie to direct broker fill event)")
+    missing_pair = [r for r in evidence if r.role in (ENTRY, EXIT) and not r.pair_id]
+    if missing_pair:
+        reasons.append(f"{len(missing_pair)} entry/exit row(s) lack stable pair/trade/cycle id (pairing falls back to symbol+time FIFO, which is locally derived)")
+    incomplete_pairs = [p for p in pairs if p.gross_pnl is None]
+    if incomplete_pairs:
+        reasons.append(f"{len(incomplete_pairs)} paired cycle(s) missing buy_cost or sell_proceeds (P/L unavailable)")
+    # Journal intent warning (always true for this data source)
+    reasons.append("Journal EXIT/PLACED rows record bot intent + local estimates; they are NOT immutable broker fill facts with guaranteed proceeds/fees. Direct broker facts must come from order status + fills responses.")
+    return reasons
+
+
+def detect_sol_blocker(evidence: Sequence[EvidenceRow]) -> List[str]:
+    """Surface SOL/USD open/re-associated + broker close unconfirmed as operational blocker."""
+    blockers: List[str] = []
+    sol_rows = [r for r in evidence if (r.symbol or "").upper().startswith("SOL/")]
+    unconfirmed_texts = []
+    for r in sol_rows:
+        text = (r.notes or "").lower()
+        if "unconfirmed" in text or "broker close capability" in text or "dropped after 3" in text or "re-associated" in text:
+            unconfirmed_texts.append(r.notes or "broker close capability remains unconfirmed")
+    if unconfirmed_texts:
+        unique = list(dict.fromkeys(unconfirmed_texts))  # dedup preserve order
+        blockers.append(f"SOL/USD operational blocker active: {'; '.join(unique)} — do not treat position as closed; no explicit matching sell/proceeds/fill fact confirms broker close.")
+    # Also flag unmatched open SOL buys (no paired exit with proceeds)
+    open_sol_buys = [r for r in evidence if r.role == ENTRY and (r.symbol or "").upper().startswith("SOL/")]
+    # (pairing happens later; for simplicity here we note presence of recent SOL entries)
+    if open_sol_buys and not any(r for r in evidence if r.role == EXIT and (r.symbol or "").upper().startswith("SOL/") and r.sell_proceeds is not None):
+        blockers.append("SOL/USD open/re-associated bot-origin position evidence present in journal (no confirmed direct sell proceeds on matching exit).")
+    return blockers
+
+
+def classify_pnl_type(pairs: Sequence[PairResult]) -> str:
+    """Return clear label for what kind of P/L (if any) is available."""
+    if any(p.net_pnl is not None for p in pairs):
+        return "net P/L locally reconstructed from complete direct broker facts (buy_cost + sell_proceeds + fees)"
+    if any(p.gross_pnl is not None for p in pairs):
+        return "gross P/L locally derived from direct buy_cost + sell_proceeds (fees missing or incomplete; net unsafe)"
+    return "unavailable (no paired cycle has both direct buy_cost and direct sell_proceeds)"
+
+
 def relative(path: Path, root: Path) -> str:
     try:
         return str(path.relative_to(root))
@@ -358,6 +426,77 @@ def render(root: Path, profiles: Sequence[FileProfile], evidence: Sequence[Evide
         lines.append("Verdict: P/L reconstruction is unavailable until fill/proceeds data is logged locally.")
         return "\n".join(lines) + "\n"
 
+    # === NEW: Concise Verdict near top (P2-014B) ===
+    facts = detect_direct_facts(evidence)
+    unsafe_reasons = detect_unsafe_reasons(evidence, pairs)
+    sol_blockers = detect_sol_blocker(evidence)
+    pnl_type = classify_pnl_type(pairs)
+    complete_gross = [pair for pair in pairs if pair.gross_pnl is not None]
+    complete_net = [pair for pair in pairs if pair.net_pnl is not None]
+
+    lines.append("--- Reconciliation Verdict (P2-014B) ---")
+    lines.append(f"Direct broker facts coverage: order_id={facts['rows_with_order_id']}, direct_proceeds={facts['rows_with_direct_proceeds']}, direct_fees={facts['rows_with_direct_fees']}, buy_cost={facts['rows_with_buy_cost']}, pair_id={facts['rows_with_pair_id']}")
+    lines.append(f"Realized P/L status: {pnl_type}")
+    if complete_net:
+        lines.append(f"Net pairs reconstructable from direct facts: {len(complete_net)} (locally reconstructed gross+net using pairing methods below)")
+    elif complete_gross:
+        lines.append(f"Gross pairs only (locally derived from direct proceeds; net unsafe due to missing fees): {len(complete_gross)}")
+    else:
+        lines.append("Realized P&L unavailable: no cycle has both direct buy_cost and direct sell_proceeds from broker.")
+    if sol_blockers:
+        for b in sol_blockers:
+            lines.append(f"BLOCKER: {b}")
+    lines.append("Profit readout remains unsafe-to-aggregate until direct fill/proceeds/fees reconciliation proven from broker responses.")
+    lines.append("")
+
+    # === NEW: Direct fact coverage (P2-014B) ===
+    lines.append("--- Direct broker facts available from local rows ---")
+    lines.append(f"order_id / client_order_id present: {facts['rows_with_order_id']} rows (direct broker fact — ties to immutable exchange event)")
+    lines.append(f"filled_size / quantity present: {sum(1 for r in evidence if r.quantity is not None)} rows")
+    lines.append(f"fill_price / average_price present: {sum(1 for r in evidence if r.price is not None)} rows")
+    lines.append(f"explicit fee fields present: {facts['rows_with_direct_fees']} rows (direct broker fact)")
+    lines.append(f"explicit sell_proceeds / filled_value / proceeds present: {facts['rows_with_direct_proceeds']} rows (direct broker fact — actual exit credit)")
+    lines.append(f"buy_cost / entry_notional present on entries: {facts['rows_with_buy_cost']} rows (direct or locally captured cost)")
+    lines.append(f"existing pnl fields (journal-derived): {sum(1 for r in evidence if r.pnl is not None)} rows (treated as locally_derived unless corroborated by direct proceeds+fees)")
+    lines.append("")
+
+    # === NEW: Unsafe-to-aggregate reasons (P2-014B) ===
+    lines.append("--- Unsafe-to-aggregate reasons ---")
+    for reason in unsafe_reasons:
+        lines.append(f"- {reason}")
+    # legacy missing proceeds list for compat
+    exit_rows = [row for row in evidence if row.role == EXIT]
+    missing_proceeds = [row for row in exit_rows if row.sell_proceeds is None]
+    if missing_proceeds:
+        lines.append(f"Exit/sell rows missing direct proceeds: {len(missing_proceeds)}")
+        for row in missing_proceeds[:10]:
+            lines.append(
+                f"  MISSING_PROCEEDS {relative(row.source, root)}:{row.row_number} "
+                f"symbol={row.symbol or 'n/a'} time={row.timestamp_raw or 'n/a'} order_id={row.order_id or 'n/a'}"
+            )
+        if len(missing_proceeds) > 10:
+            lines.append(f"  ... {len(missing_proceeds) - 10} additional omitted")
+    lines.append("")
+
+    # === NEW: Open/unresolved position evidence (P2-014B) — especially SOL blocker ===
+    lines.append("--- Open/unresolved position evidence ---")
+    if sol_blockers:
+        for b in sol_blockers:
+            lines.append(f"SOL_BLOCKER: {b}")
+    open_entries = [r for r in evidence if r.role == ENTRY and not any(p.entry is r for p in pairs)]
+    if open_entries:
+        lines.append(f"Unmatched open buy entries (no paired exit with proceeds): {len(open_entries)}")
+        for r in open_entries[:5]:
+            lines.append(f"  OPEN {relative(r.source, root)}:{r.row_number} symbol={r.symbol or 'n/a'} order_id={r.order_id or 'n/a'} (P/L n/a; no direct sell proceeds fact)")
+    # Also surface any SOL WARN rows with unconfirmed text even if OTHER role
+    for r in evidence:
+        if (r.symbol or "").upper().startswith("SOL/") and r.notes and ("unconfirmed" in r.notes.lower() or "dropped after 3" in r.notes.lower()):
+            lines.append(f"SOL_UNRESOLVED_NOTE {relative(r.source, root)}:{r.row_number}: {r.notes}")
+    if not sol_blockers and not open_entries:
+        lines.append("No open/unresolved SOL or unmatched entries detected in this scan.")
+    lines.append("")
+
+    # === Files + Field coverage (kept for backward compat + detail) ===
     lines.append("--- Files inspected ---")
     for item in profiles:
         lines.append(
@@ -377,26 +516,8 @@ def render(root: Path, profiles: Sequence[FileProfile], evidence: Sequence[Evide
     lines.append(f"rows_with_pnl: {sum(1 for row in evidence if row.pnl is not None)}")
     lines.append("")
 
-    exit_rows = [row for row in evidence if row.role == EXIT]
-    missing_proceeds = [row for row in exit_rows if row.sell_proceeds is None]
-
-    lines.append("--- Exit proceeds completeness ---")
-    lines.append(f"Exit/sell rows: {len(exit_rows)}")
-    lines.append(f"Exit/sell rows with direct proceeds: {len(exit_rows) - len(missing_proceeds)}")
-    lines.append(f"Exit/sell rows missing direct proceeds: {len(missing_proceeds)}")
-    for row in missing_proceeds[:20]:
-        lines.append(
-            f"  MISSING_PROCEEDS {relative(row.source, root)}:{row.row_number} "
-            f"symbol={row.symbol or 'n/a'} time={row.timestamp_raw or 'n/a'} order_id={row.order_id or 'n/a'}"
-        )
-    if len(missing_proceeds) > 20:
-        lines.append(f"  ... {len(missing_proceeds) - 20} additional missing-proceeds exit rows omitted")
-    lines.append("")
-
-    complete_gross = [pair for pair in pairs if pair.gross_pnl is not None]
-    complete_net = [pair for pair in pairs if pair.net_pnl is not None]
-
-    lines.append("--- Pairing summary ---")
+    # === Matched pair summary (renamed/enhanced from old Pairing summary; P2-014B) ===
+    lines.append("--- Matched pair summary ---")
     lines.append(f"Pairs found: {len(pairs)}")
     lines.append(f"Complete gross P/L pairs: {len(complete_gross)}")
     lines.append(f"Complete net P/L pairs with fees: {len(complete_net)}")
@@ -406,17 +527,19 @@ def render(root: Path, profiles: Sequence[FileProfile], evidence: Sequence[Evide
     for pair in pairs:
         methods[pair.method] = methods.get(pair.method, 0) + 1
     for method, count in sorted(methods.items()):
-        lines.append(f"Pairing method {method}: {count}")
+        lines.append(f"Pairing method {method}: {count} (method is locally derived matching; facts inside are direct where present)")
 
     for pair in pairs[:20]:
+        pnl_label = "net (direct facts)" if pair.net_pnl is not None else ("gross (direct proceeds, fees missing)" if pair.gross_pnl is not None else "unavailable")
         lines.append(
             f"  {pair.method} {pair.entry.symbol or pair.exit.symbol or 'n/a'} "
             f"entry={relative(pair.entry.source, root)}:{pair.entry.row_number} "
             f"exit={relative(pair.exit.source, root)}:{pair.exit.row_number} "
-            f"gross={money(pair.gross_pnl)} net={money(pair.net_pnl)} verdict={pair.verdict}"
+            f"gross={money(pair.gross_pnl)} net={money(pair.net_pnl)} verdict={pair.verdict} [{pnl_label}]"
         )
     lines.append("")
 
+    # legacy missing-field for compat
     missing_counts: Dict[str, int] = {}
     for row in evidence:
         for field in row.missing_fields:
@@ -430,10 +553,11 @@ def render(root: Path, profiles: Sequence[FileProfile], evidence: Sequence[Evide
         lines.append("No missing fields detected on classified entry/exit rows.")
     lines.append("")
 
+    # Enhanced old verdict section (kept + improved language for compat)
     lines.append("--- Safe P/L reconstruction verdict ---")
     if complete_net:
-        lines.append("Actual net P/L can be reconstructed only for pairs with buy cost, sell proceeds, and fee fields present.")
-        lines.append(f"Reconstructable net pairs: {len(complete_net)} / {len(pairs)} paired cycles.")
+        lines.append("Net P/L locally reconstructed from direct broker facts (buy_cost + sell_proceeds + fees present on pair).")
+        lines.append(f"Reconstructable net pairs: {len(complete_net)} / {len(pairs)} paired cycles. (pairing method is local; facts are direct)")
     elif complete_gross:
         lines.append("Actual gross P/L can be reconstructed for some pairs, but net P/L remains unsafe because fee fields are incomplete.")
         lines.append(f"Reconstructable gross pairs: {len(complete_gross)} / {len(pairs)} paired cycles.")
@@ -443,7 +567,7 @@ def render(root: Path, profiles: Sequence[FileProfile], evidence: Sequence[Evide
 
     lines.append("--- Logging gap to fix later, without live behavior changes now ---")
     lines.append("Log one immutable Coinbase fill record per order fill with order_id, client_order_id, product_id/symbol, side, status, filled_size, average_filled_price, gross quote value/proceeds, fee, created_at, filled_at, and strategy position/cycle id.")
-    lines.append("Do not infer realized P/L from exit intent rows. Exit intent without fill/proceeds evidence is not enough for realized P/L.")
+    lines.append("Do not infer realized P/L from exit intent rows. Exit intent without fill/proceeds evidence is not enough for realized P/L. Use direct_broker_fact classification from reconciliation modules for future logger readiness.")
 
     return "\n".join(lines) + "\n"
 
