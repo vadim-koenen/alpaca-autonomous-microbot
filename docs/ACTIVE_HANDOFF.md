@@ -46,7 +46,7 @@ Profit / momentum readout:
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 18:03 UTC — P2-013B committed; improved read-only prediction outcome diagnostics, data-quality reporting, and attribution matching. Outcome script now reports evaluable vs unevaluable horizons, no_price_data counts, candidate-to-trade conversions, unmatched telemetry candidates, unmatched journal trades, and clearer explanations for None hit rates. Current diagnostic result shows outcome evaluation is running but still lacks enough local price data / attribution matches for actionable hit-rate or P&L conclusions. No live trading/order/risk/symbol/cap/config/runtime behavior changed. Fill logger remains blocked; append_coinbase_fill_row is not called. Next recommended patch: add read-only price-data availability for outcome horizons or return to Coinbase fill/proceeds reconciliation before any tuning.
+**Last updated:** 2026-05-31 18:30 UTC — P2-013C complete; live auto-sync shows Coinbase equity around $45.73, one SOL/USD bot-origin position open/re-associated, broker close capability unconfirmed, and close failures logged. Treat this as an operational/reconciliation blocker before P2-014. Latest functional patch remains e90e678. No strategy/order/risk/symbol/cap/config/runtime behavior should be changed.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -101,15 +101,15 @@ ALWAYS:
 
 | Item | Value |
 |---|---|
-| Coinbase equity | $40.94 |
+| Coinbase equity | $45.73 |
 | Coinbase status | RUNNING_BY_LAUNCHD |
 | Alpaca equity | $10.00 |
 | Alpaca status | RUNNING_BY_LAUNCHD (outside market hours) |
 | Kill switch | INACTIVE (trading allowed) |
-| Open positions | 0 |
-| Last Coinbase trade | 2026-05-25T12:06:37 UTC (journal; all SKIPPED — max trades/day) |
-| Last Coinbase exit | 2026-05-25T12:06:37 UTC |
-| Current regime | dead_chop (BTC/ETH/SOL — bot correctly sitting out) |
+| Open positions | 1 (SOL/USD — bot_opened, broker_close_capability_unconfirmed) |
+| Last Coinbase trade | 2026-05-31T16:30:23 UTC (SOL/USD entry, filled) |
+| Last Coinbase exit | 2026-05-25T11:19:39 UTC (ETH/USD, max-hold) |
+| Current regime | downtrend (AVAX/USD scan; bot correctly sitting out) |
 
 ---
 
@@ -333,3 +333,5 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 15:33 UTC | head=cdc2450 | P2-012E complete; Fixed multi-asset config/status/runtime drift and symbol normalization so expanded allowlisted spot symbols can join live scans. ADA/USD and AVAX/USD are eligible scan expansion symbols when hard filters pass. Prediction telemetry active, P2-012D caps unchanged, no derivative/gold/silver/fill-logger enablement. Profit/readout remains required in every status update and handoff.
 - 2026-05-31 15:55 UTC | head=81616ff | P2-013A complete; Added read-only prediction outcome evaluator + trade attribution with crash-proof default price loader, 15/30/60/90m outcome scaffolding, skipped-reason/conversion summaries, and best-effort journal attribution. Required tests and smoke script passed. No strategy/order/risk/symbol/cap/config/runtime changes. No leverage/perps/futures/gold/silver/commodities enabled. Fill logger remains blocked; append_coinbase_fill_row is not called. Profit/readout remains required in every status update and handoff.
 - 2026-05-31 18:03 UTC | head=6e3b939 | P2-013B complete; Improved prediction outcome data-quality diagnostics and attribution matching. Script now reports evaluable/unevaluable horizon counts, no_price_data counts, candidate-to-trade conversions, unmatched telemetry candidates, unmatched journal trades, and clearer None-hit-rate explanations. Tests and script smoke passed. No strategy/order/risk/symbol/cap/config/runtime changes. No leverage/perps/futures/gold/silver/commodities enabled. Fill logger remains blocked; append_coinbase_fill_row is not called. Profit/readout remains required in every status update and handoff.
+- 2026-05-31 18:30 | equity=$45.73 | positions=1 | regime=downtrend | errors=4 | head=b0bdca6 | SOL/USD open (broker_close_capability_unconfirmed); close failures logged — asset may be held in consumer wallet, position dropped from tracking after 3 retries
+- 2026-05-31 18:30 UTC | head=b0bdca6 | P2-014 preflight/live status; Coinbase equity around $45.73, one SOL/USD bot-origin position open/re-associated, broker close capability unconfirmed, close failures logged, and visible recent journal exits remain negative. Preserve risk gates; no sizing/risk increase.
