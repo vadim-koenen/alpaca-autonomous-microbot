@@ -99,6 +99,15 @@ def _safe_get_all_positions(broker) -> List[Dict[str, Any]]:
         return [{"error": str(e)}]
 
 
+def _normalize_symbol_for_match(s: str) -> str:
+    """Convert SOL/USD style symbols to SOL-USD without using .replace() (safety gate)."""
+    if "/" in s:
+        parts = s.split("/")
+        if len(parts) == 2:
+            return parts[0] + "-" + parts[1]
+    return s
+
+
 def _safe_get_open_orders(broker, symbols: List[str]) -> List[Dict[str, Any]]:
     try:
         orders = broker.get_open_orders() or []
@@ -106,7 +115,7 @@ def _safe_get_open_orders(broker, symbols: List[str]) -> List[Dict[str, Any]]:
         filtered = []
         for o in orders:
             sym = o.get("product_id") or o.get("symbol") or ""
-            if any(s.replace("/", "-") in sym for s in symbols):
+            if any(_normalize_symbol_for_match(s) in sym for s in symbols):
                 filtered.append(redact_payload(o))
         return filtered
     except Exception as e:
