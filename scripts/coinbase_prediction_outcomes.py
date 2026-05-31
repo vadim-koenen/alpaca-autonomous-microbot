@@ -40,22 +40,20 @@ def main() -> None:
         print(json.dumps(result, indent=2, default=str))
         return
 
-    print("=== P2-013A Prediction Outcome Evaluation + Attribution (read-only) ===")
+    print("=== P2-013B Prediction Outcome Evaluation + Attribution (read-only) ===")
     summary = result.get("summary", {})
     print(f"Total evaluated outcomes: {summary.get('total_evaluated_outcomes', 0)}")
+    print(f"Evaluable horizons: {summary.get('evaluable_horizon_count', 0)} | no_price_data: {summary.get('no_price_data_count', 0)}")
     print(f"Candidate-to-trade conversions: {summary.get('candidate_to_trade_count', 0)}")
+    print(f"Unmatched telemetry candidates: {summary.get('unmatched_telemetry_candidates', 0)}")
+    print(f"Unmatched journal trades: {summary.get('unmatched_journal_trades', 0)}")
     print()
-    print("Hit rate by symbol:")
+    print("Hit rate by symbol (None = insufficient future price data for those proposals):")
     for s, hr in summary.get("hit_rate_by_symbol", {}).items():
         print(f"  {s}: {hr}")
     print()
-    print("Hit rate by regime:")
-    for r, hr in summary.get("hit_rate_by_regime", {}).items():
-        print(f"  {r}: {hr}")
-    print()
-    print("Hit rate by strategy:")
-    for s, hr in summary.get("hit_rate_by_strategy", {}).items():
-        print(f"  {s}: {hr}")
+    print("Conversions by symbol:", summary.get("conversions_by_symbol", {}))
+    print("Conversions by strategy:", summary.get("conversions_by_strategy", {}))
     print()
     print("Skipped reason counts:")
     for reason, cnt in summary.get("skipped_reasons", {}).items():
@@ -65,9 +63,9 @@ def main() -> None:
     for s, pnl in summary.get("pnl_usd_by_symbol", {}).items():
         print(f"  {s}: ${pnl:.2f}")
     print()
-    print("Note: Outcomes use available local price data (data/manual_prices/ or injected fixture).")
-    print("Attribution is best-effort time/symbol/strategy matching to journal.")
-    print("This run is 100% read-only and does not affect live trading.")
+    print("Data quality note: Hit rates are None when no local candle data (data/manual_prices/) covers the proposal timestamps + horizons.")
+    print("Unmatched candidates/trades are reported above for diagnosis. This run is 100% read-only.")
+    print("See docs/PREDICTION_OUTCOME_EVALUATION.md for interpretation.")
 
 
 if __name__ == "__main__":

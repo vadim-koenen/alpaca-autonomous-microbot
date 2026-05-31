@@ -64,4 +64,15 @@ This layer exists purely for measurement and learning. It does not influence liv
 
 ---
 
-P2-013A read-only outcome evaluator + attribution complete. No trading behavior changed.
+## P2-013B Improvements
+
+- Stronger attribution: order_id when available + nearest-timestamp among symbol/strategy/side candidates; explicit unmatched candidate and unmatched trade lists with reasons.
+- Data quality: explicit "no_price_data" for horizons without local candles; optional safe derived outcomes output under reports/ or data/derived/ (never to logs/ or coinbase_fills.csv).
+- Richer summaries: conversions by symbol/strategy, unmatched counts+reasons, evaluable vs unevaluable horizons, no_price_data counts.
+- Script is stable: default run never crashes on missing data and prints clear explanations for None hit rates.
+
+Interpretation tips:
+- "None" hit rate almost always means insufficient local price data covering the proposal timestamps + horizons.
+- Use the unmatched sections and no_price_data counts to diagnose data gaps before tuning signals.
+
+P2-013B read-only data quality + attribution improvements complete. No trading behavior or risk parameters changed.

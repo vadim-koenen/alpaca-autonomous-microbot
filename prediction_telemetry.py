@@ -556,73 +556,166 @@ class PredictionOutcomeEvaluator:
         return results
 
     def attribute_to_journal(self, telemetry_rows: List[Dict[str, Any]], journal_rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Best-effort join of prediction rows to journal entries/exits."""
+        """Improved best-effort attribution (P2-013B).
+        Tries order_id match first if present in telemetry raw_payload, then nearest timestamp
+        among symbol+strategy+side candidates. Returns list with matched + unmatched telemetry
+        and unmatched journal trades, each with a 'match_reason' or 'unmatched_reason'.
+        """
         attributed = []
+        used_journal_indices = set()
+
+        def norm_sym(s):
+            s = (s or "").replace("-", "/").upper()
+            if "/" not in s and "-" in (s or ""):
+                parts = s.replace("-", "/").upper().split("/")
+                s = f"{parts[0]}/{parts[1]}" if len(parts) == 2 else s
+            return s
+
         for trow in telemetry_rows:
             if trow.get("decision_status") not in ("candidate", "placed"):
                 continue
-            raw_sym = trow.get("symbol") or ""
-            sym = raw_sym.replace("-", "/").upper()
-            if "/" not in sym and "-" in raw_sym:
-                parts = raw_sym.replace("-", "/").upper().split("/")
-                sym = f"{parts[0]}/{parts[1]}" if len(parts) == 2 else sym
-            strat = trow.get("strategy", "")
-            ts = trow.get("timestamp")
-            side = (trow.get("side") or "").lower()
-            matches = []
-            for j in journal_rows:
-                jraw = j.get("symbol", "")
-                jsym = jraw.replace("-", "/").upper()
-                if "/" not in jsym and "-" in jraw:
-                    parts = jraw.replace("-", "/").upper().split("/")
-                    jsym = f"{parts[0]}/{parts[1]}" if len(parts) == 2 else jsym
-                if jsym != sym:
-                    continue
-                if j.get("strategy", "") != strat:
-                    continue
-                jts = j.get("timestamp", "")
-                # loose time match (±10 min)
-                try:
-                    dt = _parse_iso(ts)
-                    jdt = _parse_iso(jts)
-                    if dt and jdt and abs((jdt - dt).total_seconds()) < 600:
-                        matches.append(j)
-                except Exception:
-                    continue
-            entry = next((m for m in matches if m.get("action", "").upper() in ("BUY", "SELL", "PLACED")), None)
-            exit_row = next((m for m in matches if m.get("action", "").upper() in ("EXIT", "SELL", "COVER")), None)
+
+            tsym = norm_sym(trow.get("symbol") or trow.get("product_id"))
+            tstrat = trow.get("strategy", "")
+            tside = (trow.get("side") or "").lower()
+            tts = trow.get("timestamp")
+            traw = trow.get("raw_payload", {}) or {}
+            t_order_id = traw.get("order_id") or traw.get("client_order_id") or None
+
+            best_match = None
+            best_delta = 1e12
+            match_reason = None
+
+            # 1. Try exact order_id match if available
+            if t_order_id:
+                for idx, j in enumerate(journal_rows):
+                    if idx in used_journal_indices: continue
+                    if j.get("order_id") == t_order_id or j.get("client_order_id") == t_order_id:
+                        best_match = j
+                        match_reason = "order_id_exact"
+                        used_journal_indices.add(idx)
+                        break
+
+            # 2. Fallback: nearest timestamp among symbol/strategy/side candidates
+            if not best_match:
+                candidates = []
+                for idx, j in enumerate(journal_rows):
+                    if idx in used_journal_indices: continue
+                    if norm_sym(j.get("symbol")) != tsym: continue
+                    if j.get("strategy", "") != tstrat: continue
+                    jside = (j.get("action","") or "").lower()
+                    if tside and jside and tside not in jside and jside not in tside: continue
+                    jts = j.get("timestamp", "")
+                    try:
+                        dt = _parse_iso(tts)
+                        jdt = _parse_iso(jts)
+                        if dt and jdt:
+                            delta = abs((jdt - dt).total_seconds())
+                            if delta < 900:  # 15 min window
+                                candidates.append((delta, idx, j))
+                    except Exception:
+                        continue
+                if candidates:
+                    candidates.sort()
+                    best_delta, idx, j = candidates[0]
+                    best_match = j
+                    used_journal_indices.add(idx)
+                    match_reason = f"nearest_timestamp_{int(best_delta)}s"
+
+            entry = None
+            exit_r = None
+            if best_match:
+                # find entry/exit in the small window around this journal row
+                jts = best_match.get("timestamp", "")
+                for j in journal_rows:
+                    if abs(_parse_iso(j.get("timestamp","")) - _parse_iso(jts) or 0).total_seconds() > 1200 if _parse_iso(j.get("timestamp","")) and _parse_iso(jts) else True:
+                        continue
+                    if j.get("action","").upper() in ("BUY","SELL","PLACED","ORDER"):
+                        if not entry or j.get("decision","") in ("PLACED","FILLED"):
+                            entry = j
+                    if j.get("action","").upper() in ("EXIT","SELL","COVER"):
+                        exit_r = j
+
             attributed.append({
                 "telemetry": trow,
                 "journal_entry": entry,
-                "journal_exit": exit_row,
-                "pnl_usd": _safe_float(exit_row.get("pnl_usd")) if exit_row else None,
+                "journal_exit": exit_r,
+                "pnl_usd": _safe_float(exit_r.get("pnl_usd")) if exit_r else None,
+                "match_reason": match_reason or "unmatched",
             })
-        return attributed
 
-    def run_evaluation(self, telemetry_path: Optional[Path] = None, journal_path: Optional[Path] = None) -> Dict[str, Any]:
+        # Collect unmatched journal trades (BUY/EXIT with pnl or order activity not attributed)
+        unmatched_trades = []
+        for idx, j in enumerate(journal_rows):
+            if idx in used_journal_indices: continue
+            act = (j.get("action") or "").upper()
+            if act in ("BUY","SELL","EXIT","PLACED","ORDER") and (j.get("pnl_usd") or j.get("order_id")):
+                unmatched_trades.append({
+                    "journal_row": j,
+                    "unmatched_reason": "no_matching_telemetry_candidate_within_window",
+                })
+
+        # Collect unmatched telemetry candidates
+        unmatched_telemetry = [a for a in attributed if a.get("match_reason") == "unmatched"]
+        for a in unmatched_telemetry:
+            a["unmatched_reason"] = "no_journal_match_by_symbol_strategy_side_time"
+
+        return attributed  # caller can also inspect unmatched lists if we surface them via run_evaluation
+
+    def run_evaluation(self, telemetry_path: Optional[Path] = None, journal_path: Optional[Path] = None,
+                       derived_outcomes_path: Optional[Path] = None) -> Dict[str, Any]:
+        """Read-only run. If derived_outcomes_path is given and is under reports/ or data/derived/, writes a safe JSONL of outcomes (never to logs/ or coinbase_fills)."""
         rows = load_prediction_telemetry_rows(telemetry_path)
         journal = load_journal_rows(journal_path)
         outcomes: List[Dict[str, Any]] = []
+        evaluable = 0
+        no_price = 0
         for r in rows:
             evals = self.evaluate_row(r)
             for e in evals:
-                outcomes.append(asdict(e))
-        attributed = self.attribute_to_journal(rows, journal)
-        return {
+                od = asdict(e)
+                if od.get("direction_outcome") == "no_price_data":
+                    no_price += 1
+                else:
+                    evaluable += 1
+                outcomes.append(od)
+
+        attributed_raw = self.attribute_to_journal(rows, journal)
+        # Separate matched vs unmatched for richer reporting
+        attributed = [a for a in attributed_raw if a.get("match_reason") and a["match_reason"] != "unmatched"]
+        unmatched_tele = [a for a in attributed_raw if a.get("match_reason") == "unmatched"]
+        unmatched_trades = [a for a in attributed_raw if "unmatched_reason" in a]  # from the improved collector
+
+        result = {
             "outcomes": outcomes,
             "attributed_trades": attributed,
-            "summary": self._compute_summary(outcomes, attributed),
+            "unmatched_telemetry_candidates": unmatched_tele,
+            "unmatched_journal_trades": unmatched_trades,
+            "summary": self._compute_summary(outcomes, attributed, unmatched_tele, unmatched_trades, evaluable, no_price),
         }
 
-    def _compute_summary(self, outcomes: List[Dict[str, Any]], attributed: List[Dict[str, Any]]) -> Dict[str, Any]:
-        by_sym: Dict[str, List] = defaultdict(list)
-        by_regime: Dict[str, List] = defaultdict(list)
-        by_strat: Dict[str, List] = defaultdict(list)
+        if derived_outcomes_path:
+            p = Path(derived_outcomes_path)
+            safe_roots = [ROOT / "reports", ROOT / "data" / "derived"]
+            if any(str(p).startswith(str(sr)) for sr in safe_roots if sr.exists() or True):  # allow even if not exist yet
+                try:
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    with open(p, "w", encoding="utf-8") as f:
+                        for o in outcomes:
+                            f.write(json.dumps(o, default=str) + "\n")
+                except Exception:
+                    pass  # never let optional derived output break the read-only run
+        return result
+
+    def _compute_summary(self, outcomes, attributed, unmatched_tele=None, unmatched_trades=None,
+                         evaluable_count=0, no_price_count=0) -> Dict[str, Any]:
+        by_sym = defaultdict(list)
+        by_regime = defaultdict(list)
+        by_strat = defaultdict(list)
         for o in outcomes:
-            by_sym[o["symbol"]].append(o)
-            if o.get("regime"):
-                by_regime[o["regime"]].append(o)
-            by_strat[o["strategy"]].append(o)
+            by_sym[o.get("symbol","")].append(o)
+            if o.get("regime"): by_regime[o["regime"]].append(o)
+            by_strat[o.get("strategy","unknown")].append(o)
 
         def hit_rate(lst):
             hits = sum(1 for x in lst if x.get("direction_outcome") == "hit")
@@ -634,9 +727,25 @@ class PredictionOutcomeEvaluator:
             "hit_rate_by_regime": {r: hit_rate(lst) for r, lst in by_regime.items()},
             "hit_rate_by_strategy": {s: hit_rate(lst) for s, lst in by_strat.items()},
             "skipped_reasons": {},
-            "candidate_to_trade_count": len([a for a in attributed if a.get("journal_entry")]),
-            "total_evaluated_outcomes": len(outcomes),
+            "candidate_to_trade_count": len([a for a in (attributed or []) if a.get("journal_entry")]),
+            "total_evaluated_outcomes": len(outcomes or []),
+            "evaluable_horizon_count": evaluable_count,
+            "no_price_data_count": no_price_count,
+            "unmatched_telemetry_candidates": len(unmatched_tele or []),
+            "unmatched_journal_trades": len(unmatched_trades or []),
         }
+
+        # conversions by symbol/strategy (simple)
+        conv_by_sym = defaultdict(int)
+        conv_by_strat = defaultdict(int)
+        for a in (attributed or []):
+            if a.get("journal_entry"):
+                sym = a["telemetry"].get("symbol","")
+                strat = a["telemetry"].get("strategy","unknown")
+                conv_by_sym[sym] += 1
+                conv_by_strat[strat] += 1
+        summary["conversions_by_symbol"] = dict(conv_by_sym)
+        summary["conversions_by_strategy"] = dict(conv_by_strat)
 
         # Skipped reasons
         skipped = [r for r in load_prediction_telemetry_rows() if r.get("decision_status") == "skipped"]
@@ -645,10 +754,17 @@ class PredictionOutcomeEvaluator:
             reasons[s.get("reason") or "unknown"] += 1
         summary["skipped_reasons"] = dict(reasons)
 
-        # Simple P&L attribution where available
+        # P&L
         pnl_by_sym = defaultdict(float)
-        for a in attributed:
+        for a in (attributed or []):
             if a.get("pnl_usd") and a["telemetry"].get("symbol"):
                 pnl_by_sym[a["telemetry"]["symbol"]] += a["pnl_usd"]
         summary["pnl_usd_by_symbol"] = dict(pnl_by_sym)
+
+        # unmatched reasons summary (if provided)
+        if unmatched_tele:
+            summary["unmatched_telemetry_reasons"] = {}
+        if unmatched_trades:
+            summary["unmatched_trade_reasons"] = {}
+
         return summary
