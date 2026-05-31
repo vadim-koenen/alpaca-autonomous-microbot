@@ -330,3 +330,150 @@ class CoinbaseMarketUniverse:
                 "Explicit config + safety review required for expansion."
             ),
         }
+
+    # ------------------------------------------------------------------
+    # P2-012C: opt-in live multi-asset spot selector (config-gated, micro only)
+    # ------------------------------------------------------------------
+
+    def resolve_live_crypto_symbols(
+        self,
+        base_live_symbols: list[str],
+        multi_asset_cfg: Dict[str, Any],
+        product_payload: Optional[Iterable[Dict[str, Any]]] = None,
+    ) -> tuple[list[str], Dict[str, Any]]:
+        """
+        P2-012C opt-in resolver.
+
+        - If multi_asset_spot.enabled != true: returns exactly the base_live_symbols (BTC/ETH/SOL unchanged).
+        - Else: starts from base + candidates from market metadata (if provided via ingest or payload).
+          Applies hard filters (spot_crypto only, exclude perps/futures/gold/silver/commodity/leverage/disabled/bad-quote).
+          **Requires explicit membership in allow_live_trading_symbols** before any new symbol is returned for live trading.
+          Respects max_symbols, max_spread_bps (advisory here; tighter checks at quote time), allowed quotes.
+        - Always emits prediction telemetry for the resolution decision (non-fatal).
+        - Never increases notional, exposure, or changes TP/SL/hold.
+        - Returns (effective_live_list, report_dict_for_logging_and_status).
+        """
+        enabled = bool(multi_asset_cfg.get("enabled", False))
+        base_norm = [(s or "").replace("/", "-").upper() for s in (base_live_symbols or [])]
+        base_set = set(base_norm)
+
+        if not enabled:
+            report = {
+                "mode": "disabled",
+                "effective_live_symbols": list(base_live_symbols),
+                "newly_selected": [],
+                "selected_new_count": 0,
+                "allowlist_used": [],
+                "note": "multi_asset_spot.enabled=false (default). Only originally configured live_symbols used. BTC/ETH/SOL behavior 100% unchanged. Prediction telemetry remains active.",
+                "excluded": [],
+            }
+            # Telemetry: record the disabled decision (helps future analysis)
+            try:
+                from prediction_telemetry import safe_log_skipped_proposal
+                safe_log_skipped_proposal(
+                    {"symbol": "MULTI_ASSET", "strategy": "multi_asset_selector", "product_type": "meta"},
+                    reason="multi_asset_spot_disabled_by_config",
+                    regime=None,
+                    source="coinbase_market_universe",
+                    raw_payload={"base_symbols": base_live_symbols},
+                )
+            except Exception:
+                pass
+            return list(base_live_symbols), report
+
+        # Enabled path — explicit allowlist is the final gate
+        allowlist_raw = multi_asset_cfg.get("allow_live_trading_symbols", []) or []
+        allowlist = {(s or "").replace("/", "-").upper() for s in allowlist_raw}
+
+        max_symbols = int(multi_asset_cfg.get("max_symbols", 8))
+        max_spread_bps = float(multi_asset_cfg.get("max_spread_bps", 50.0))
+        allowed_quotes = {q.upper() for q in (multi_asset_cfg.get("allowed_quote_currencies") or ["USD", "USDC"])}
+        exclude_types = set(multi_asset_cfg.get("exclude_product_types") or [])
+        max_new_day = int(multi_asset_cfg.get("max_new_symbols_per_day", 2))
+
+        # Ingest payload if provided (for cached product metadata in script or future hot-reload)
+        if product_payload:
+            try:
+                self.ingest_products(product_payload)
+            except Exception:
+                pass
+
+        # Leverage the P2-012B candidate logic for classification + filtering
+        cand_report = self.get_spot_crypto_candidates(
+            configured_symbols=base_live_symbols,
+            supported_quotes=allowed_quotes,
+        )
+
+        effective: list[str] = list(base_live_symbols)
+        seen = set(base_set)
+        newly_selected: list[str] = []
+        excluded_details = list(cand_report.get("excluded", []))
+
+        for cand in cand_report.get("candidates", []):
+            pid = (cand.get("product_id") or "").replace("/", "-").upper()
+            if pid in seen:
+                continue
+            if pid not in allowlist:
+                excluded_details.append({
+                    "product_id": cand.get("product_id"),
+                    "reason": "not_in_explicit_allow_live_trading_symbols",
+                })
+                continue
+            # passed all hard spot filters + explicit allowlist
+            effective.append(cand.get("product_id"))  # preserve original casing/format from metadata
+            newly_selected.append(cand.get("product_id"))
+            seen.add(pid)
+            if len(effective) >= max_symbols:
+                break
+
+        # Advisory daily new cap (not enforced with state here; status script can advise)
+        if len(newly_selected) > max_new_day:
+            # keep first max_new_day for this resolution (conservative)
+            newly_selected = newly_selected[:max_new_day]
+            effective = base_live_symbols + newly_selected
+
+        effective = effective[:max_symbols]
+
+        report = {
+            "mode": "enabled",
+            "effective_live_symbols": effective,
+            "base_symbols": list(base_live_symbols),
+            "allowlist_used": sorted(allowlist),
+            "newly_selected": newly_selected,
+            "selected_new_count": len(newly_selected),
+            "max_new_per_day": max_new_day,
+            "max_symbols": max_symbols,
+            "max_spread_bps": max_spread_bps,
+            "excluded": excluded_details,
+            "excluded_count": len(excluded_details),
+            "note": (
+                "P2-012C opt-in multi-asset spot live. "
+                "Only symbols explicitly listed in allow_live_trading_symbols AND passing spot-only + no-deriv + no-gold/silver + no-leverage filters are returned for live trading. "
+                "Prediction telemetry is active for every scanned symbol (base + expanded). "
+                "Micro notional/exposure/TP/SL/hold-time unchanged from existing config."
+            ),
+        }
+
+        # Telemetry for the enabled resolution (candidate or skipped new)
+        try:
+            from prediction_telemetry import safe_log_prediction_telemetry
+            safe_log_prediction_telemetry(
+                symbol="MULTI_ASSET_RESOLVE",
+                product_id="MULTI_ASSET",
+                product_type="meta",
+                strategy="multi_asset_selector",
+                decision_status="candidate" if newly_selected else "skipped",
+                reason=None if newly_selected else "no_new_symbols_in_allowlist_or_all_filtered",
+                proposed_notional=None,
+                features={},
+                source="coinbase_market_universe",
+                raw_payload={
+                    "effective": effective,
+                    "newly_selected": newly_selected,
+                    "allowlist": sorted(allowlist),
+                },
+            )
+        except Exception:
+            pass
+
+        return effective, report

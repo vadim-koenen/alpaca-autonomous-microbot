@@ -1,0 +1,197 @@
+"""
+P2-012C tests for opt-in micro-size multi-asset Coinbase spot live expansion.
+
+Covers:
+- default (disabled) keeps exactly the current 3 symbols, zero behavior change
+- enabled + explicit allowlist adds only safe spot symbols
+- allowlist is required and respected (nothing outside it is ever returned for live)
+- perps/futures/gold/silver/commodity/linked/leverage/disabled/bad-quote are never live-enabled
+- high spread / other filters respected
+- expanded symbols still emit prediction telemetry (via the resolver)
+- notional/exposure/TP/SL/hold-time caps are not increased by the new config section
+- no references to append_coinbase_fill_row or coinbase_fills.csv
+- ACTIVE_HANDOFF.md untouched (enforced at test time via git diff)
+"""
+
+import json
+import subprocess
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from coinbase_market_universe import CoinbaseMarketUniverse
+from utils import get_cfg
+
+
+def _mixed_payload():
+    return [
+        {"product_id": "BTC-USD", "base_currency": "BTC", "quote_currency": "USD", "product_type": "spot", "status": "online"},
+        {"product_id": "ETH-USD", "base_currency": "ETH", "quote_currency": "USD", "product_type": "spot"},
+        {"product_id": "SOL-USD", "base_currency": "SOL", "quote_currency": "USD", "product_type": "spot"},
+        {"product_id": "ADA-USD", "base_currency": "ADA", "quote_currency": "USD", "product_type": "spot"},
+        {"product_id": "AVAX-USD", "base_currency": "AVAX", "quote_currency": "USD", "product_type": "spot"},
+        {"product_id": "BTC-PERP", "base_currency": "BTC", "quote_currency": "USD", "contract_type": "perpetual"},
+        {"product_id": "GOLD-PERP", "base_currency": "GOLD", "quote_currency": "USD", "contract_type": "perpetual"},
+        {"product_id": "SILVER-PERP", "base_currency": "SILVER", "quote_currency": "USD"},
+        {"product_id": "XAU-USD", "base_currency": "XAU", "quote_currency": "USD"},
+        {"product_id": "DISABLED-USD", "base_currency": "XXX", "quote_currency": "USD", "trading_disabled": True},
+        {"product_id": "LEVERAGED-USD", "base_currency": "FOO", "quote_currency": "USD", "leverage_enabled": True, "max_leverage": 3},
+    ]
+
+
+def test_default_disabled_returns_exactly_current_live_symbols_and_no_change():
+    """Default behavior (the critical safety invariant)."""
+    u = CoinbaseMarketUniverse()
+    u.ingest_products(_mixed_payload())
+
+    base = ["BTC/USD", "ETH/USD", "SOL/USD"]
+    multi_cfg = {"enabled": False}
+
+    effective, report = u.resolve_live_crypto_symbols(base, multi_cfg)
+
+    assert effective == base, "disabled must return exactly the input live_symbols"
+    assert report["mode"] == "disabled"
+    assert report["selected_new_count"] == 0
+    assert "BTC/ETH/SOL behavior 100% unchanged" in report.get("note", "")
+
+
+def test_enabled_with_allowlist_adds_only_safe_spot_and_respects_allowlist():
+    u = CoinbaseMarketUniverse()
+    u.ingest_products(_mixed_payload())
+
+    base = ["BTC/USD", "ETH/USD", "SOL/USD"]
+    multi_cfg = {
+        "enabled": True,
+        "max_symbols": 6,
+        "allowed_quote_currencies": ["USD", "USDC"],
+        "exclude_product_types": ["perpetual_future", "expiring_future", "commodity_linked_derivative", "unknown"],
+        "max_spread_bps": 50,
+        "allow_live_trading_symbols": ["ADA/USD", "AVAX/USD"],  # explicit
+        "max_new_symbols_per_day": 2,
+    }
+
+    effective, report = u.resolve_live_crypto_symbols(base, multi_cfg)
+
+    eff_norm = {s.replace("/", "-").upper() for s in effective}
+    assert eff_norm >= {"BTC-USD", "ETH-USD", "SOL-USD", "ADA-USD", "AVAX-USD"}
+    for bad in ["BTC-PERP", "GOLD-PERP", "SILVER-PERP", "XAU-USD", "DISABLED-USD", "LEVERAGED-USD"]:
+        assert bad.replace("/", "-").upper() not in eff_norm
+
+    assert report["mode"] == "enabled"
+    new_norm = {s.replace("/", "-").upper() for s in report.get("newly_selected", [])}
+    assert new_norm == {"ADA-USD", "AVAX-USD"}
+    assert report["selected_new_count"] <= 2
+
+
+def test_allowlist_is_required_nothing_gets_through_without_it():
+    u = CoinbaseMarketUniverse()
+    u.ingest_products(_mixed_payload())
+
+    base = ["BTC/USD", "ETH/USD", "SOL/USD"]
+    multi_cfg = {
+        "enabled": True,
+        "allow_live_trading_symbols": [],  # empty — nothing new allowed
+    }
+
+    effective, report = u.resolve_live_crypto_symbols(base, multi_cfg)
+
+    assert effective == base
+    assert report["selected_new_count"] == 0
+    # the good candidates should be excluded with the specific reason
+    reasons = [e.get("reason", "") for e in report.get("excluded", [])]
+    assert any("not_in_explicit_allow_live_trading_symbols" in r for r in reasons)
+
+
+def test_hard_filters_never_let_perps_gold_silver_leverage_through_even_if_allowlisted():
+    u = CoinbaseMarketUniverse()
+    u.ingest_products(_mixed_payload())
+
+    base = ["BTC/USD"]
+    # malicious allowlist that tries to sneak bad products
+    multi_cfg = {
+        "enabled": True,
+        "allow_live_trading_symbols": ["BTC-PERP", "GOLD-PERP", "XAU-USD", "LEVERAGED-USD", "DISABLED-USD"],
+    }
+
+    effective, report = u.resolve_live_crypto_symbols(base, multi_cfg)
+
+    eff_norm = {s.replace("/", "-").upper() for s in effective}
+    for bad in ["BTC-PERP", "GOLD-PERP", "XAU-USD", "LEVERAGED-USD", "DISABLED-USD"]:
+        assert bad.replace("/", "-").upper() not in eff_norm
+
+    # they must appear in excluded with appropriate reasons
+    reasons = {e.get("reason", "") for e in report.get("excluded", [])}
+    assert any("derivative" in r or "PERP" in r for r in reasons)
+    assert any("gold" in r.lower() or "silver" in r.lower() or "XAU" in r or "XAG" in r or "commodity" in r.lower() for r in reasons)
+    assert any("leverage" in r.lower() for r in reasons)
+    assert any("disabled" in r for r in reasons)
+
+
+def test_expanded_symbols_still_emit_prediction_telemetry(tmp_path, monkeypatch):
+    """P2-012C resolver must emit telemetry rows (candidate or skipped)."""
+    out = tmp_path / "pred.jsonl"
+    monkeypatch.setattr("prediction_telemetry.TELEMETRY_FILE", out)
+    monkeypatch.setattr("prediction_telemetry.TELEMETRY_DIR", tmp_path)
+
+    u = CoinbaseMarketUniverse()
+    u.ingest_products(_mixed_payload())
+
+    base = ["BTC/USD"]
+    multi_cfg = {"enabled": True, "allow_live_trading_symbols": ["ADA/USD"]}
+
+    effective, report = u.resolve_live_crypto_symbols(base, multi_cfg)
+
+    assert out.exists()
+    content = out.read_text()
+    assert "MULTI_ASSET" in content or "ADA-USD" in content or "multi_asset_selector" in content
+    assert "candidate" in content or "skipped" in content or "decision_status" in content
+
+
+def test_no_increase_to_notionals_exposure_tp_sl_hold_time():
+    """The new config section must not raise any live risk numbers."""
+    # Current known micro caps from the Coinbase crypto config (P2-012C must not have increased them)
+    cfg_max = get_cfg("crypto", "max_trade_notional_usd", default=0)
+    cfg_total = get_cfg("crypto", "max_total_crypto_exposure_usd", default=0)
+    sl = get_cfg("crypto", "stop_loss_pct", default=0)
+    tp = get_cfg("crypto", "take_profit_pct", default=0)
+    hold = get_cfg("crypto", "max_position_minutes", default=0)
+
+    # Must still be the safe micro values (P2-012C addition did not raise them)
+    assert 0 < float(cfg_max) <= 3.0   # safe micro (P2-012C did not increase)
+    assert 0 < float(cfg_total) <= 6.0
+    assert 0 < float(sl) <= 2.0
+    assert 0 < float(tp) <= 4.0      # safe micro range (probe 3.25 or main 3.00)
+    assert 0 < float(hold) <= 120
+
+    # The new multi_asset_spot section itself must not have introduced any higher notional keys
+    multi = get_cfg("crypto", "multi_asset_spot", default={})
+    for k in ["max_trade_notional_usd", "max_single_trade_notional_usd", "max_notional_usd"]:
+        if k in multi:
+            assert float(multi[k]) <= cfg_max, "P2-012C must not increase notional via new fields"
+
+
+def test_no_append_coinbase_fill_row_or_fills_csv_references():
+    """P2-012C changes must never touch the blocked fill logger path."""
+    import re
+    from pathlib import Path as Pth
+
+    # Check the two files we touched for the selector + integration
+    for fname in ["coinbase_market_universe.py", "strategy_router.py"]:
+        src = Pth(fname).read_text()
+        cleaned = re.sub(r'""".*?"""', '', src, flags=re.DOTALL)
+        cleaned = re.sub(r"'''.*?'''", '', cleaned, flags=re.DOTALL)
+        cleaned = re.sub(r'#.*', '', cleaned)
+        assert "append_coinbase_fill_row" not in cleaned, f"{fname} must not reference fill logger"
+        assert "coinbase_fills.csv" not in cleaned
+
+
+def test_active_handoff_unchanged():
+    """Enforced at test time (git must show zero diff)."""
+    result = subprocess.run(
+        ["git", "diff", "main", "--", "docs/ACTIVE_HANDOFF.md"],
+        capture_output=True, text=True, cwd="."
+    )
+    diff_lines = result.stdout.strip().splitlines() if result.stdout else []
+    assert len(diff_lines) == 0, "ACTIVE_HANDOFF.md must remain completely unchanged for P2-012C"

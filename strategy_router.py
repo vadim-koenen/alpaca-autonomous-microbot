@@ -75,6 +75,33 @@ class StrategyRouter:
                     f"Crypto watch-only (no live proposals): {sorted(watch_only)}"
                 )
 
+            # P2-012C: opt-in micro-size multi-asset spot live expansion (default disabled, zero behavior change)
+            multi_cfg = get_cfg("crypto", "multi_asset_spot", default={"enabled": False})
+            if multi_cfg.get("enabled"):
+                try:
+                    from coinbase_market_universe import CoinbaseMarketUniverse
+                    u = CoinbaseMarketUniverse()
+                    # product_payload can be added later if a cache path is configured; metadata optional for runtime
+                    effective, rpt = u.resolve_live_crypto_symbols(live_syms, multi_cfg)
+                    if effective != live_syms:
+                        logger.info(
+                            f"P2-012C multi-asset spot LIVE expansion active: {len(effective)} symbols "
+                            f"(base {len(live_syms)} + {rpt.get('selected_new_count', 0)} new from allowlist+filters)"
+                        )
+                        logger.info(f"  effective live_symbols: {effective}")
+                        if rpt.get("newly_selected"):
+                            logger.info(f"  newly enabled this resolution: {rpt['newly_selected']}")
+                    else:
+                        logger.info("P2-012C multi-asset spot enabled but no additional symbols passed allowlist+filters this cycle")
+                    if rpt.get("excluded"):
+                        logger.debug(f"Multi-asset candidates excluded: {len(rpt['excluded'])} reasons sample: {rpt.get('excluded_reasons', [])[:4]}")
+                    live_syms = effective
+                except Exception as e:
+                    logger.warning(f"P2-012C multi-asset resolution error (non-fatal, using base live_symbols): {e}")
+            else:
+                # Clear log that expansion is disabled (default safe state)
+                logger.debug("Multi-asset spot expansion disabled (crypto.multi_asset_spot.enabled=false). Only configured live_symbols (BTC/ETH/SOL) used.")
+
             for symbol in live_syms:
                 try:
                     proposals = self._crypto.generate_proposals(symbol, buying_power=bp)

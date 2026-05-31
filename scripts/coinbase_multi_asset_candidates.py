@@ -1,22 +1,17 @@
 #!/usr/bin/env python3
 """
-P2-012B — Coinbase Multi-Asset Spot Candidates (read-only plumbing report).
+P2-012C — Coinbase Multi-Asset Spot Candidates + Live Expansion Dry-Run (read-only).
 
-Conservative candidate discovery for future intentional spot expansion beyond
-current live set (BTC/USD, ETH/USD, SOL/USD).
+- Reports candidates using conservative spot-only filters (no perps, no gold/silver, no leverage, no disabled).
+- --show-expansion (or when multi_asset_spot.enabled in config) shows EXACTLY which symbols would be live-enabled right now.
+- Explicit allow_live_trading_symbols list in config is the final gate for any expansion.
+- Default (disabled): identical to P2-012B / pre-P2-012C behavior (only BTC/ETH/SOL).
+- Summarizes recent prediction telemetry (active for all symbols since P2-012B wiring).
+- No network calls. Safe for any environment. Never places orders.
 
-- Never enables trading for new symbols.
-- All discovered candidates default allow_live_trading=False.
-- Excludes perps, futures, leverage, gold/silver, commodities, disabled products.
-- Combines configured symbols + (optional) ingested Coinbase product metadata.
-- Also summarizes recent prediction telemetry (from live scans now wired in P2-012B).
-
-No network calls. Safe for any environment.
-
-Usage:
-    python3 scripts/coinbase_multi_asset_candidates.py
-    python3 scripts/coinbase_multi_asset_candidates.py --json
-    python3 scripts/coinbase_multi_asset_candidates.py --products-file path/to/universe.json
+Usage (recommended for dry-run before enabling):
+    python3 scripts/coinbase_multi_asset_candidates.py --show-expansion
+    python3 scripts/coinbase_multi_asset_candidates.py --products-file /path/to/products.json --show-expansion --json
 """
 
 from __future__ import annotations
@@ -100,15 +95,17 @@ def load_universe(path: Path | None) -> CoinbaseMarketUniverse:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="P2-012B multi-asset spot candidate report (read-only)")
+    parser = argparse.ArgumentParser(description="P2-012C multi-asset spot candidate + live expansion dry-run (read-only)")
     parser.add_argument("--json", action="store_true", help="Machine readable output")
-    parser.add_argument("--products-file", type=str, default=None, help="Optional cached Coinbase products JSON")
+    parser.add_argument("--products-file", type=str, default=None, help="Optional cached Coinbase products JSON (enables full classification)")
     parser.add_argument("--limit", type=int, default=100, help="Telemetry rows to consider")
+    parser.add_argument("--show-expansion", action="store_true", help="Show exactly which symbols would be LIVE-ENABLED right now under current config (P2-012C dry-run)")
     args = parser.parse_args()
 
     # Current configured (source of truth for live behavior — do not auto-expand)
     live_syms = get_cfg("crypto", "live_symbols", default=["BTC/USD", "ETH/USD", "SOL/USD"])
     all_syms = get_cfg("crypto", "symbols", default=live_syms)
+    multi_cfg = get_cfg("crypto", "multi_asset_spot", default={"enabled": False})
 
     u = load_universe(Path(args.products_file) if args.products_file else None)
 
@@ -118,29 +115,34 @@ def main() -> None:
     tel_rows = load_telemetry_recent(args.limit)
     tel_summary = summarize_telemetry(tel_rows)
 
+    expansion_report = None
+    if args.show_expansion or multi_cfg.get("enabled"):
+        # P2-012C: use the resolver to show exactly what would trade live
+        try:
+            effective, expansion_report = u.resolve_live_crypto_symbols(live_syms, multi_cfg)
+        except Exception as e:
+            expansion_report = {"error": str(e), "effective_live_symbols": live_syms}
+
     if args.json:
-        print(
-            json.dumps(
-                {
-                    "configured_live": live_syms,
-                    "multi_asset_candidates": report,
-                    "prediction_telemetry": tel_summary,
-                    "note": report.get("note"),
-                },
-                indent=2,
-                default=str,
-            )
-        )
+        out = {
+            "configured_live": live_syms,
+            "multi_asset_candidates": report,
+            "prediction_telemetry": tel_summary,
+        }
+        if expansion_report:
+            out["live_expansion_dry_run"] = expansion_report
+        print(json.dumps(out, indent=2, default=str))
         return
 
-    print("=== P2-012B Coinbase Multi-Asset Spot Candidates (read-only) ===")
+    print("=== P2-012C Coinbase Multi-Asset Spot Candidates + Live Expansion Dry-Run (read-only) ===")
     print(f"Current configured live_symbols: {live_syms}")
     print(f"Total symbols in crypto config: {len(all_syms)}")
+    print(f"multi_asset_spot.enabled: {multi_cfg.get('enabled', False)}")
     print()
     print(f"Products considered (from cache or empty): {report['total_products_considered']}")
     print(f"Candidates (spot, eligible, non-leveraged, non-deriv): {report['candidates_count']}")
     if report["candidates"]:
-        print("  Top candidates (placeholder ranked; allow_live_trading=False for new):")
+        print("  Top candidates (placeholder ranked; allow_live_trading=False for new unless allowlisted):")
         for c in report["candidates"][:5]:
             flag = "LIVE" if c["is_currently_configured_live"] else "CANDIDATE"
             print(
@@ -150,13 +152,26 @@ def main() -> None:
     else:
         print("  (No product metadata loaded — candidates limited to configured. Provide --products-file for full classification.)")
     print()
-    print(f"Excluded: {report['excluded_count']} (reasons: {', '.join(report['excluded_reasons']) or 'none'})")
+    print(f"Excluded (classification): {report['excluded_count']} (reasons: {', '.join(report['excluded_reasons']) or 'none'})")
     for ex in report["excluded"][:3]:
         print(f"    {ex['product_id']:12} -> {ex['reason']}")
     if len(report["excluded"]) > 3:
         print(f"    ... +{len(report['excluded'])-3} more")
     print()
-    print("Prediction telemetry (live scans since P2-012B wiring):")
+
+    if expansion_report:
+        print("=== LIVE EXPANSION DRY-RUN (what would actually trade under current config) ===")
+        eff = expansion_report.get("effective_live_symbols", live_syms)
+        print(f"Effective live symbols under current config: {eff}")
+        print(f"  Base: {expansion_report.get('base_symbols', live_syms)}")
+        print(f"  Newly selected (passed allowlist + all hard filters): {expansion_report.get('newly_selected', [])}")
+        print(f"  Allowlist configured: {expansion_report.get('allowlist_used', [])}")
+        if expansion_report.get("excluded"):
+            print(f"  Excluded this resolution: {len(expansion_report['excluded'])} (sample reasons: {[e.get('reason') for e in expansion_report['excluded'][:3]]})")
+        print(f"  Note: {expansion_report.get('note', '')}")
+        print()
+
+    print("Prediction telemetry (live scans since P2-012B wiring, including any expanded symbols):")
     print(f"  Rows: {tel_summary['count']} | by_symbol: {tel_summary['by_symbol']}")
     print(f"  by_regime: {tel_summary['by_regime']} | by_decision: {tel_summary['by_decision']}")
     if tel_summary["latest"]:
@@ -166,7 +181,7 @@ def main() -> None:
     print()
     print(report.get("note", ""))
     print()
-    print("This report does not enable any new live trading symbols or change order behavior.")
+    print("This report + resolver do not auto-enable trading. Explicit config allowlist + enabled=true required. All hard filters (spot only, no perps/gold/silver/leverage) are enforced.")
 
 
 if __name__ == "__main__":

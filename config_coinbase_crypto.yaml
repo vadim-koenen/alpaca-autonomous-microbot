@@ -137,6 +137,50 @@ crypto:
     # Max total exposure as % of equity (15% = $6 on $40 — same as now)
     max_exposure_pct: 15.0
 
+  # ── Opt-in Micro-Size Multi-Asset Spot Live Expansion (P2-012C) ─────
+  # DEFAULT: DISABLED. Current live_symbols (BTC/USD, ETH/USD, SOL/USD) + behavior UNCHANGED.
+  # This is the explicit opt-in path for controlled expansion of Coinbase SPOT CRYPTO only.
+  #
+  # Requirements for any new symbol to trade live:
+  #   - multi_asset_spot.enabled: true
+  #   - symbol must be in the explicit allow_live_trading_symbols list below
+  #   - must pass ALL hard filters in the selector (spot_crypto only, no perps/futures/gold/silver/commodity/leverage/disabled/bad quote)
+  #   - spread <= max_spread_bps
+  #   - within max_symbols and daily new limit (advisory)
+  #
+  # Micro-size only: new symbols use the *existing* max_trade_notional_usd / min_trade_notional_usd.
+  # Total exposure and other risk caps are unchanged (use existing fields).
+  # TP/SL/hold time unchanged.
+  # Prediction telemetry remains fully enabled for all scanned symbols (including expanded).
+  # No derivatives, no leverage, no gold/silver, no commodities.
+  #
+  # Dry-run / preview:
+  #   python3 scripts/coinbase_multi_asset_candidates.py --show-expansion
+  #
+  # To enable (example):
+  #   multi_asset_spot:
+  #     enabled: true
+  #     allow_live_trading_symbols:
+  #       - ADA/USD
+  #       - AVAX/USD
+  #     ...
+  multi_asset_spot:
+    enabled: false
+    max_symbols: 8
+    allowed_quote_currencies:
+      - USD
+      - USDC
+    exclude_product_types:
+      - perpetual_future
+      - expiring_future
+      - commodity_linked_derivative
+      - unknown
+    max_spread_bps: 50          # 0.50% — conservative; tighter than some legacy probe
+    allow_live_trading_symbols: []   # EXPLICIT ALLOWLIST — required. Nothing outside this + current live will ever trade.
+    max_new_symbols_per_day: 2
+    # micro notional and exposure continue to be governed by the existing
+    # max_trade_notional_usd / max_total_crypto_exposure_usd etc. (no increase here)
+
 # ── Fee model ─────────────────────────────────────────────────
 fees:
   venue: "coinbase_advanced"
