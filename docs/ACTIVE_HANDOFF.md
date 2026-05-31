@@ -261,7 +261,7 @@ Do not recommend or execute anything until all four commands have been run and r
 
 Last updated: 2026-05-31 03:56 UTC
 
-Latest functional patch commit: 6ccf1fe
+P2-011F functional patch commit: 989292b
 
 P2-011F completed pure Coinbase order-status + historical-fills reconciliation proof.
 
@@ -273,7 +273,7 @@ The helper is not called by live trading paths.
 
 Logger hook remains blocked.
 
-Next safe patch: P2-011G narrow inert capture wiring at entry/exit seams, still no writes.
+Next patch after P2-011F was P2-011G narrow inert capture wiring at entry/exit seams, still no writes.
 
 No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-submission changes were made.
 - 2026-05-31 04:04 UTC | head=6ccf1fe | P2-011G complete; Added inert Coinbase entry/exit capture wiring proof with helper, tests, and docs. The helper can structure entry/exit reconciliation readiness and missing broker facts, but is not imported by live trading paths and performs no writes. Logger hook remains blocked pending opt-in dry-run proof in actual entry/exit flow and direct broker proof of sell proceeds, stable fill IDs, and fees. No live behavior/config/risk/runtime/strategy changes.
