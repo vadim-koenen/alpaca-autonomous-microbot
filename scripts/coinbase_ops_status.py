@@ -60,20 +60,51 @@ def _tail_journal_lines(journal_path: Path, n: int = 20) -> List[str]:
 
 
 def get_process_count_for_namespace(namespace: str) -> int:
-    """Best-effort count of processes that look like the bot for this namespace."""
+    """
+    Best-effort count of live bot processes for the namespace.
+
+    Strategy (macOS/launchd friendly):
+    1. Trust the runtime/<ns>.lock file if its PID is alive (most reliable after P2-011K hardening).
+    2. Fall back to pgrep heuristic.
+    3. Fall back to launchctl list for the known launchd label.
+    """
+    count = 0
+    lock_file = RUNTIME_DIR / f"{namespace}.lock"
+
+    # 1. Lock file (preferred signal after P2-011K)
+    if lock_file.exists():
+        try:
+            pid = int(lock_file.read_text().strip())
+            os.kill(pid, 0)
+            count = max(count, 1)
+        except (ProcessLookupError, ValueError, PermissionError, OSError):
+            pass
+
+    # 2. pgrep heuristic
     try:
-        # Look for python processes mentioning the bot script and the namespace
-        # This is heuristic and read-only.
         result = subprocess.run(
             ["pgrep", "-f", f"python.*alpaca-autonomous-microbot.*{namespace}"],
-            capture_output=True,
-            text=True,
-            timeout=3,
+            capture_output=True, text=True, timeout=3
         )
         pids = [p for p in result.stdout.strip().splitlines() if p.strip()]
-        return len(pids)
+        if pids:
+            count = max(count, len(pids))
     except Exception:
-        return -1  # unknown
+        pass
+
+    # 3. launchctl (for launchd-managed bots)
+    try:
+        result = subprocess.run(
+            ["launchctl", "list"],
+            capture_output=True, text=True, timeout=3
+        )
+        labels = result.stdout.lower()
+        if f"com.vadim.{namespace}-crypto-bot" in labels or f"com.vadim.{namespace}-bot" in labels:
+            count = max(count, 1)
+    except Exception:
+        pass
+
+    return count
 
 
 def build_status() -> Dict[str, Any]:
@@ -111,15 +142,35 @@ def build_status() -> Dict[str, Any]:
             lock_info = {"raw": lock_file.read_text().strip()[:200]}
 
     heartbeat = _read_json_safe(heartbeat_file)
-    open_positions = _read_json_safe(open_positions_file)
+    raw_state = _read_json_safe(open_positions_file)
 
-    # Rough local exposure from state
+    # The real structure after P2-011x is:
+    # { "saved_at": ..., "state_namespace": ..., "positions": { "BTC/USD": {...}, ... } }
+    positions = raw_state.get("positions", raw_state) if isinstance(raw_state, dict) else {}
+
+    # Count only actual position entries
+    open_positions_count = len(positions) if isinstance(positions, dict) else 0
+
+    # Local exposure: prefer "notional", fallback to abs(qty * entry_price)
     local_exposure = 0.0
-    for pos in open_positions.values():
-        try:
-            local_exposure += float(pos.get("notional", 0) or 0)
-        except Exception:
-            pass
+    if isinstance(positions, dict):
+        for pos in positions.values():
+            if not isinstance(pos, dict):
+                continue
+            notional = pos.get("notional")
+            if notional is not None:
+                try:
+                    local_exposure += float(notional)
+                    continue
+                except Exception:
+                    pass
+            # Fallback
+            try:
+                qty = float(pos.get("qty", 0) or 0)
+                entry_price = float(pos.get("entry_price", 0) or 0)
+                local_exposure += abs(qty * entry_price)
+            except Exception:
+                pass
 
     process_count = get_process_count_for_namespace(namespace)
 
@@ -132,7 +183,7 @@ def build_status() -> Dict[str, Any]:
         "detected_live_processes": process_count,
         "heartbeat": heartbeat,
         "open_positions_file": str(open_positions_file),
-        "open_positions_count": len(open_positions),
+        "open_positions_count": open_positions_count,
         "local_tracked_exposure_usd": round(local_exposure, 4),
         "latest_report": latest_report,
         "journal_tail": recent_journal,
