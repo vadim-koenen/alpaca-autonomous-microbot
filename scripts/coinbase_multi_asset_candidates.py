@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-P2-012C — Coinbase Multi-Asset Spot Candidates + Live Expansion Dry-Run (read-only).
+P2-012D — Coinbase Multi-Asset Spot Micro-Trading Status (read-only).
 
-- Reports candidates using conservative spot-only filters (no perps, no gold/silver, no leverage, no disabled).
-- --show-expansion (or when multi_asset_spot.enabled in config) shows EXACTLY which symbols would be live-enabled right now.
-- Explicit allow_live_trading_symbols list in config is the final gate for any expansion.
-- Default (disabled): identical to P2-012B / pre-P2-012C behavior (only BTC/ETH/SOL).
-- Summarizes recent prediction telemetry (active for all symbols since P2-012B wiring).
-- No network calls. Safe for any environment. Never places orders.
+- Shows current multi_asset_spot state (enabled + allowlist).
+- --show-expansion (or when enabled) prints effective live symbols, exclusions with reasons, and key limits (trade size, exposure, daily loss, positions, new/day).
+- Explicit allowlist + hard filters (spot-only, no perps/gold/silver/leverage/etc.) enforced.
+- Prediction telemetry active for all (base + expanded).
+- No network calls. Safe. Never places orders.
 
-Usage (recommended for dry-run before enabling):
+Usage:
     python3 scripts/coinbase_multi_asset_candidates.py --show-expansion
     python3 scripts/coinbase_multi_asset_candidates.py --products-file /path/to/products.json --show-expansion --json
 """
@@ -134,7 +133,7 @@ def main() -> None:
         print(json.dumps(out, indent=2, default=str))
         return
 
-    print("=== P2-012C Coinbase Multi-Asset Spot Candidates + Live Expansion Dry-Run (read-only) ===")
+    print("=== P2-012D Coinbase Multi-Asset Spot Micro-Trading Status (read-only) ===")
     print(f"Current configured live_symbols: {live_syms}")
     print(f"Total symbols in crypto config: {len(all_syms)}")
     print(f"multi_asset_spot.enabled: {multi_cfg.get('enabled', False)}")
@@ -160,14 +159,20 @@ def main() -> None:
     print()
 
     if expansion_report:
-        print("=== LIVE EXPANSION DRY-RUN (what would actually trade under current config) ===")
+        print("=== LIVE EXPANSION STATUS (multi_asset_spot enabled) ===")
         eff = expansion_report.get("effective_live_symbols", live_syms)
-        print(f"Effective live symbols under current config: {eff}")
+        print(f"Effective live symbols (base + expanded): {eff}")
         print(f"  Base: {expansion_report.get('base_symbols', live_syms)}")
-        print(f"  Newly selected (passed allowlist + all hard filters): {expansion_report.get('newly_selected', [])}")
-        print(f"  Allowlist configured: {expansion_report.get('allowlist_used', [])}")
+        print(f"  Newly selected (allowlist + filters): {expansion_report.get('newly_selected', [])}")
+        print(f"  Allowlist: {expansion_report.get('allowlist_used', [])}")
         if expansion_report.get("excluded"):
-            print(f"  Excluded this resolution: {len(expansion_report['excluded'])} (sample reasons: {[e.get('reason') for e in expansion_report['excluded'][:3]]})")
+            print(f"  Excluded: {len(expansion_report['excluded'])} (sample: {[e.get('reason') for e in expansion_report['excluded'][:3]]})")
+        # P2-012D required clear limits output
+        print(f"  Max trade size (notional): ${get_cfg('crypto', 'max_trade_notional_usd', default=2.00):.2f}")
+        print(f"  Max exposure cap: ${get_cfg('crypto', 'max_total_crypto_exposure_usd', default=8.00):.2f} / global ${get_cfg('global_risk', 'max_total_live_exposure_usd', default=8.00):.2f}")
+        print(f"  Daily loss limit: ${get_cfg('global_risk', 'max_daily_loss_usd', default=4.00):.2f}")
+        print(f"  Max open positions: {get_cfg('global_risk', 'max_open_positions', default=3)}")
+        print(f"  Max new symbols/day: {multi_cfg.get('max_new_symbols_per_day', 2)}")
         print(f"  Note: {expansion_report.get('note', '')}")
         print()
 
@@ -181,7 +186,7 @@ def main() -> None:
     print()
     print(report.get("note", ""))
     print()
-    print("This report + resolver do not auto-enable trading. Explicit config allowlist + enabled=true required. All hard filters (spot only, no perps/gold/silver/leverage) are enforced.")
+    print("P2-012D: multi_asset_spot micro-trading is controlled by explicit allowlist + hard selector filters (spot-only, no perps/gold/silver/leverage/disabled/unsupported). Prediction telemetry is active for all symbols. No fill logger or derivatives trading.")
 
 
 if __name__ == "__main__":

@@ -36,11 +36,11 @@ live_trading:
 
 # ── Global risk limits ────────────────────────────────────────
 global_risk:
-  max_daily_loss_usd: 3.00          # P2-001: raised from 2.00
-  max_trades_per_day: 12            # P2-001: raised to 12
-  stop_after_consecutive_losses: 3  # P2-001: raised from 2
-  max_open_positions: 2             # P2-001: absolute max 2
-  max_total_live_exposure_usd: 6.00
+  max_daily_loss_usd: 4.00          # P2-012D: raised conservatively for controlled multi-asset micros (still small)
+  max_trades_per_day: 12
+  stop_after_consecutive_losses: 3
+  max_open_positions: 3             # P2-012D: small bump for multiple micro positions across assets
+  max_total_live_exposure_usd: 8.00 # P2-012D: conservative bump for controlled multi-asset (max $8)
   no_new_trades_after_market_time: "23:55"
   force_flat_before_market_close: false
   force_flat_time: "23:58"
@@ -62,7 +62,7 @@ crypto:
     - ETH/USD
     - SOL/USD
   max_trade_notional_usd: 2.00
-  max_total_crypto_exposure_usd: 6.00 # P2-001: absolute max 6.00
+  max_total_crypto_exposure_usd: 8.00 # P2-012D: conservative bump for controlled multi-asset spot micros (max $8)
   min_trade_notional_usd: 0.50
   max_spread_pct_per_symbol:
     BTC/USD: 0.10
@@ -165,7 +165,7 @@ crypto:
   #       - AVAX/USD
   #     ...
   multi_asset_spot:
-    enabled: false
+    enabled: true
     max_symbols: 8
     allowed_quote_currencies:
       - USD
@@ -176,10 +176,14 @@ crypto:
       - commodity_linked_derivative
       - unknown
     max_spread_bps: 50          # 0.50% — conservative; tighter than some legacy probe
-    allow_live_trading_symbols: []   # EXPLICIT ALLOWLIST — required. Nothing outside this + current live will ever trade.
+    allow_live_trading_symbols:
+      - ADA/USD
+      - AVAX/USD
     max_new_symbols_per_day: 2
-    # micro notional and exposure continue to be governed by the existing
-    # max_trade_notional_usd / max_total_crypto_exposure_usd etc. (no increase here)
+    # P2-012D: controlled multi-asset spot micro-trading turned on.
+    # Only the explicit allowlist above (plus base BTC/ETH/SOL) will trade.
+    # All hard filters (spot_crypto only, no perps/gold/silver/leverage/disabled) still enforced by selector.
+    # Micro-size: uses existing max_trade_notional_usd (2.00). Exposure/daily loss bumped conservatively for multiple micros.
 
 # ── Fee model ─────────────────────────────────────────────────
 fees:

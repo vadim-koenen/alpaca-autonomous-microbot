@@ -194,4 +194,33 @@ def test_active_handoff_unchanged():
         capture_output=True, text=True, cwd="."
     )
     diff_lines = result.stdout.strip().splitlines() if result.stdout else []
-    assert len(diff_lines) == 0, "ACTIVE_HANDOFF.md must remain completely unchanged for P2-012C"
+    assert len(diff_lines) == 0, "ACTIVE_HANDOFF.md must remain completely unchanged for P2-012D"
+
+
+def test_p2_012d_config_enables_multi_asset_with_explicit_allowlist_and_safe_caps():
+    """P2-012D: config turns the gate on with non-empty explicit allowlist and conservative caps."""
+    import yaml
+    cfg_path = Path("config_coinbase_crypto.yaml")
+    cfg = yaml.safe_load(cfg_path.read_text()) if cfg_path.exists() else {}
+
+    crypto = cfg.get("crypto", {})
+    multi = crypto.get("multi_asset_spot", {})
+    assert multi.get("enabled") is True, "P2-012D requires multi_asset_spot.enabled=true"
+    allowlist = multi.get("allow_live_trading_symbols", [])
+    assert len(allowlist) > 0, "P2-012D requires explicit non-empty allow_live_trading_symbols"
+
+    # Base symbols still present
+    base_live = crypto.get("live_symbols", [])
+    assert set(base_live) >= {"BTC/USD", "ETH/USD", "SOL/USD"}
+
+    # Caps per P2-012D allowance (notional <=2, exposure<=8, daily loss<=4)
+    assert crypto.get("max_trade_notional_usd", 0) <= 2.0
+    assert crypto.get("max_total_crypto_exposure_usd", 0) <= 8.0
+    global_risk = cfg.get("global_risk", {})
+    assert global_risk.get("max_daily_loss_usd", 0) <= 4.0
+    assert global_risk.get("max_open_positions", 0) <= 3
+    assert multi.get("max_new_symbols_per_day", 0) <= 2
+
+    # Prediction telemetry still referenced/available
+    import prediction_telemetry as pt
+    assert hasattr(pt, "safe_log_prediction_telemetry")
