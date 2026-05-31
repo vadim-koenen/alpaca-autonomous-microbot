@@ -293,7 +293,7 @@ class RiskManager:
         """
         if p.asset_class != "crypto":
             return True, ""
-        cap = self._c("crypto", "max_total_crypto_exposure_usd", default=4.0)
+        cap = self._c("crypto", "max_total_crypto_exposure_usd", default=8.0)
         current = s.tracked_crypto_exposure_usd
         recovered = s.broker_recovered_crypto_exposure_usd
         bot_placed = current - recovered
@@ -444,13 +444,13 @@ class RiskManager:
         return True, ""
 
     def _check_max_open_positions(self, p, s, mode):
-        max_pos = self._c("global_risk", "max_open_positions", default=2)
+        max_pos = self._c("global_risk", "max_open_positions", default=3)
         if s.open_positions >= max_pos:
             return False, f"max open positions {max_pos} reached"
         return True, ""
 
     def _check_max_exposure(self, p, s, mode):
-        max_exp = self._c("global_risk", "max_total_live_exposure_usd", default=6.0)
+        max_exp = self._c("global_risk", "max_total_live_exposure_usd", default=8.0)
         if p.asset_class in ("equity", "option", "short"):
             parts = (
                 s.current_equity_position_exposure_usd,

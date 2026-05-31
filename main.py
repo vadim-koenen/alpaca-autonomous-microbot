@@ -387,10 +387,13 @@ def main() -> None:
         sys.exit(1)
 
     if mode == "live":
+        trade_cap = get_cfg("crypto", "max_trade_notional_usd", default=2.0)
+        exp_cap = get_cfg("crypto", "max_total_crypto_exposure_usd", default=8.0)
+        loss_cap = get_cfg("global_risk", "max_daily_loss_usd", default=4.0)
         logger.warning(
             "LIVE MODE ACTIVE. Real orders will be placed. "
-            "Capital at risk. Max trade: $2. Max exposure: $4. "
-            "Daily loss limit: $2."
+            f"Capital at risk. Max trade: ${float(trade_cap):.2f}. Max exposure: ${float(exp_cap):.2f}. "
+            f"Daily loss limit: ${float(loss_cap):.2f}."
         )
         time.sleep(3)  # Give operator a moment to abort if this was accidental
 
@@ -706,7 +709,7 @@ def main() -> None:
                     cap_value = float(get_cfg(
                         "crypto",
                         "max_total_crypto_exposure_usd",
-                        default=4.0,
+                        default=8.0,
                     ))
                     current_exposure = account_state.tracked_crypto_exposure_usd
                     projected_exposure = current_exposure + proposal.notional
@@ -715,7 +718,7 @@ def main() -> None:
                     cap_value = float(get_cfg(
                         "global_risk",
                         "max_total_live_exposure_usd",
-                        default=6.0,
+                        default=8.0,
                     ))
                     current_exposure = (
                         safe_float(account_state.current_equity_position_exposure_usd)
@@ -1115,13 +1118,13 @@ def _log_effective_risk_config(log: logging.Logger, mode: str) -> None:
       global_cap  — global_risk.max_total_live_exposure_usd (cross-asset total)
     Both are real limits; the crypto guard fires first.
     """
-    crypto_cap   = get_cfg("crypto",       "max_total_crypto_exposure_usd",  default=4.0)
-    global_cap   = get_cfg("global_risk",  "max_total_live_exposure_usd",    default=6.0)
-    max_trade    = get_cfg("crypto",       "max_trade_notional_usd",         default=3.0)
-    max_loss     = get_cfg("global_risk",  "max_daily_loss_usd",             default=2.0)
-    max_consec   = get_cfg("global_risk",  "stop_after_consecutive_losses",  default=2)
-    max_trades   = get_cfg("global_risk",  "max_trades_per_day",             default=5)
-    max_pos      = get_cfg("global_risk",  "max_open_positions",             default=2)
+    crypto_cap   = get_cfg("crypto",       "max_total_crypto_exposure_usd",  default=8.0)
+    global_cap   = get_cfg("global_risk",  "max_total_live_exposure_usd",    default=8.0)
+    max_trade    = get_cfg("crypto",       "max_trade_notional_usd",         default=2.0)
+    max_loss     = get_cfg("global_risk",  "max_daily_loss_usd",             default=4.0)
+    max_consec   = get_cfg("global_risk",  "stop_after_consecutive_losses",  default=3)
+    max_trades   = get_cfg("global_risk",  "max_trades_per_day",             default=12)
+    max_pos      = get_cfg("global_risk",  "max_open_positions",             default=3)
     equity_floor = get_cfg("account",      "disable_live_below_equity",      default=7.0)
     max_api_err  = get_cfg("global_risk",  "max_api_errors_before_halt",     default=10)
     cooldown_min = get_cfg("crypto",       "coinbase_probe_min_minutes_between_trades", default=60)
