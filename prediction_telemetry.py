@@ -166,7 +166,7 @@ class PredictionTelemetryRow:
     horizon_30m_outcome: Optional[Any]
     horizon_60m_outcome: Optional[Any]
     horizon_90m_outcome: Optional[Any]
-    features: Dict[str, Any]
+    features_json: Dict[str, Any]
     source: str
     raw_payload: Dict[str, Any]          # original proposal / status snapshot (may be redacted upstream)
 
@@ -237,7 +237,7 @@ def log_prediction_telemetry(
         horizon_30m_outcome=(horizons or {}).get("30m"),
         horizon_60m_outcome=(horizons or {}).get("60m"),
         horizon_90m_outcome=(horizons or {}).get("90m"),
-        features=features or compute_derivative_features([]),  # empty -> all None
+        features_json=features or compute_derivative_features([]),  # empty -> all None
         source=source,
         raw_payload=raw_payload or {},
     )
