@@ -1,5 +1,42 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-014E complete — read-only Coinbase operator status aggregator
+
+Functional patch commit: `662dc1d`
+
+P2-014E added a single read-only Coinbase operator status aggregator:
+
+- new script: `scripts/coinbase_operator_status.py`
+- new tests: `tests/test_coinbase_operator_status.py`
+- aggregates local fill/proceeds/P&L reconciliation status
+- aggregates open/orphan position status
+- aggregates prediction/price-data coverage status where available
+- emits text and machine-readable `--json`
+- provides top-level `verdict`, `profit_readout`, blockers, and next recommended action
+
+Current local operator result:
+- `verdict`: `BLOCKED`
+- `profit_readout`: `unsafe_to_aggregate`
+- `sol_blocker_detected`: `true`
+- blocker count: `8`
+- next action: urgently investigate and resolve SOL/USD broker-close status before aggregating P/L or increasing risk
+
+Safety / scope:
+- no runtime/config/order/risk/strategy files changed
+- no broker API calls added
+- no `.env` reads added
+- no network calls added
+- no file mutation calls in production script
+- no fill logger writes enabled
+- no `logs/coinbase_fills.csv` writes
+- no `append_coinbase_fill_row` production call
+- no leverage, margin, futures, perps, options, commodities, GOLD/SILVER/XAU/XAG enabled
+
+Profit / momentum readout:
+- build momentum: strong positive
+- trading/profit readout: unsafe-to-aggregate
+- no risk/cap/aggressiveness increase is justified
+
 ## P2-014D complete — read-only open/orphan Coinbase position status report
 
 Functional patch commit: `39a3408`
@@ -297,7 +334,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: `39a3408`
+Latest functional patch commit: `662dc1d`
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -456,3 +493,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 18:30 UTC | head=b0bdca6 | P2-014 preflight/live status; Coinbase equity around $45.73, one SOL/USD bot-origin position open/re-associated, broker close capability unconfirmed, close failures logged, and visible recent journal exits remain negative. Preserve risk gates; no sizing/risk increase.
 - 2026-05-31 (P2-014A) | head= (to be filled on commit) | P2-014A docs patch complete: ACTIVE_HANDOFF.md cleanly updated on review/p2-014a-... branch to preserve exact live SOL/USD reconciliation blocker status (equity ~$45.73, open/re-associated, unconfirmed close, failures logged, dropped from tracking possible). Added explicit P2-014 preflight section on unsafe-to-aggregate profit readout until direct fill/proceeds/fees reconciliation proven via reuse of existing P2-011F/G modules + tests. No runtime/strategy/risk/config/order/logger changes. git status clean, only doc changed. All invariants preserved.
 - 2026-05-31 | head=39a3408 | P2-014D complete; Added read-only Coinbase open/orphan position status report with JSON output. SOL/USD broker-close/orphan blocker remains unresolved from local evidence. Realized P/L remains unsafe-to-aggregate. No runtime/config/order/risk/strategy changes. No fill logger writes. No leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
+- 2026-05-31 | head=662dc1d | P2-014E complete; Added read-only Coinbase operator status aggregator with text/JSON output. Aggregator reports BLOCKED, profit_readout=unsafe_to_aggregate, sol_blocker_detected=true, and urgent SOL/USD broker-close investigation as next action. No runtime/config/order/risk/strategy changes. No broker API calls, .env reads, network calls, fill logger writes, or leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
