@@ -1,5 +1,41 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-016A complete — Grok execution protocol and external signal context plan
+
+Functional patch commit: `061fabc`
+
+P2-016A added durable project docs to reduce copy/paste overhead and preserve future roadmap discipline:
+
+* `docs/GROK_EXECUTION_PROTOCOL.md`
+
+  * defines Controlled Autonomy workflow for Grok
+  * standardizes branch, test, commit, merge, handoff, and transcript expectations
+  * allows self-merge for low-risk docs/tests/read-only diagnostic work after verification
+  * preserves hard blocks around orders, risk, sizing, runtime, LaunchAgents, and strategy changes
+
+* `docs/EXTERNAL_SIGNAL_CONTEXT_PLAN.md`
+
+  * preserves future syndicated crypto/news/trend context layer
+  * target sources include CoinGecko, CoinDesk RSS/news, Financial Modeling Prep crypto news, LunarCrush, and similar reputable feeds
+  * layer remains advisory-only until broker reconciliation and direct P/L truth are solid
+  * no direct buy/sell triggers, sizing/risk/cap changes, or strategy overrides
+  * intended sequence: source registry → read-only collector → context signal aggregator → weak watchlist/skip/observe input after validation
+
+Safety / scope:
+
+* docs-only functional patch
+* no runtime/config/order/risk/strategy changes
+* no broker API calls
+* no file/log/journal/state mutation outside docs
+* no fill logger writes
+* no leverage, margin, futures, perps, options, commodities, GOLD/SILVER/XAU/XAG enabled
+
+Profit / momentum readout:
+
+* build momentum: strong positive
+* process velocity: improved via Controlled Autonomy docs
+* trading/profit readout: unsafe-to-aggregate until successful broker truth and direct fill/proceeds/fees reconciliation are proven
+
 ## P2-015B complete — Coinbase live probe adapter compatibility and unknown-state semantics
 
 Functional patch commit: `c9d8f05`
@@ -418,7 +454,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: `c9d8f05`
+Latest functional patch commit: `061fabc`
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -580,3 +616,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 | head=662dc1d | P2-014E complete; Added read-only Coinbase operator status aggregator with text/JSON output. Aggregator reports BLOCKED, profit_readout=unsafe_to_aggregate, sol_blocker_detected=true, and urgent SOL/USD broker-close investigation as next action. No runtime/config/order/risk/strategy changes. No broker API calls, .env reads, network calls, fill logger writes, or leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
 - 2026-05-31 | head=2f2ab7a | P2-015A complete; Added explicit opt-in read-only Coinbase live broker reconciliation probe. Default mode performs zero broker/API calls; --live-read-only required for live reads. Default JSON is valid and reports BLOCKED, profit_readout=unsafe_to_aggregate, live_read_only=false, broker_calls_made=false. No runtime/config/order/risk/strategy changes, no order/close/cancel/modify calls, no file mutations, no fill logger writes, no leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
 - 2026-05-31 | head=c9d8f05 | P2-015B complete; Fixed Coinbase live probe BrokerCoinbase adapter compatibility and unknown-state semantics. Default mode remains zero broker/API calls. When no successful broker read occurs, sol_on_broker and eth_on_broker are null/unknown, not false. No runtime/config/order/risk/strategy changes, no order/close/cancel/modify calls, no file mutations, no fill logger writes, no leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
+- 2026-05-31 | head=061fabc | P2-016A complete; Added Grok Controlled Autonomy execution protocol and external signal context plan. External syndicated crypto/news/trend layer preserved for later as advisory-only after broker truth/direct P&L truth. Docs-only; no runtime/config/order/risk/strategy changes; no broker API calls; no fill logger writes; no leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
