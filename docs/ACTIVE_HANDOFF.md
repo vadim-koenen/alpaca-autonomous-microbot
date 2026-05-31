@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 03:44 UTC — P2-011E committed; minimal inert Coinbase get_historical_fills wrapper proof completed. Wrapper is not called from live trading paths. Logger hook remains blocked. Next safe patch is a narrow order-status + historical-fills capture/reconciliation seam proof. No live behavior, config, risk, runtime, or strategy changes.
+**Last updated:** 2026-05-31 03:56 UTC — P2-011F committed; Coinbase order/fills reconciliation proof completed. Helper is not called from live trading paths. Logger hook remains blocked. Next safe patch is P2-011G narrow inert entry/exit capture wiring, still no writes. No live behavior, config, risk, runtime, or strategy changes.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -178,7 +178,7 @@ From confirmed live trade data (6 completed cycles):
 ## 8. Active Patch Queue
 
 ### IN PROGRESS
-**P2-011E completed the minimal inert Coinbase get_historical_fills wrapper proof. Key finding: BrokerCoinbase now has a wrapper that can preserve raw/normalized historical fill facts, including trade_id/entry_id, per-fill fee, size, price, and liquidity fields when present. The wrapper is not called from live trading paths. Logger hook remains blocked because end-to-end order + fills capture/reconciliation for both entry and exit legs has not yet been wired or proven. Next safe patch: P2-011G — narrow inert entry/exit capture wiring, still no writes
+**P2-011F completed the pure Coinbase order-status + historical-fills reconciliation proof. Key finding: `reconcile_order_with_fills()` now preserves raw order/fill payloads, direct broker facts, stable per-fill idempotency keys, and blocks logger readiness when fees, stable IDs, or exit proceeds are missing. The helper is side-effect free and is not called from live trading paths. Logger hook remains blocked. Next safe patch: P2-011G — narrow inert entry/exit capture wiring at entry/exit seams, still no writes. Do not tune TP/SL, hold time, notional size, symbols, predictions, risk caps, config, runtime, or live strategy until actual fills/proceeds/fees are captured and reconciled.**
 
 ### QUEUED (blocked — data + explicit approval required)
 - **SL/TP/hold-time tuning** — Class 2; use P2-001E exit-quality and P2-005 MFE/MAE reports only after ≥20 price-path samples, ~2+ weeks of P2-003 data, and explicit human approval
