@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 15:55 UTC — P2-013A committed; added read-only prediction outcome evaluator and trade attribution. The evaluator/script reads prediction telemetry, evaluates 15/30/60/90m outcomes when local price data exists, degrades gracefully when price data is missing, reports hit-rate/skipped-reason/conversion summaries, and performs best-effort journal attribution. No live trading/order/risk/symbol/cap/config/runtime behavior changed. Fill logger remains blocked; append_coinbase_fill_row is not called. Next step is supervised readout observation and then selecting the next measurement/reconciliation patch before any tuning.
+**Last updated:** 2026-05-31 18:03 UTC — P2-013B committed; improved read-only prediction outcome diagnostics, data-quality reporting, and attribution matching. Outcome script now reports evaluable vs unevaluable horizons, no_price_data counts, candidate-to-trade conversions, unmatched telemetry candidates, unmatched journal trades, and clearer explanations for None hit rates. Current diagnostic result shows outcome evaluation is running but still lacks enough local price data / attribution matches for actionable hit-rate or P&L conclusions. No live trading/order/risk/symbol/cap/config/runtime behavior changed. Fill logger remains blocked; append_coinbase_fill_row is not called. Next recommended patch: add read-only price-data availability for outcome horizons or return to Coinbase fill/proceeds reconciliation before any tuning.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -134,7 +134,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 81616ff
+Latest functional patch commit: 6e3b939
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -288,3 +288,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 15:22 UTC | head=a54cf52 | P2-012D complete; Turned on controlled multi-asset Coinbase spot micro-trading through explicit config allowlist. Micro-size posture preserved, prediction telemetry active, spot-only filters enforced, no leverage/perp/future/gold/silver/commodity/fill-logger enablement. Profit/readout remains required in every status update and handoff.
 - 2026-05-31 15:33 UTC | head=cdc2450 | P2-012E complete; Fixed multi-asset config/status/runtime drift and symbol normalization so expanded allowlisted spot symbols can join live scans. ADA/USD and AVAX/USD are eligible scan expansion symbols when hard filters pass. Prediction telemetry active, P2-012D caps unchanged, no derivative/gold/silver/fill-logger enablement. Profit/readout remains required in every status update and handoff.
 - 2026-05-31 15:55 UTC | head=81616ff | P2-013A complete; Added read-only prediction outcome evaluator + trade attribution with crash-proof default price loader, 15/30/60/90m outcome scaffolding, skipped-reason/conversion summaries, and best-effort journal attribution. Required tests and smoke script passed. No strategy/order/risk/symbol/cap/config/runtime changes. No leverage/perps/futures/gold/silver/commodities enabled. Fill logger remains blocked; append_coinbase_fill_row is not called. Profit/readout remains required in every status update and handoff.
+- 2026-05-31 18:03 UTC | head=6e3b939 | P2-013B complete; Improved prediction outcome data-quality diagnostics and attribution matching. Script now reports evaluable/unevaluable horizon counts, no_price_data counts, candidate-to-trade conversions, unmatched telemetry candidates, unmatched journal trades, and clearer None-hit-rate explanations. Tests and script smoke passed. No strategy/order/risk/symbol/cap/config/runtime changes. No leverage/perps/futures/gold/silver/commodities enabled. Fill logger remains blocked; append_coinbase_fill_row is not called. Profit/readout remains required in every status update and handoff.
