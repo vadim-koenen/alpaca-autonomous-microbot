@@ -81,6 +81,15 @@ class StrategyRouter:
                     if proposals:
                         logger.debug(f"Crypto {symbol}: {len(proposals)} proposal(s)")
                     all_proposals.extend(proposals)
+
+                    # P2-012A: log every crypto proposal as a candidate for future evaluation.
+                    # This is lightweight, append-only, and has zero effect on decisions.
+                    try:
+                        from prediction_telemetry import log_proposal_candidate
+                        for p in proposals:
+                            log_proposal_candidate(p, source="strategy_router.crypto")
+                    except Exception:
+                        pass  # telemetry must never break the router
                 except Exception as e:
                     logger.error(f"CryptoStrategy error for {symbol}: {e}")
         else:
@@ -95,6 +104,14 @@ class StrategyRouter:
                     if proposals:
                         logger.debug(f"Equity {symbol}: {len(proposals)} proposal(s)")
                     all_proposals.extend(proposals)
+
+                    # P2-012A: log equity proposals for telemetry
+                    try:
+                        from prediction_telemetry import log_proposal_candidate
+                        for p in proposals:
+                            log_proposal_candidate(p, source="strategy_router.equities")
+                    except Exception:
+                        pass
                 except Exception as e:
                     logger.error(f"EquitiesStrategy error for {symbol}: {e}")
         else:
