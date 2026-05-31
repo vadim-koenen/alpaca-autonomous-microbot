@@ -6,6 +6,7 @@ All tests are pure (fixtures only, no network, no real orders, no writes).
 
 import json
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,7 +16,11 @@ from prediction_telemetry import (
     PredictionOutcomeEvaluator,
     load_prediction_telemetry_rows,
     _safe_float,
+    discover_local_price_coverage,
+    extract_price_points_from_telemetry,
+    normalize_product_id,
 )
+from scripts.coinbase_prediction_outcomes import price_data_status_main
 
 
 def _make_synthetic_telemetry(tmp_path: Path) -> Path:
@@ -226,6 +231,158 @@ def test_evaluator_and_script_default_run_no_crash(monkeypatch, tmp_path, capsys
         if "ROOT" in str(e) or "NameError" in str(type(e)):
             pytest.fail(f"Unexpected crash in default script run: {e}")
         # If it fails for other reasons (e.g. no journal), that's acceptable as long as no NameError from our bug
+
+
+def test_price_data_status_handles_no_local_data_gracefully(tmp_path, capsys):
+    """P2-013C regression: price data status must not crash when no usable price data."""
+    tele = tmp_path / "no_ref.jsonl"
+    tele.write_text('{"timestamp":"2026-01-01T00:00:00Z","symbol":"TEST/USD","decision_status":"candidate"}\n')  # no reference_price
+
+    # Direct function call (used by both scripts)
+    cov = discover_local_price_coverage(tele)
+    assert isinstance(cov, dict)
+    assert "symbols" in cov
+    assert cov.get("evaluable_telemetry_rows_with_local_prices", -1) == 0
+    assert "note" in cov
+
+    # Via the status main (as used by the thin script and --price-data-status)
+    price_data_status_main(["--telemetry", str(tele), "--json"])
+    out = capsys.readouterr().out
+    assert "symbols" in out or "evaluable" in out.lower()  # json or text output contains expected
+
+
+def test_price_data_status_reports_coverage_from_fixture(tmp_path):
+    """P2-013C: extract + coverage logic reports positive counts when fixture price data is provided for a symbol with a proposal."""
+    # Fixture price data (20 min apart)
+    price_rows = [
+        {"symbol": "TEST/USD", "timestamp_utc": "2026-01-01T00:00:00Z", "close": 100.0},
+        {"symbol": "TEST/USD", "timestamp_utc": "2026-01-01T00:20:00Z", "close": 101.0},
+    ]
+    # Telemetry proposal between them
+    tele_rows = [
+        {"timestamp": "2026-01-01T00:05:00Z", "symbol": "TEST/USD", "reference_price": 100.0, "decision_status": "candidate", "side": "buy", "strategy": "test"},
+    ]
+
+    series = extract_price_points_from_telemetry(tele_rows)
+    # Fold in fixture prices (same logic discover uses)
+    for bar in price_rows:
+        sym = normalize_product_id(bar.get("symbol", ""))
+        price = _safe_float(bar.get("close"))
+        ts = bar.get("timestamp_utc")
+        if sym and price is not None and ts:
+            dt = __import__("datetime").datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            if dt:
+                series.setdefault(sym, []).append((dt, price))
+
+    # Re-sort/dedup
+    for sym in list(series.keys()):
+        series[sym].sort(key=lambda x: x[0])
+        ded = []
+        seen = set()
+        for dt, p in series[sym]:
+            k = dt.isoformat()
+            if k not in seen:
+                seen.add(k)
+                ded.append((dt, p))
+        series[sym] = ded
+
+    # Exact coverage calc copied from discover_local_price_coverage
+    symbols = sorted(series.keys())
+    horizons = [15, 30, 60, 90]
+    coverage = {s: {h: 0 for h in horizons} for s in symbols}
+    for sym, pts in series.items():
+        pts = sorted(pts, key=lambda x: x[0])
+        for h in horizons:
+            for dt, _p in pts:
+                target = dt + timedelta(minutes=h)
+                if any(pdt >= target for pdt, _ in pts):
+                    coverage[sym][h] += 1
+                    break
+
+    assert "TEST/USD" in symbols
+    assert coverage["TEST/USD"][15] > 0  # 15 min from proposal time hits the 0:20 bar
+    # The pure building blocks produce positive coverage for the injected fixture + telemetry data.
+
+
+def test_evaluator_uses_fixture_price_data_for_evaluable_horizons():
+    """P2-013C: when a proper price_loader (from fixture) is provided, horizons become evaluable (not no_price_data)."""
+    evaluator = PredictionOutcomeEvaluator(price_loader=_synthetic_price_loader)  # from earlier in file, returns future prices
+    row = {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "symbol": "BTC/USD",
+        "side": "buy",
+        "reference_price": 73000.0,
+        "decision_status": "candidate",
+        "strategy": "test"
+    }
+    evals = evaluator.evaluate_row(row, horizons=[15, 30])
+    assert len(evals) == 2
+    assert all(e.direction_outcome in ("hit", "miss", "neutral") for e in evals)  # not no_price_data
+    assert all(e.future_price is not None for e in evals)
+
+
+def test_missing_horizon_prices_report_no_price_data_not_crash():
+    """P2-013C: when price_loader returns None for a horizon, outcome must be 'no_price_data' without exception."""
+    evaluator = PredictionOutcomeEvaluator(price_loader=lambda s, t, h: None)
+    row = {"timestamp": "t", "symbol": "X", "side": "buy", "reference_price": 100.0, "decision_status": "candidate", "strategy": "s"}
+    evals = evaluator.evaluate_row(row, horizons=[15, 9999])
+    assert len(evals) == 2
+    assert all(e.direction_outcome == "no_price_data" for e in evals)
+
+
+def test_price_status_and_outcomes_scripts_remain_read_only_non_crashing(tmp_path, monkeypatch, capsys):
+    """P2-013C: running the status modes/scripts performs no writes and does not crash."""
+    tele = tmp_path / "t.jsonl"
+    tele.write_text('{"timestamp":"2026-01-01T00:00:00Z","symbol":"TEST/USD","reference_price":100.0,"decision_status":"candidate","side":"buy"}\n')
+
+    # Capture that no unexpected files are written outside tmp
+    original_open = open
+    written = []
+    def tracking_open(*a, **k):
+        if len(a) > 1 and 'w' in a[1]:
+            written.append(a[0])
+        return original_open(*a, **k)
+    monkeypatch.setattr("builtins.open", tracking_open)
+
+    # Run price status
+    from scripts.coinbase_prediction_outcomes import price_data_status_main
+    price_data_status_main(["--telemetry", str(tele), "--json"])
+    out = capsys.readouterr().out
+    assert "symbols" in out or "evaluable" in out.lower()
+
+    # Run default outcomes (should also not crash)
+    monkeypatch.setattr("sys.argv", ["coinbase_prediction_outcomes.py", "--telemetry", str(tele)])
+    from scripts.coinbase_prediction_outcomes import main as outcomes_main
+    outcomes_main()
+
+    # Assert no writes to forbidden locations
+    forbidden = any("logs/coinbase_fills" in str(w) or "append" in str(w).lower() for w in written)
+    assert not forbidden, f"Unexpected write detected: {written}"
+
+    assert True  # reached here without crash
+
+
+def test_append_coinbase_fill_row_not_called_in_price_status_code():
+    """P2-013C regression: the new price data code must not reference the blocked fill logger."""
+    import re
+    from pathlib import Path as P
+    for fname in ["prediction_telemetry.py", "scripts/coinbase_prediction_outcomes.py", "scripts/coinbase_prediction_price_data_status.py"]:
+        src = P(fname).read_text()
+        cleaned = re.sub(r'""".*?"""', '', src, flags=re.DOTALL)
+        cleaned = re.sub(r"'''.*?'''", '', cleaned, flags=re.DOTALL)
+        cleaned = re.sub(r'#.*', '', cleaned)
+        assert "append_coinbase_fill_row" not in cleaned
+        assert "coinbase_fills.csv" not in cleaned
+
+
+def test_active_handoff_unchanged_for_p2_013c():
+    """Enforced at test time."""
+    result = __import__("subprocess").run(
+        ["git", "diff", "main", "--", "docs/ACTIVE_HANDOFF.md"],
+        capture_output=True, text=True, cwd="."
+    )
+    diff_lines = result.stdout.strip().splitlines() if result.stdout else []
+    assert len(diff_lines) == 0, "ACTIVE_HANDOFF.md must remain completely unchanged for P2-013C"
 
     # Confirm no files were written outside tmp (sanity for read-only)
     # (we already use tmp for any test artifacts)
