@@ -1,5 +1,46 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-014B complete — read-only fill/proceeds/P&L reconciliation readout
+
+Functional patch commit: `1eb2007`
+
+P2-014B improved `scripts/coinbase_fill_proceeds_reconciliation_report.py` and its tests so the local reconciliation report now clearly separates:
+- direct broker facts available from local rows
+- locally derived values
+- unsafe/missing values
+- matched-pair summaries
+- open/unresolved position evidence
+- SOL/USD broker-close blocker evidence
+
+Verified:
+- `tests/test_coinbase_fill_proceeds_reconciliation_report.py`: 16 passed
+- `tests/test_coinbase_fill_logging_contract_check.py`: 10 passed
+- `tests/test_coinbase_entry_exit_capture.py`: 5 passed
+- report smoke passed
+- patch remained read-only/local CSV inspection only
+
+Current report result:
+- direct order/client-order coverage exists
+- direct sell proceeds are not available locally
+- direct fees are not available locally in enough form for immutable P/L aggregation
+- no paired cycle has both actual buy cost and direct sell proceeds locally available
+- realized P/L remains unavailable / unsafe-to-aggregate
+- SOL/USD open/re-associated blocker remains active
+- broker close capability remains unconfirmed
+
+Safety / scope:
+- no runtime/config/order/risk/strategy files changed
+- no fill logger writes enabled
+- no `append_coinbase_fill_row` production call
+- no `.env`, `logs/coinbase_fills.csv`, LaunchAgent, state, runtime, or broker API behavior changed
+- no leverage, margin, futures, perps, options, commodities, GOLD/SILVER/XAU/XAG enabled
+
+Profit / momentum readout:
+- build momentum: positive
+- trading/profit readout: unsafe-to-aggregate
+- no risk/cap/aggressiveness increase is justified
+
+
 ## P2-014A — ACTIVE_HANDOFF live status preservation + P2-014 preflight (docs-only)
 
 Functional patch commit (latest complete): `e90e678` (P2-013C: read-only local price data coverage diagnostics + targeted regressions)
@@ -38,7 +79,7 @@ Profit / momentum readout:
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 — P2-014A docs patch: ACTIVE_HANDOFF updated to preserve Coinbase equity ~$45.73, SOL/USD open/re-associated, broker close unconfirmed, close failures logged, as operational/reconciliation blocker. Latest functional patch e90e678. No risk increase. Added explicit P2-014 preflight on unsafe profit aggregation pending reconciliation proof.
+**Last updated:** 2026-05-31 18:48 UTC — P2-014B complete; read-only Coinbase fill/proceeds/P&L reconciliation report now separates direct broker facts, locally derived values, unsafe/missing data, matched-pair summaries, and SOL/USD open/re-associated blocker evidence. Current report still shows realized P/L unavailable/unsafe-to-aggregate because no paired cycle has both actual buy cost and direct sell proceeds locally available. Latest functional patch commit 1eb2007. No strategy/order/risk/symbol/cap/config/runtime behavior changed.
 **Updated by:** Grok (per P2-014A ritual)
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** review/p2-014a-coinbase-live-status-and-reconciliation-preflight
@@ -189,7 +230,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: e90e678
+Latest functional patch commit: 1eb2007
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
