@@ -56,5 +56,5 @@ The `get_spot_crypto_candidates()` method can also be called from Python for cus
 
 ---
 
-P2-012B multi-asset spot plumbing + live telemetry integration complete.  
+P2-012B multi-asset spot plumbing + live telemetry integration complete.
 No new live-order symbols enabled. All invariants preserved.
