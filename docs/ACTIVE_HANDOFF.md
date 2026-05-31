@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 15:22 UTC — P2-012D committed; controlled multi-asset Coinbase spot micro-trading has been turned on via explicit config. The patch enables the P2-012C expansion gate for a small allowlist of already-supported spot symbols, keeps max trade size at micro-size, preserves hard spot-only filters, keeps prediction telemetry active, and keeps leverage/perps/futures/options/commodities/GOLD/SILVER/XAU/XAG order placement disabled. Fill logger remains blocked; append_coinbase_fill_row is not called. Next step is supervised runtime observation for expanded spot scan/trade activity and realized P&L.
+**Last updated:** 2026-05-31 15:33 UTC — P2-012E committed; expanded Coinbase spot scan symbols now resolve from the same multi_asset_spot config used by runtime and status. Symbol normalization between slash and dash forms is handled, ADA/USD and AVAX/USD can join live scans when eligible and allowlisted, prediction telemetry remains active for expanded symbols, and max trade/exposure/daily-loss caps remain unchanged from P2-012D. Spot-only filters remain enforced; leverage/perps/futures/options/commodities/GOLD/SILVER/XAU/XAG order placement remains disabled. Fill logger remains blocked; append_coinbase_fill_row is not called. Next step is supervised runtime observation, then P2-013A prediction outcome evaluator and trade attribution.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -134,7 +134,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: a54cf52
+Latest functional patch commit: cdc2450
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -286,3 +286,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 14:56 UTC | head=f3ecb41 | P2-012B complete; Wired prediction telemetry into live scan/proposal/skip flow and added conservative multi-asset spot candidate plumbing/reporting. Telemetry is append-only and non-fatal. No notional/exposure/TP/SL/hold-time/current-symbol/order/leverage/perp/future/gold/silver/logger changes. Profit/readout remains required in every status update and handoff.
 - 2026-05-31 15:11 UTC | head=9274b01 | P2-012C complete; Added controlled multi-asset Coinbase spot micro-trading enablement with explicit config gating, micro-size posture, prediction telemetry, max open/new-symbol gates, and deterministic exclusion reasons. Spot-only filter remains enforced. No leverage/perp/future/gold/silver/commodity/fill-logger enablement. Profit/readout remains required in every status update and handoff.
 - 2026-05-31 15:22 UTC | head=a54cf52 | P2-012D complete; Turned on controlled multi-asset Coinbase spot micro-trading through explicit config allowlist. Micro-size posture preserved, prediction telemetry active, spot-only filters enforced, no leverage/perp/future/gold/silver/commodity/fill-logger enablement. Profit/readout remains required in every status update and handoff.
+- 2026-05-31 15:33 UTC | head=cdc2450 | P2-012E complete; Fixed multi-asset config/status/runtime drift and symbol normalization so expanded allowlisted spot symbols can join live scans. ADA/USD and AVAX/USD are eligible scan expansion symbols when hard filters pass. Prediction telemetry active, P2-012D caps unchanged, no derivative/gold/silver/fill-logger enablement. Profit/readout remains required in every status update and handoff.
