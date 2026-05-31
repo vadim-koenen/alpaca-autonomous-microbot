@@ -805,6 +805,45 @@ class BrokerCoinbase:
             logger.error(f"get_open_orders error: {e}")
             return []
 
+    def get_historical_fills(
+        self,
+        product_id: Optional[str] = None,
+        order_id: Optional[str] = None,
+        **kwargs,
+    ) -> list[dict]:
+        """Minimal wrapper for historical fills (Coinbase Advanced Trade).
+
+        Returns list of normalized fill dicts. Preserves raw broker facts.
+        Does NOT estimate P/L, does NOT write logs, is inert unless called.
+
+        Intended for future capture/reconciliation proof only.
+        """
+        if self._api_blocked:
+            return []
+        try:
+            params: dict[str, Any] = {}
+            if product_id:
+                params["product_id"] = _cb(product_id)
+            if order_id:
+                params["order_id"] = order_id
+            params.update({k: v for k, v in kwargs.items() if v is not None})
+
+            resp = _retry(
+                lambda: self._client.get_fills(**params),
+                self,
+            )
+            if resp is None:
+                return []
+
+            rd = _r(resp)
+            # SDK responses commonly use "fills" or "data"
+            raw_fills = rd.get("fills") or rd.get("data") or []
+            return [_r(f) for f in raw_fills]
+
+        except Exception as e:
+            logger.warning(f"get_historical_fills error: {e}")
+            return []
+
     def cancel_order(self, order_id: str) -> bool:
         if self._mode == "dry_run":
             logger.info(f"DRY_RUN: would cancel order {order_id}")
