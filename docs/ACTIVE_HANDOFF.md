@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 15:11 UTC — P2-012C committed; controlled multi-asset Coinbase spot micro-trading enablement added. The patch adds explicit config-gated live expansion for eligible spot crypto assets only, keeps prediction telemetry enabled, and preserves hard filters excluding leverage, margin, perps, futures, options, commodities, GOLD/SILVER/XAU/XAG-style products, disabled products, unsupported quote currencies, and non-allowlisted products. This is controlled-aggressive proof-of-concept behavior intended to generate more real micro-trade data. Fill logger remains blocked; append_coinbase_fill_row is not called.
+**Last updated:** 2026-05-31 15:22 UTC — P2-012D committed; controlled multi-asset Coinbase spot micro-trading has been turned on via explicit config. The patch enables the P2-012C expansion gate for a small allowlist of already-supported spot symbols, keeps max trade size at micro-size, preserves hard spot-only filters, keeps prediction telemetry active, and keeps leverage/perps/futures/options/commodities/GOLD/SILVER/XAU/XAG order placement disabled. Fill logger remains blocked; append_coinbase_fill_row is not called. Next step is supervised runtime observation for expanded spot scan/trade activity and realized P&L.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -134,7 +134,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 9274b01
+Latest functional patch commit: a54cf52
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -285,3 +285,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 14:24 UTC | head=d8ad784 | P2-012A complete; Added universal Coinbase market universe and prediction telemetry scaffold. Product metadata can be classified conservatively, gold/silver-like products are classification candidates only, all newly discovered products default to live-disabled, and prediction/derivative-style feature helpers are available for future scoring. No strategy/risk/notional/exposure/TP/SL/hold-time/symbol/order/logger changes. Profit/readout remains required in every status update and handoff.
 - 2026-05-31 14:56 UTC | head=f3ecb41 | P2-012B complete; Wired prediction telemetry into live scan/proposal/skip flow and added conservative multi-asset spot candidate plumbing/reporting. Telemetry is append-only and non-fatal. No notional/exposure/TP/SL/hold-time/current-symbol/order/leverage/perp/future/gold/silver/logger changes. Profit/readout remains required in every status update and handoff.
 - 2026-05-31 15:11 UTC | head=9274b01 | P2-012C complete; Added controlled multi-asset Coinbase spot micro-trading enablement with explicit config gating, micro-size posture, prediction telemetry, max open/new-symbol gates, and deterministic exclusion reasons. Spot-only filter remains enforced. No leverage/perp/future/gold/silver/commodity/fill-logger enablement. Profit/readout remains required in every status update and handoff.
+- 2026-05-31 15:22 UTC | head=a54cf52 | P2-012D complete; Turned on controlled multi-asset Coinbase spot micro-trading through explicit config allowlist. Micro-size posture preserved, prediction telemetry active, spot-only filters enforced, no leverage/perp/future/gold/silver/commodity/fill-logger enablement. Profit/readout remains required in every status update and handoff.
