@@ -1,0 +1,15 @@
+{
+  "order": {
+    "order_id": "00000000-0000-0000-0000-000000000003",
+    "product_id": "ETH-USD",
+    "side": "BUY",
+    "status": "OPEN",
+    "completion_percentage": "45.5",
+    "filled_size": "0.0455",
+    "average_filled_price": "3100.25",
+    "filled_value": "141.06",
+    "total_fees": "0.846",
+    "settled": false,
+    "last_fill_time": "2026-05-30T14:10:00.000Z"
+  }
+}
