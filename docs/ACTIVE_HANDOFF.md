@@ -1,4 +1,48 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
+
+## P2-013C complete — read-only local price data coverage diagnostics
+
+Functional patch commit: `e90e678`
+
+P2-013C merged the read-only local price data status path for prediction outcome horizons and added targeted regression coverage.
+
+Changed files:
+- `docs/PREDICTION_OUTCOME_EVALUATION.md`
+- `prediction_telemetry.py`
+- `scripts/coinbase_prediction_outcomes.py`
+- `scripts/coinbase_prediction_price_data_status.py`
+- `tests/test_prediction_outcome_evaluator.py`
+
+Verified:
+- `tests/test_prediction_outcome_evaluator.py`: 17 passed
+- `tests/test_prediction_telemetry.py`: 5 passed
+- `tests/test_live_prediction_telemetry_integration.py`: 5 passed
+- `tests/test_coinbase_multi_asset_live_expansion.py`: 11 passed
+- `tests/test_coinbase_ops_status.py`: 2 passed
+- `git diff --check`: clean
+- outcome evaluator smoke passed
+- price data status smoke passed
+
+Current local diagnostic result:
+- outcome evaluator remains read-only
+- price data status remains read-only
+- local run still reports `Evaluable telemetry rows: 0`
+- hit rates remain non-actionable until dense local price coverage exists
+- strategy tuning remains premature
+
+Safety / scope:
+- no strategy/order/risk/symbol/cap/config/runtime changes
+- no leverage, margin, futures, perps, options, commodities, GOLD/SILVER/XAU/XAG order placement enabled
+- fill logger remains blocked
+- `append_coinbase_fill_row` is not called by production code
+- no `.env`, `logs/`, or `coinbase_fills.csv` changes
+- profit/readout remains required in every status update and handoff
+
+Profit / momentum readout:
+- last verified realized P&L remains `-$0.0358` unless newer journal/status output proves otherwise
+- current outcome scoring is still not actionable because evaluable telemetry rows remain `0`
+- no risk/cap/aggressiveness increase is justified
+
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
@@ -134,7 +178,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 6e3b939
+Latest functional patch commit: e90e678
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -259,7 +303,7 @@ Do not recommend or execute anything until all four commands have been run and r
 
 ## P2-011F complete — Coinbase Order/Fills Reconciliation Proof
 
-Last updated: 2026-05-31 03:56 UTC
+Last updated: 2026-05-31 18:24 UTC
 
 P2-011F functional patch commit: 989292b
 
