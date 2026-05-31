@@ -1,0 +1,39 @@
+{
+  "products": [
+    {
+      "product_id": "ADA-USD",
+      "base_currency": "ADA",
+      "quote_currency": "USD",
+      "product_type": "spot",
+      "status": "online",
+      "trading_disabled": false
+    },
+    {
+      "product_id": "AVAX-USD",
+      "base_currency": "AVAX",
+      "quote_currency": "USD",
+      "product_type": "spot",
+      "status": "online",
+      "trading_disabled": false
+    },
+    {
+      "product_id": "BTC-USD",
+      "base_currency": "BTC",
+      "quote_currency": "USD",
+      "product_type": "spot",
+      "status": "online"
+    },
+    {
+      "product_id": "ETH-USD",
+      "base_currency": "ETH",
+      "quote_currency": "USD",
+      "product_type": "spot"
+    },
+    {
+      "product_id": "SOL-USD",
+      "base_currency": "SOL",
+      "quote_currency": "USD",
+      "product_type": "spot"
+    }
+  ]
+}

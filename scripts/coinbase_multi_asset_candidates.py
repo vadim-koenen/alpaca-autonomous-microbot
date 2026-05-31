@@ -25,8 +25,25 @@ from typing import Any, Dict, List
 # Make package imports work when run directly
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import os
+
 from coinbase_market_universe import CoinbaseMarketUniverse
+
+# P2-012E: Force the exact same Coinbase crypto config that the live bot uses
+# BEFORE any get_cfg / load_config calls. This is the root cause fix for
+# status reporting enabled=False while the live Coinbase bot's config has true.
+if not os.environ.get("CONFIG_FILE"):
+    coinbase_cfg = Path(__file__).resolve().parents[1] / "config_coinbase_crypto.yaml"
+    if coinbase_cfg.exists():
+        os.environ["CONFIG_FILE"] = str(coinbase_cfg)
+
+# Clear cache (in case utils was imported indirectly) and import get_cfg now
+import utils as _utils
+_utils._config = None  # type: ignore[attr-defined]
+
 from utils import get_cfg
+
+# get_cfg already imported above after cache clear
 
 TELEMETRY_FILE = Path("logs/prediction_telemetry.jsonl")
 

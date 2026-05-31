@@ -224,3 +224,39 @@ def test_p2_012d_config_enables_multi_asset_with_explicit_allowlist_and_safe_cap
     # Prediction telemetry still referenced/available
     import prediction_telemetry as pt
     assert hasattr(pt, "safe_log_prediction_telemetry")
+
+
+def test_symbol_normalization_consistency():
+    """P2-012E: ADA/USD vs ADA-USD etc. must normalize to the same identity."""
+    from coinbase_market_universe import normalize_product_id, normalize_to_hyphen
+
+    assert normalize_product_id("ADA-USD") == "ADA/USD"
+    assert normalize_product_id("ada/usd") == "ADA/USD"
+    assert normalize_product_id("AVAX-USD") == "AVAX/USD"
+
+    assert normalize_to_hyphen("ADA/USD") == "ADA-USD"
+    assert normalize_to_hyphen("AVAX/USD") == "AVAX-USD"
+
+    # Round-trip
+    assert normalize_product_id(normalize_to_hyphen("ADA/USD")) == "ADA/USD"
+
+
+def test_fallback_allows_allowlisted_spot_without_full_metadata(tmp_path, monkeypatch):
+    """P2-012E: when no product metadata, allowlisted configured spot symbols still join if they pass ID filters."""
+    from coinbase_market_universe import CoinbaseMarketUniverse
+
+    u = CoinbaseMarketUniverse()  # deliberately empty — no ingest
+    base = ["BTC/USD", "ETH/USD", "SOL/USD"]
+    multi_cfg = {
+        "enabled": True,
+        "allow_live_trading_symbols": ["ADA/USD", "AVAX/USD"],
+        "max_symbols": 8,
+        "allowed_quote_currencies": ["USD", "USDC"],
+    }
+
+    effective, report = u.resolve_live_crypto_symbols(base, multi_cfg)
+
+    eff_norm = {s.replace("/", "-").upper() for s in effective}
+    assert eff_norm >= {"BTC-USD", "ETH-USD", "SOL-USD", "ADA-USD", "AVAX-USD"}
+    assert report["selected_new_count"] >= 2
+    assert "ADA-USD" in report.get("newly_selected", []) or any("ADA" in str(x) for x in report.get("newly_selected", []))

@@ -37,6 +37,25 @@ COMMODITY_PATTERNS = {"gold", "silver", "xau", "xag", "crude", "oil", "natgas", 
 CURRENT_LIVE_SYMBOLS: Set[str] = {"BTC-USD", "ETH-USD", "SOL-USD"}
 
 
+def normalize_product_id(pid: str) -> str:
+    """
+    Canonical product id with slash separator and upper case, e.g. 'ADA/USD'.
+    Accepts 'ADA-USD', 'ada/usd', 'ADA/USD' etc.
+    """
+    if not pid:
+        return ""
+    s = str(pid).strip().upper().replace("-", "/")
+    parts = [p.strip() for p in s.split("/") if p.strip()]
+    if len(parts) == 2:
+        return f"{parts[0]}/{parts[1]}"
+    return s
+
+
+def normalize_to_hyphen(pid: str) -> str:
+    """For internal matching (BTC-USD style)."""
+    return normalize_product_id(pid).replace("/", "-")
+
+
 @dataclass
 class CoinbaseProduct:
     """Normalized view of a Coinbase product with classification and eligibility."""
@@ -384,7 +403,7 @@ class CoinbaseMarketUniverse:
 
         # Enabled path — explicit allowlist is the final gate
         allowlist_raw = multi_asset_cfg.get("allow_live_trading_symbols", []) or []
-        allowlist = {(s or "").replace("/", "-").upper() for s in allowlist_raw}
+        allowlist = {normalize_to_hyphen(s) for s in allowlist_raw}
 
         max_symbols = int(multi_asset_cfg.get("max_symbols", 8))
         max_spread_bps = float(multi_asset_cfg.get("max_spread_bps", 50.0))
@@ -411,7 +430,7 @@ class CoinbaseMarketUniverse:
         excluded_details = list(cand_report.get("excluded", []))
 
         for cand in cand_report.get("candidates", []):
-            pid = (cand.get("product_id") or "").replace("/", "-").upper()
+            pid = normalize_to_hyphen(cand.get("product_id") or "")
             if pid in seen:
                 continue
             if pid not in allowlist:
@@ -426,6 +445,37 @@ class CoinbaseMarketUniverse:
             seen.add(pid)
             if len(effective) >= max_symbols:
                 break
+
+        # P2-012E: Fallback for runtime (no/full product metadata ingested):
+        # Allow already-explicitly-allowlisted symbols (that pass basic ID-based hard filters)
+        # to join as spot candidates. This makes P2-012D expansion real without requiring
+        # live product list or external cache at every startup.
+        if not self._products:
+            for raw_sym in allowlist_raw:
+                pid_hyphen = normalize_to_hyphen(raw_sym)
+                pid_slash = normalize_product_id(raw_sym)
+                if pid_hyphen in seen:
+                    continue
+                # Basic hard exclusion by ID (derivative/gold/silver etc.)
+                bad = False
+                if any(x in pid_hyphen for x in ("PERP", "FUTURE", "FUT", "SWAP")):
+                    reason = "derivative_or_perpetual_excluded"
+                    bad = True
+                elif any(x in pid_hyphen for x in ("GOLD", "SILVER", "XAU", "XAG")):
+                    reason = "commodity_linked_or_gold_silver_excluded"
+                    bad = True
+                elif "LEVERAGE" in pid_hyphen or "MARGIN" in pid_hyphen:
+                    reason = "leverage_or_margin_excluded"
+                    bad = True
+                if bad:
+                    excluded_details.append({"product_id": raw_sym, "reason": reason})
+                    continue
+                # Treat as eligible spot (already allowlisted + passed ID filters)
+                effective.append(pid_slash)
+                newly_selected.append(pid_slash)
+                seen.add(pid_hyphen)
+                if len(effective) >= max_symbols:
+                    break
 
         # Advisory daily new cap (not enforced with state here; status script can advise)
         if len(newly_selected) > max_new_day:
