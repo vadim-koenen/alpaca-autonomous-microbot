@@ -30,6 +30,7 @@ def test_mocked_sol_position_on_broker_produces_blocked_and_unsafe():
     fake_snapshot = probe.LiveBrokerSnapshot(
         open_positions=[{"symbol": "SOL-USD", "quantity": "0.01225"}],
         credential_status="present",
+        broker_read_successful=True,
     )
 
     with patch.object(probe, "collect_live_snapshot", return_value=fake_snapshot):
@@ -45,6 +46,7 @@ def test_mocked_no_sol_on_broker_can_be_clear_or_warn():
     fake_snapshot = probe.LiveBrokerSnapshot(
         open_positions=[],
         credential_status="present",
+        broker_read_successful=True,
     )
 
     report = probe.synthesize_reconciliation_report(fake_snapshot, {"sol_blocker_detected": False})
@@ -110,6 +112,26 @@ def test_no_forbidden_production_calls_in_source():
     ]
     for tok in forbidden:
         assert tok not in text
+
+
+def test_adapter_error_path_reports_unknown_broker_state():
+    """When BrokerCoinbase() fails with TypeError (e.g. unexpected dry_run), 
+    we must report unknown (not false) for broker holdings and force BLOCKED + unsafe.
+    """
+    fake_snapshot = probe.LiveBrokerSnapshot(
+        credential_status="adapter_error",
+        errors=["BrokerCoinbase.__init__() got an unexpected keyword argument 'dry_run'"],
+        broker_read_successful=False,
+    )
+
+    report = probe.synthesize_reconciliation_report(fake_snapshot)
+
+    assert report["verdict"] == "BLOCKED"
+    assert report["profit_readout"] == "unsafe_to_aggregate"
+    assert report["sol_on_broker"] is None
+    assert report["eth_on_broker"] is None
+    assert any("adapter incompatibility" in b.lower() for b in report["blockers"])
+    assert "dry_run" in report["next_action"] or "adapter" in report["next_action"].lower()
 
 
 def test_script_contains_no_obvious_file_mutation():

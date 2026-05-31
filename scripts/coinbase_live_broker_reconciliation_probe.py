@@ -65,7 +65,8 @@ class LiveBrokerSnapshot:
     open_orders: List[Dict[str, Any]] = field(default_factory=list)
     recent_fills_sample: List[Dict[str, Any]] = field(default_factory=list)  # for key symbols
     errors: List[str] = field(default_factory=list)
-    credential_status: str = "unknown"   # "present", "missing", "blocked"
+    credential_status: str = "unknown"   # "present", "missing", "blocked", "adapter_error"
+    broker_read_successful: bool = False  # True only if we successfully got data from the broker
 
 
 def _get_live_broker():
@@ -77,9 +78,12 @@ def _get_live_broker():
             "Could not import BrokerCoinbase. Live mode requires the real broker to be importable."
         ) from e
 
-    # Extra safety: even in live-read mode we prefer dry_run=True if the class honors it.
-    # The critical point is that we only ever call read-only methods (get_*, list_*).
-    return BrokerCoinbase(dry_run=True)
+    # Correct instantiation: BrokerCoinbase() takes no arguments.
+    # Read-only safety is achieved by:
+    #   - Only calling getter methods (get_account, get_all_positions, get_open_orders, get_historical_fills, etc.)
+    #   - The global mode (from get_mode() / config) controls live vs dry behavior for the whole bot.
+    # We never pass dry_run= here because the current constructor does not accept it.
+    return BrokerCoinbase()
 
 
 def _safe_get_account_balances(broker) -> List[Dict[str, Any]]:
@@ -173,10 +177,14 @@ def collect_live_snapshot(symbols: List[str] = None) -> LiveBrokerSnapshot:
         broker = _get_live_broker()
     except Exception as e:
         snapshot.errors.append(str(e))
-        snapshot.credential_status = "missing_or_blocked"
+        if "unexpected keyword" in str(e).lower() or "TypeError" in str(type(e)):
+            snapshot.credential_status = "adapter_error"
+        else:
+            snapshot.credential_status = "missing_or_blocked"
         return snapshot
 
     snapshot.credential_status = "present"  # we got this far
+    snapshot.broker_read_successful = True
 
     # 1. Account / balances
     balances = _safe_get_account_balances(broker)
@@ -209,41 +217,49 @@ def synthesize_reconciliation_report(
     blockers: List[str] = []
     next_action = "Run with --live-read-only (after confirming you have read-only credentials) to fetch current broker state."
 
-    # Detect SOL on broker
-    sol_on_broker = False
-    eth_on_broker = False
+    # Default to unknown (None) unless we had a successful broker read.
+    # This is critical: we must not report "no SOL on broker" if we never successfully talked to the broker.
+    sol_on_broker = None
+    eth_on_broker = None
 
-    for p in live_snapshot.open_positions:
-        if isinstance(p, dict):
-            sym = (p.get("symbol") or p.get("product_id") or "").upper()
-            if "SOL" in sym:
-                sol_on_broker = True
-            if "ETH" in sym:
-                eth_on_broker = True
-
-    # Also check balances for any non-zero SOL
-    for b in live_snapshot.balances:
-        if isinstance(b, dict):
-            cur = (b.get("currency") or b.get("asset") or "").upper()
-            avail = b.get("available") or b.get("balance") or 0
-            try:
-                if "SOL" in cur and float(avail) > 0:
+    if live_snapshot.broker_read_successful:
+        # Only populate true/false from actual broker data if the read succeeded.
+        for p in live_snapshot.open_positions:
+            if isinstance(p, dict):
+                sym = (p.get("symbol") or p.get("product_id") or "").upper()
+                if "SOL" in sym:
                     sol_on_broker = True
-            except Exception:
-                pass
+                if "ETH" in sym:
+                    eth_on_broker = True
 
-    if live_snapshot.credential_status in ("missing", "missing_or_blocked"):
+        # Also check balances for any non-zero SOL
+        for b in live_snapshot.balances:
+            if isinstance(b, dict):
+                cur = (b.get("currency") or b.get("asset") or "").upper()
+                avail = b.get("available") or b.get("balance") or 0
+                try:
+                    if "SOL" in cur and float(avail) > 0:
+                        sol_on_broker = True
+                except Exception:
+                    pass
+
+    if not live_snapshot.broker_read_successful:
+        # No successful broker read occurred (adapter error, credentials missing, etc.)
         verdict = "BLOCKED"
         profit_readout = "unsafe_to_aggregate"
-        blockers.append("Live broker credentials not available or API blocked")
-        next_action = "Configure COINBASE_API_KEY / COINBASE_API_SECRET (read-only) and re-run with --live-read-only."
+        if live_snapshot.credential_status == "adapter_error":
+            blockers.append("BrokerCoinbase adapter incompatibility (constructor does not accept dry_run). Broker truth is unknown.")
+            next_action = "Fix the live probe broker adapter (do not pass dry_run=). Then re-run with --live-read-only after confirming read-only credentials."
+        else:
+            blockers.append("Live broker credentials not available or API blocked. Broker holdings are unknown (not proven absent).")
+            next_action = "Configure COINBASE_API_KEY / COINBASE_API_SECRET (read-only) and re-run with --live-read-only."
     elif sol_on_broker:
         verdict = "BLOCKED"
         profit_readout = "unsafe_to_aggregate"
         blockers.append("SOL currently reported as held by the live broker — conflicts with local 'dropped / re-associated / unconfirmed' evidence")
         next_action = "Do NOT aggregate P/L or scale risk. Manually reconcile the SOL position on the exchange UI and in the journal before any further action."
     else:
-        # No SOL on broker right now
+        # No SOL on broker right now (we had a successful read)
         if local_orphan_json and local_orphan_json.get("sol_blocker_detected"):
             verdict = "WARN"
             profit_readout = "unsafe_to_aggregate"
