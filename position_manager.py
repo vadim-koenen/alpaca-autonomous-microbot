@@ -50,10 +50,20 @@ _JOURNAL_REASSOCIATION_WINDOW_SECONDS = 24 * 60 * 60
 
 
 class PositionManager:
-    def __init__(self, broker: BrokerAlpaca, journal: Journal) -> None:
+    def __init__(self, broker: BrokerAlpaca, journal: Journal, *, dry_run_capture: bool = False) -> None:
+        """
+        ADVISORY / P2-011H OPT-IN DRY-RUN ONLY
+
+        dry_run_capture: When True, the manager will attempt inert entry/exit
+        capture using order status + historical fills via the P2-011G helpers.
+        This is completely disabled by default (False) and has no effect on
+        trading decisions, P/L recording, or any live behavior.
+        """
         self._broker = broker
         self._journal = journal
         self._mode = get_mode()
+        self._dry_run_capture = dry_run_capture
+        self._dry_run_captures: list = []  # populated only when dry_run_capture=True; for test inspection only
 
     def restore_state(self, session: SessionState) -> None:
         """
@@ -566,6 +576,14 @@ class PositionManager:
                     f"fill_price={fill_price} filled_size={fill_size} "
                     f"fees={fees} settled={settled} filled_at={filled_at}"
                 )
+
+                # P2-011H OPT-IN DRY-RUN CAPTURE SEAM (disabled by default)
+                # This block is inert unless dry_run_capture=True was passed to __init__.
+                # It proves the exact location in the real entry flow where we can
+                # fetch fills and run reconciliation without affecting any decisions.
+                if getattr(self, "_dry_run_capture", False):
+                    self._maybe_dry_run_capture_entry(sym, order_id, status_info)
+
                 self._journal.log_warning(
                     symbol=sym,
                     warning=(
@@ -783,6 +801,14 @@ class PositionManager:
             mode=self._mode,
         )
 
+        # P2-011H OPT-IN DRY-RUN CAPTURE SEAM (disabled by default)
+        # Proves the exact location in the real exit flow (after close_position)
+        # where we can fetch the exit order status + fills and run reconciliation.
+        if getattr(self, "_dry_run_capture", False):
+            exit_order_id = getattr(order, "id", "")
+            if exit_order_id:
+                self._maybe_dry_run_capture_exit(sym, exit_order_id)
+
         # Session state uses net P/L (after fees) — the accurate figure
         if net_pnl >= 0:
             session.record_win(net_pnl)
@@ -800,6 +826,59 @@ class PositionManager:
             session.halt(
                 f"Daily loss limit reached: ${session.daily_realized_pnl:.2f}"
             )
+
+    # =====================================================================
+    # P2-011H OPT-IN DRY-RUN CAPTURE SEAM (completely disabled by default)
+    # These methods exist only to prove the exact location in the real
+    # entry/exit flow where we can fetch order status + historical fills
+    # and run the P2-011G capture/reconciliation helpers.
+    #
+    # - Never enabled unless dry_run_capture=True is explicitly passed to __init__.
+    # - Perform no writes, no side effects on trading state or P/L.
+    # - Intended for test-only / dry-run proof use.
+    # =====================================================================
+
+    def _maybe_dry_run_capture_entry(self, sym: str, order_id: str, status_info: dict) -> None:
+        """Inert entry capture seam. Only runs when _dry_run_capture=True."""
+        if not getattr(self, "_dry_run_capture", False):
+            return
+        try:
+            from coinbase_entry_exit_capture import capture_entry
+            fills = []
+            if hasattr(self._broker, "get_historical_fills"):
+                try:
+                    fills = self._broker.get_historical_fills(order_id=order_id) or []
+                except Exception:
+                    fills = []
+            cap = capture_entry(status_info or {}, fills, symbol=sym, account_mode=self._mode)
+            self._dry_run_captures.append(cap)
+            logger.info(f"DRY_RUN_CAPTURE[entry]: {sym} logger_ready={cap.logger_ready} blocking={cap.blocking_reasons}")
+        except Exception as e:
+            logger.debug(f"DRY_RUN_CAPTURE entry error (non-fatal for proof): {e}")
+
+    def _maybe_dry_run_capture_exit(self, sym: str, exit_order_id: str) -> None:
+        """Inert exit capture seam. Only runs when _dry_run_capture=True."""
+        if not getattr(self, "_dry_run_capture", False):
+            return
+        try:
+            from coinbase_entry_exit_capture import capture_exit
+            status_info = {}
+            if hasattr(self._broker, "get_order_status"):
+                try:
+                    status_info = self._broker.get_order_status(exit_order_id) or {}
+                except Exception:
+                    status_info = {}
+            fills = []
+            if hasattr(self._broker, "get_historical_fills"):
+                try:
+                    fills = self._broker.get_historical_fills(order_id=exit_order_id) or []
+                except Exception:
+                    fills = []
+            cap = capture_exit(status_info, fills, symbol=sym, account_mode=self._mode)
+            self._dry_run_captures.append(cap)
+            logger.info(f"DRY_RUN_CAPTURE[exit]: {sym} logger_ready={cap.logger_ready} blocking={cap.blocking_reasons}")
+        except Exception as e:
+            logger.debug(f"DRY_RUN_CAPTURE exit error (non-fatal for proof): {e}")
 
     def _check_force_flat(self, positions: list[Any], session: SessionState) -> None:
         """Close all non-crypto equity/options positions before market close."""
