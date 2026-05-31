@@ -1,5 +1,40 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-014C complete — local review-gate automation for Grok/Codex patches
+
+Functional patch commit: `1e66b94`
+
+P2-014C added reusable local review-gate scaffolding to reduce copy/paste, false positives, and human verification errors during Grok/Codex buildout.
+
+Changed files:
+- `scripts/local_review_gate.py`
+- `tests/test_local_review_gate.py`
+- `docs/GROK_CODEX_REVIEW_GATE.md`
+
+Purpose:
+- verify review branches with one command
+- check expected changed files
+- block protected runtime/config/order/risk/log files
+- require explicit permission for `docs/ACTIVE_HANDOFF.md` changes
+- avoid false positives where `append_coinbase_fill_row` appears only in protective tests
+- block production fill logger writes/references unless explicitly approved
+- produce compact final reports for ChatGPT merge review
+
+Safety / scope:
+- no live trading behavior changed
+- no strategy/order/risk/symbol/cap/config/runtime behavior changed
+- no broker API calls added
+- no `.env` reads added
+- no fill logger writes enabled
+- `logs/coinbase_fills.csv` remains protected
+- no leverage, margin, futures, perps, options, commodities, GOLD/SILVER/XAU/XAG enabled
+
+Profit / momentum readout:
+- build momentum: strong positive
+- trading/profit readout: still unsafe-to-aggregate
+- no risk/cap/aggressiveness increase is justified
+
+
 ## P2-014B complete — read-only fill/proceeds/P&L reconciliation readout
 
 Functional patch commit: `1eb2007`
@@ -79,7 +114,7 @@ Profit / momentum readout:
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 18:48 UTC — P2-014B complete; read-only Coinbase fill/proceeds/P&L reconciliation report now separates direct broker facts, locally derived values, unsafe/missing data, matched-pair summaries, and SOL/USD open/re-associated blocker evidence. Current report still shows realized P/L unavailable/unsafe-to-aggregate because no paired cycle has both actual buy cost and direct sell proceeds locally available. Latest functional patch commit 1eb2007. No strategy/order/risk/symbol/cap/config/runtime behavior changed.
+**Last updated:** 2026-05-31 18:57 UTC — P2-014C complete; added local review-gate automation for Grok/Codex patches to reduce copy/paste, false positives, and human verification error. Latest functional patch commit 1e66b94. No strategy/order/risk/symbol/cap/config/runtime behavior changed. Profit readout remains unsafe-to-aggregate until direct fill/proceeds/fees and open-position status are proven.
 **Updated by:** Grok (per P2-014A ritual)
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** review/p2-014a-coinbase-live-status-and-reconciliation-preflight
@@ -230,7 +265,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: 1eb2007
+Latest functional patch commit: 1e66b94
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
