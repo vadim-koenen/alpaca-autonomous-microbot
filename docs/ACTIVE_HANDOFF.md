@@ -2,7 +2,7 @@
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 14:24 UTC — P2-012A committed; universal Coinbase market universe and prediction telemetry scaffold added. The bot can now classify Coinbase product metadata, including spot, futures/perps, unknowns, and commodity-linked candidates such as gold/silver-like products without enabling them for live trading. Prediction telemetry and derivative-style market feature helpers were added for future scoring. Live trading behavior, notional, exposure caps, TP/SL, hold time, symbols, .env, LaunchAgents, order behavior, and fill logger behavior were not changed. Logger hook remains blocked. Next step is P2-012B: wire prediction telemetry into live scans and build controlled multi-asset spot expansion plumbing for more real-market learning.
+**Last updated:** 2026-05-31 14:56 UTC — P2-012B committed; live prediction telemetry integration and conservative multi-asset spot expansion plumbing added. Real scan/proposal/skip flow now emits append-only prediction telemetry, telemetry write failure is non-fatal, and multi-asset spot candidate reporting is available for future expansion. Live trading behavior, notional, exposure caps, TP/SL, hold time, current live symbols, .env, LaunchAgents, order behavior, leverage/perps/futures/gold/silver order placement, and fill logger behavior were not changed. Logger hook remains blocked. Next step is P2-012C: opt-in micro-size multi-asset spot expansion to generate more real trades across eligible high-liquidity Coinbase spot assets.
 **Updated by:** Claude  
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** main
@@ -134,7 +134,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: d8ad784
+Latest functional patch commit: f3ecb41
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -283,3 +283,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 14:03 UTC | head=0ac6112 | P2-011K complete; Added controlled aggressive live runtime hardening: namespace-aware single-process lock, stale-lock recovery, conservative journal-driven counter reconstruction, honest startup logging, and read-only Coinbase ops status script. Live exploration remains enabled under tiny caps. Logger hook remains blocked; append_coinbase_fill_row is not called. Profit/readout metric must be included in every future status/handoff. Grok usage was around half during this run, so future Grok prompts should be compact and used only when local verification cannot resolve the issue.
 - 2026-05-31 14:12 UTC | head=33b3ef1 | P2-011L complete; Fixed Coinbase ops status accuracy. Status now trusts the active lock PID on macOS/launchd, counts actual symbols under state/coinbase/open_positions.json, and calculates local exposure from notional with qty*entry fallback. No strategy/risk/notional/exposure/TP/SL/hold-time/symbol/order/logger changes. Profit/readout remains required in every status update and handoff.
 - 2026-05-31 14:24 UTC | head=d8ad784 | P2-012A complete; Added universal Coinbase market universe and prediction telemetry scaffold. Product metadata can be classified conservatively, gold/silver-like products are classification candidates only, all newly discovered products default to live-disabled, and prediction/derivative-style feature helpers are available for future scoring. No strategy/risk/notional/exposure/TP/SL/hold-time/symbol/order/logger changes. Profit/readout remains required in every status update and handoff.
+- 2026-05-31 14:56 UTC | head=f3ecb41 | P2-012B complete; Wired prediction telemetry into live scan/proposal/skip flow and added conservative multi-asset spot candidate plumbing/reporting. Telemetry is append-only and non-fatal. No notional/exposure/TP/SL/hold-time/current-symbol/order/leverage/perp/future/gold/silver/logger changes. Profit/readout remains required in every status update and handoff.
