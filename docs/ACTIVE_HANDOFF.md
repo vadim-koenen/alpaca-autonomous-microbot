@@ -1,5 +1,42 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-015A complete — read-only Coinbase live broker reconciliation probe
+
+Functional patch commit: `2f2ab7a`
+
+P2-015A added an explicit opt-in Coinbase live broker reconciliation probe:
+
+- new script: `scripts/coinbase_live_broker_reconciliation_probe.py`
+- new tests: `tests/test_coinbase_live_broker_reconciliation_probe.py`
+- default mode performs ZERO broker/API calls
+- live broker reads require explicit `--live-read-only`
+- `--json` emits valid machine-readable output in both default and live-read-only paths
+- default JSON includes `live_read_only=false` and `broker_calls_made=false`
+- probe is designed to compare direct broker account/position/order/fill truth against local SOL/USD orphan/reconciliation evidence
+
+Current default result:
+- `verdict`: `BLOCKED`
+- `profit_readout`: `unsafe_to_aggregate`
+- `live_read_only`: `false`
+- `broker_calls_made`: `false`
+- next action: re-run with `--live-read-only` after confirming read-only Coinbase API credentials
+
+Safety / scope:
+- no runtime/config/order/risk/strategy files changed
+- no default broker/API calls
+- no order placement/cancel/close/modify calls
+- no file mutation calls in production script
+- no journal/state/runtime/log writes
+- no `logs/coinbase_fills.csv` writes
+- no `append_coinbase_fill_row` production call
+- no `.replace()` call in production script per conservative safety gate
+- no leverage, margin, futures, perps, options, commodities, GOLD/SILVER/XAU/XAG enabled
+
+Profit / momentum readout:
+- build momentum: strong positive
+- trading/profit readout: unsafe-to-aggregate
+- no risk/cap/aggressiveness increase is justified until direct broker close/fill/proceeds/fees truth is proven
+
 ## P2-014E complete — read-only Coinbase operator status aggregator
 
 Functional patch commit: `662dc1d`
@@ -334,7 +371,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: `662dc1d`
+Latest functional patch commit: `2f2ab7a`
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -494,3 +531,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 (P2-014A) | head= (to be filled on commit) | P2-014A docs patch complete: ACTIVE_HANDOFF.md cleanly updated on review/p2-014a-... branch to preserve exact live SOL/USD reconciliation blocker status (equity ~$45.73, open/re-associated, unconfirmed close, failures logged, dropped from tracking possible). Added explicit P2-014 preflight section on unsafe-to-aggregate profit readout until direct fill/proceeds/fees reconciliation proven via reuse of existing P2-011F/G modules + tests. No runtime/strategy/risk/config/order/logger changes. git status clean, only doc changed. All invariants preserved.
 - 2026-05-31 | head=39a3408 | P2-014D complete; Added read-only Coinbase open/orphan position status report with JSON output. SOL/USD broker-close/orphan blocker remains unresolved from local evidence. Realized P/L remains unsafe-to-aggregate. No runtime/config/order/risk/strategy changes. No fill logger writes. No leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
 - 2026-05-31 | head=662dc1d | P2-014E complete; Added read-only Coinbase operator status aggregator with text/JSON output. Aggregator reports BLOCKED, profit_readout=unsafe_to_aggregate, sol_blocker_detected=true, and urgent SOL/USD broker-close investigation as next action. No runtime/config/order/risk/strategy changes. No broker API calls, .env reads, network calls, fill logger writes, or leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
+- 2026-05-31 | head=2f2ab7a | P2-015A complete; Added explicit opt-in read-only Coinbase live broker reconciliation probe. Default mode performs zero broker/API calls; --live-read-only required for live reads. Default JSON is valid and reports BLOCKED, profit_readout=unsafe_to_aggregate, live_read_only=false, broker_calls_made=false. No runtime/config/order/risk/strategy changes, no order/close/cancel/modify calls, no file mutations, no fill logger writes, no leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
