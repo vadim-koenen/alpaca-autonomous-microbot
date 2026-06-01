@@ -1,12 +1,12 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
-## P2-017A in progress (YELLOW) — Coinbase live broker-truth probe schema hardening + read-only reconciliation summary
+## P2-017A complete — Coinbase live broker-truth probe schema hardening + read-only reconciliation summary
 
 **Branch:** `review/p2-017a-coinbase-broker-truth-schema-and-summary`
 
-**Classification:** YELLOW — read-only diagnostics/reporting + schema hardening + new summarizer + tests + handoff note only. MUST NOT self-merge. Review branch only; push review branch; do not merge to main.
+**Functional patch commit (approved review 805ddfe, fast-forward merged to main):** `805ddfe`
 
-P2-017A hardens the live broker reconciliation probe JSON contract so every output path (default and --live-read-only) explicitly includes:
+P2-017A (YELLOW review branch, approved after verification and merged ff-only to main) hardens the live broker reconciliation probe JSON contract so every output path (default and --live-read-only) explicitly includes:
 - live_read_only, broker_calls_made, broker_read_successful (booleans)
 - broker_error_type, credential_status
 - sol_on_broker / eth_on_broker (true/false/null with unknown-state semantics)
@@ -29,12 +29,15 @@ Added new pure read-only summarizer:
 - risk increase: not approved
 - next action: reconciliation (not strategy/risk scaling or sizing changes)
 - broker close capability for the open SOL position remains unconfirmed
+- local_open_positions_count: 1
+- local_open_position_symbols includes SOL/USD
+- local_journal_recent_zero_qty_rows_count: 51
 
 Tests added:
 - tests/test_coinbase_live_broker_reconciliation_probe_schema.py
 - tests/test_coinbase_broker_truth_summary.py
 
-All verification commands (py_compile, pytest subsets, git diff --check, default probe --json, summary using pre-existing /tmp probe JSON only) must pass. No --live-read-only run in this patch. No new broker calls.
+All verification commands (py_compile, pytest subsets, git diff --check, default probe --json, summary using pre-existing /tmp probe JSON only) passed on review branch. No --live-read-only run in this patch. No new broker calls. Merged to main after explicit approval; no self-merge.
 
 **Safety invariants (re-asserted):**
 - No orders, cancels, closes, modifications
@@ -45,11 +48,11 @@ All verification commands (py_compile, pytest subsets, git diff --check, default
 - Default probe path: zero broker calls
 - Summary: zero network, zero .env, zero writes
 
-**Next after P2-017A:** Continue reconciliation proof work toward direct sell proceeds + per-fill fees + stable trade_id availability before any fill logger activation or risk scaling. SOL blocker remains the gating item.
-
-Functional work on review branch only. Do not merge.
+**Next after P2-017A:** Continue reconciliation proof work toward direct sell proceeds + per-fill fees + stable trade_id availability before any fill logger activation or risk scaling. SOL broker-held blocker remains the gating item. Profit readout stays unsafe_to_aggregate until direct broker facts for exits are proven.
 
 ---
+
+## P2-016A complete — Grok execution protocol and external signal context plan
 
 ## P2-016A complete — Grok execution protocol and external signal context plan
 
