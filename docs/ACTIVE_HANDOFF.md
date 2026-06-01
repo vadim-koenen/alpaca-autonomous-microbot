@@ -1,5 +1,22 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-019C complete — offline golden reconciliation regression runner (GREEN)
+
+**Branch:** `review/p2-019c-offline-golden-reconciliation-regression-runner`
+
+**Functional patch commit:** `4691023`
+
+P2-019C added a single offline regression harness:
+
+- `scripts/run_offline_reconciliation_regression.py`
+- `tests/test_run_offline_reconciliation_regression.py`
+
+Runs key checks (evidence gate, dashboard, zero-qty fixtures, malformed payloads) and reports the required summary fields with current gate status.
+
+Pure GREEN (offline only).
+
+---
+
 ## P2-019B complete — reconciliation JSON contract registry (GREEN)
 
 **Branch:** `review/p2-019b-reconciliation-json-contracts`
