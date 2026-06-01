@@ -1,0 +1,25 @@
+{
+  "broker_read_successful": true,
+  "sol_on_broker": false,
+  "open_positions_on_broker": [],
+  "recent_fills_sample": [
+    {
+      "trade_id": "entry-001",
+      "product_id": "SOL-USD",
+      "side": "BUY",
+      "size": "0.0122504",
+      "price": "81.63",
+      "fee": 0.008,
+      "filled_value": 1.000
+    },
+    {
+      "trade_id": "exit-001",
+      "product_id": "SOL-USD",
+      "side": "SELL",
+      "size": "0.0122504",
+      "price": "82.715",
+      "fee": 0.009,
+      "filled_value": 1.013
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "broker_read_successful": true,
+  "sol_on_broker": true,
+  "open_positions_on_broker": [
+    {
+      "symbol": "SOL/USD",
+      "qty": 0.0122504,
+      "market_value": 1.0134755,
+      "current_price": 82.715,
+      "side": "long",
+      "avg_entry_price": 0.0
+    }
+  ],
+  "recent_fills_sample": [
+    {
+      "trade_id": "1f10a7cb-3fe5-4cbb-b990-f74c39529fc9",
+      "product_id": "SOL-USD",
+      "side": "BUY",
+      "size": "0.0122504",
+      "price": "81.63",
+      "fee": null,
+      "filled_value": null
+    }
+  ]
+}

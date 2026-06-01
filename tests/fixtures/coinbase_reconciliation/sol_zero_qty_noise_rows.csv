@@ -1,0 +1,5 @@
+trade_id,product_id,side,size,price,fee,filled_value,qty,entry_price,exit_price,notes
+noise-1,SOL-USD,BUY,0.0,81.63,,,0.0,0.0,0.0,zero-qty row - must be excluded
+noise-2,ETH-USD,SELL,0.0,3000,,,0.0,0.0,0.0,zero-qty row - must be excluded
+real-1,SOL-USD,BUY,0.0122504,81.63,0.008,1.000,0.0122504,81.63,,real fill for testing
+noise-3,SOL-USD,BUY,0.0,82.0,,,0.0,0.0,0.0,another zero-qty row
