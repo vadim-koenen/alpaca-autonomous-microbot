@@ -1,5 +1,50 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-021C4 review — external-inventory-aware broker recovery
+
+**Branch:** `review/p2-021c4-external-inventory-aware-broker-recovery`
+
+P2-021C4 fixes the post-P2-021C3 restart path where broker-position recovery
+could rehydrate the user-staked SOL/USD position back into active
+`open_positions` with `recovery_source=broker_position`.
+
+The authoritative classification remains:
+
+- `staked_external_position=true`
+- `external_inventory_classification=external_staked_position`
+- `tradable_by_bot=false`
+- `manual_close_allowed=false`
+- `bot_inventory=false`
+- `blocks_new_entries=false`
+
+Recovery now treats matching broker SOL observations as external inventory only:
+no active open-position restore, no broker-recovered active position, no
+journal-reassociated active position, no SOL close/sell/remediation attempt, and
+no P/L inference from SOL.
+
+Watchdog/operator status now distinguish historical manual-review rows from a
+current active SOL entry blocker when authoritative external inventory exists.
+
+Preserved truth:
+
+- `profit_readout_real_current=unsafe_to_aggregate`
+- `aggregation_allowed_real_current=false`
+- `scaling_allowed=false`
+- risk increase not approved
+- no live broker calls
+- no `--live-read-only`
+- no `.env` or secrets
+- no order/cancel/close/modify
+- no risk/runtime/config/background changes
+- no `logs/coinbase_fills.csv` writes
+- no `append_coinbase_fill_row` activation
+
+Post-merge verification should restart or run the normal operator status checks
+only under existing operator procedures and confirm `open_positions` remains
+bot-inventory-only while SOL/USD stays in `external_inventory.json`.
+
+---
+
 ## P2-021C3 review — manual-review blocker remediation
 
 **Branch:** `review/p2-021c3-manual-review-blocker-remediation`

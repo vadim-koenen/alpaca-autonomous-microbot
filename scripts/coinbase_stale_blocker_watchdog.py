@@ -75,6 +75,8 @@ def as_time(value: str) -> Optional[datetime]:
 
 
 def as_bool(value: str) -> Optional[bool]:
+    if isinstance(value, bool):
+        return value
     text = str(value or "").strip().lower()
     if text in ("true", "1", "yes", "y"):
         return True
@@ -121,8 +123,41 @@ def _load_open_positions() -> Dict[str, Any]:
     return {}
 
 
-def _iter_journal_rows() -> List[Dict[str, str]]:
-    path = ROOT / JOURNAL_FILENAME
+def _load_external_inventory(root: Path = ROOT) -> Dict[str, Any]:
+    path = root / "state" / "coinbase" / "external_inventory.json"
+    data = _safe_load_json(path)
+    if isinstance(data.get("external_inventory"), dict):
+        return data["external_inventory"]
+    if isinstance(data, dict) and any(isinstance(v, dict) for v in data.values()):
+        return {k: v for k, v in data.items() if isinstance(v, dict)}
+    return {}
+
+
+def _is_external_inventory_record(record: Dict[str, Any]) -> bool:
+    classification = str(record.get("external_inventory_classification") or "").lower()
+    return (
+        "external" in classification
+        and "staked" in classification
+        and as_bool(record.get("staked_external_position")) is True
+        and as_bool(record.get("bot_inventory")) is False
+        and as_bool(record.get("tradable_by_bot")) is False
+        and as_bool(record.get("manual_close_allowed")) is False
+        and as_bool(record.get("blocks_new_entries")) is not True
+    )
+
+
+def _find_external_sol_inventory(external_inventory: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    for symbol, record in external_inventory.items():
+        if not isinstance(record, dict):
+            continue
+        record_symbol = str(record.get("symbol") or symbol).upper().replace("-", "/")
+        if "SOL" in record_symbol and _is_external_inventory_record(record):
+            return record
+    return None
+
+
+def _iter_journal_rows(root: Path = ROOT) -> List[Dict[str, str]]:
+    path = root / JOURNAL_FILENAME
     if not path.exists():
         return []
     rows: List[Dict[str, str]] = []
@@ -200,9 +235,13 @@ def compute_stale_blocker_state(
     heartbeat: Dict[str, Any],
     open_positions: Dict[str, Any],
     journal_rows: List[Dict[str, str]],
+    external_inventory: Optional[Dict[str, Any]] = None,
     stale_threshold_minutes: int = DEFAULT_STALE_THRESHOLD_MINUTES,
     now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
+    if isinstance(external_inventory, int):
+        stale_threshold_minutes = external_inventory
+        external_inventory = {}
     if now is None:
         now = datetime.now(timezone.utc)
 
@@ -230,6 +269,8 @@ def compute_stale_blocker_state(
             break
 
     sol_classification = _classify_position(sol_pos) if sol_pos else {"is_external_staked": False, "is_manual_review_unresolved": False}
+    external_sol = _find_external_sol_inventory(external_inventory or {})
+    external_sol_resolves_entries = bool(external_sol and external_sol.get("blocks_new_entries", False) is False)
 
     # Journal blocker events (focus on manual_review_position_open)
     blocker_events = _find_manual_review_blocker_events(journal_rows)
@@ -252,11 +293,19 @@ def compute_stale_blocker_state(
             has_stale_manual_review_blocker = True
 
     has_stale_state_bug = False
-    if len(manual_review_events) > 0 and not any(sol_classification.values()):  # events but no open manual review pos
+    if (
+        len(manual_review_events) > 0
+        and not any(sol_classification.values())
+        and not external_sol_resolves_entries
+    ):  # events but no open manual review pos
         # If there are recent manual review blocks but no actual open position with the flag
         has_stale_state_bug = True
 
-    if has_stale_state_bug:
+    if manual_review_events and external_sol_resolves_entries and not sol_classification.get("is_manual_review_unresolved"):
+        verdict = "HISTORICAL_BLOCKER_RESOLVED_EXTERNAL_INVENTORY"
+        severity = "INFO"
+        trading_state = "LIVE_EXTERNAL_INVENTORY_EXCLUDED"
+    elif has_stale_state_bug:
         verdict = "STALE_STATE_BUG_REQUIRES_RESET_REVIEW"
         severity = "HIGH"
         trading_state = "LIVE_BUT_STALE_STATE_INCONSISTENT"
@@ -274,7 +323,7 @@ def compute_stale_blocker_state(
         trading_state = "LIVE"
 
     # External vs bot-owned for the SOL case
-    is_external = sol_classification.get("is_external_staked", False)
+    is_external = bool(sol_classification.get("is_external_staked", False) or external_sol_resolves_entries)
     is_bot_owned_unresolved = sol_classification.get("is_manual_review_unresolved", False) and not is_external
 
     return {
@@ -296,7 +345,10 @@ def compute_stale_blocker_state(
             "is_external_staked_locked_inventory": is_external,
             "is_true_bot_owned_unresolved": is_bot_owned_unresolved,
             "tradable_by_bot": not is_external,
+            "external_inventory_blocks_new_entries": False if external_sol else None,
         },
+        "external_inventory_count": len(external_inventory or {}),
+        "historical_blocker_resolved": verdict == "HISTORICAL_BLOCKER_RESOLVED_EXTERNAL_INVENTORY",
         "next_required_action": _next_action(verdict, is_external, is_bot_owned_unresolved),
         "generated_at": now.isoformat(),
     }
@@ -304,7 +356,7 @@ def compute_stale_blocker_state(
 
 def _next_action(verdict: str, is_external: bool, is_bot_owned: bool) -> str:
     if is_external:
-        return "External/staked inventory detected. Do not attempt auto-close. Exclude from bot inventory and review safe state normalization."
+        return "External/staked inventory detected. Keep excluded from bot inventory and review safe state normalization."
     if verdict == "STALE_BLOCKER_REQUIRES_OPERATOR_ACTION":
         if is_bot_owned:
             return "Run operator status + stale watchdog. Run read-only evidence capture checklist. Obtain explicit human approval. Only then consider read-only broker evidence capture followed by safe state reconciliation."
@@ -318,11 +370,18 @@ def _next_action(verdict: str, is_external: bool, is_bot_owned: bool) -> str:
 
 def run_stale_blocker_report(root: Path = ROOT, stale_threshold_minutes: int = DEFAULT_STALE_THRESHOLD_MINUTES) -> str:
     """Text report for operator / scripts/coinbase_operator_status.py consumption."""
-    heartbeat = _load_heartbeat()
-    open_pos = _load_open_positions()
-    journal_rows = _iter_journal_rows()
+    heartbeat = _safe_load_json(root / "runtime" / "coinbase_heartbeat.json")
+    data = _safe_load_json(root / "state" / "coinbase" / "open_positions.json")
+    if isinstance(data.get("positions"), dict):
+        open_pos = data["positions"]
+    elif isinstance(data, dict) and any(isinstance(v, dict) for v in data.values()):
+        open_pos = {k: v for k, v in data.items() if isinstance(v, dict)}
+    else:
+        open_pos = {}
+    external_inventory = _load_external_inventory(root)
+    journal_rows = _iter_journal_rows(root)
 
-    state = compute_stale_blocker_state(heartbeat, open_pos, journal_rows, stale_threshold_minutes)
+    state = compute_stale_blocker_state(heartbeat, open_pos, journal_rows, external_inventory, stale_threshold_minutes)
 
     lines = [
         "=== Coinbase Stale Manual-Review Blocker Watchdog (P2-021C2) ===",
@@ -354,10 +413,17 @@ def run_stale_blocker_report(root: Path = ROOT, stale_threshold_minutes: int = D
 
 
 def run_stale_blocker_report_json(root: Path = ROOT, stale_threshold_minutes: int = DEFAULT_STALE_THRESHOLD_MINUTES) -> Dict[str, Any]:
-    heartbeat = _load_heartbeat()
-    open_pos = _load_open_positions()
-    journal_rows = _iter_journal_rows()
-    return compute_stale_blocker_state(heartbeat, open_pos, journal_rows, stale_threshold_minutes)
+    heartbeat = _safe_load_json(root / "runtime" / "coinbase_heartbeat.json")
+    data = _safe_load_json(root / "state" / "coinbase" / "open_positions.json")
+    if isinstance(data.get("positions"), dict):
+        open_pos = data["positions"]
+    elif isinstance(data, dict) and any(isinstance(v, dict) for v in data.values()):
+        open_pos = {k: v for k, v in data.items() if isinstance(v, dict)}
+    else:
+        open_pos = {}
+    external_inventory = _load_external_inventory(root)
+    journal_rows = _iter_journal_rows(root)
+    return compute_stale_blocker_state(heartbeat, open_pos, journal_rows, external_inventory, stale_threshold_minutes)
 
 
 def main(argv: Optional[List[str]] = None) -> int:

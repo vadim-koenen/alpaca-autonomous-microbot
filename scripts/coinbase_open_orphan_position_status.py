@@ -482,7 +482,7 @@ def run_report(root: Path) -> str:
 
     lines.append("--- 4. Close capability status ---")
     if external_inventory:
-        lines.append("  staked_inventory_note: do not close/remediate while staked")
+        lines.append("  staked_inventory_note: external inventory excluded while staked")
     lines.append(f"  confirmed_closeable: {close_status.confirmed_closeable}")
     lines.append(f"  unconfirmed: {close_status.unconfirmed}")
     lines.append(f"  failed_close_attempts_seen: {close_status.failed_close_attempts_seen}")
@@ -526,7 +526,7 @@ def run_report_json(root: Path) -> Dict[str, Any]:
 
     note = "Read-only local analysis only. Profit and close actions remain unsafe until direct broker facts confirm resolution."
     if sol_external:
-        note = "Read-only local analysis only. Staked SOL is unavailable to bot inventory; do not close/remediate while staked."
+        note = "Read-only local analysis only. Staked SOL is unavailable to bot inventory; keep it excluded while staked."
 
     return {
         "verdict": verdict,

@@ -163,6 +163,26 @@ def test_external_inventory_fields_do_not_block_even_if_left_in_open_positions()
     assert calculate_crypto_entry_blockers(positions) == (0, 0)
 
 
+def test_external_inventory_fields_do_not_count_toward_crypto_exposure():
+    from utils import calculate_crypto_exposure
+
+    positions = {
+        "SOL/USD": {
+            "asset_class": "crypto",
+            "notional": 1.0,
+            "counts_toward_exposure": True,
+            "staked_external_position": True,
+            "external_inventory_classification": "external_staked_position",
+            "tradable_by_bot": False,
+            "manual_close_allowed": False,
+            "bot_inventory": False,
+            "blocks_new_entries": False,
+        }
+    }
+
+    assert calculate_crypto_exposure(positions) == (0.0, 0.0)
+
+
 def test_true_bot_owned_unresolved_position_still_blocks():
     positions = {
         "BTC/USD": {

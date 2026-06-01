@@ -502,6 +502,8 @@ def calculate_crypto_exposure(open_positions: dict) -> tuple[float, float]:
     for pos in open_positions.values():
         if pos.get("asset_class", "") != "crypto":
             continue
+        if is_external_locked_non_bot_inventory(pos):
+            continue
         if pos.get("counts_toward_exposure", True) is False:
             continue
         notional = safe_float(pos.get("notional", 0.0))
@@ -539,6 +541,7 @@ def is_external_locked_non_bot_inventory(position: dict) -> bool:
         and position.get("tradable_by_bot") is False
         and position.get("manual_close_allowed") is False
         and position.get("bot_inventory") is False
+        and position.get("blocks_new_entries", False) is False
     )
 
 

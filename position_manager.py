@@ -19,7 +19,9 @@ the risk manager's daily-loss check stays accurate.
 from __future__ import annotations
 
 import logging
+import json
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from typing import Any, Optional
 
 from broker_alpaca import BrokerAlpaca
@@ -47,6 +49,104 @@ _TERMINAL_ORDER_STATUSES = frozenset({
 
 _BOT_POSITION_VISIBILITY_GRACE_MINUTES = 10
 _JOURNAL_REASSOCIATION_WINDOW_SECONDS = 24 * 60 * 60
+COINBASE_EXTERNAL_INVENTORY_PATH = Path("state") / "coinbase" / "external_inventory.json"
+
+
+def _normalize_symbol(symbol: Any) -> str:
+    return str(symbol or "").strip().upper().replace("-", "/")
+
+
+def _as_bool(value: Any) -> Optional[bool]:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in ("true", "1", "yes", "y"):
+            return True
+        if text in ("false", "0", "no", "n"):
+            return False
+    return None
+
+
+def _external_inventory_records(path: Optional[Path] = None) -> dict[str, dict[str, Any]]:
+    path = path or COINBASE_EXTERNAL_INVENTORY_PATH
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if isinstance(data, dict) and isinstance(data.get("external_inventory"), dict):
+        data = data["external_inventory"]
+    if not isinstance(data, dict):
+        return {}
+    return {str(sym): dict(record) for sym, record in data.items() if isinstance(record, dict)}
+
+
+def _is_authoritative_external_inventory(record: dict[str, Any]) -> bool:
+    classification = str(record.get("external_inventory_classification") or "").lower()
+    return (
+        "external" in classification
+        and "staked" in classification
+        and _as_bool(record.get("staked_external_position")) is True
+        and _as_bool(record.get("bot_inventory")) is False
+        and _as_bool(record.get("tradable_by_bot")) is False
+        and _as_bool(record.get("manual_close_allowed")) is False
+        and record.get("blocks_new_entries", False) is False
+    )
+
+
+def _external_inventory_record_for_symbol(symbol: str, path: Optional[Path] = None) -> Optional[dict[str, Any]]:
+    path = path or COINBASE_EXTERNAL_INVENTORY_PATH
+    normalized = _normalize_symbol(symbol)
+    for raw_symbol, record in _external_inventory_records(path).items():
+        record_symbol = _normalize_symbol(record.get("symbol") or raw_symbol)
+        if record_symbol == normalized and _is_authoritative_external_inventory(record):
+            return record
+    return None
+
+
+def _write_external_inventory_observation(
+    symbol: str,
+    *,
+    qty: float,
+    observed_notional: float,
+    path: Optional[Path] = None,
+) -> None:
+    path = path or COINBASE_EXTERNAL_INVENTORY_PATH
+    record = _external_inventory_record_for_symbol(symbol, path)
+    if record is None:
+        return
+    records = _external_inventory_records(path)
+    target_key = next(
+        (
+            raw_symbol
+            for raw_symbol, existing in records.items()
+            if _normalize_symbol(existing.get("symbol") or raw_symbol) == _normalize_symbol(symbol)
+        ),
+        symbol,
+    )
+    updated = dict(record)
+    updated.update({
+        "symbol": _normalize_symbol(symbol),
+        "last_seen_on_broker": True,
+        "last_seen_at": now_utc().isoformat(),
+        "observed_qty": qty,
+        "observed_notional": observed_notional,
+        "no_pnl_inference": True,
+        "no_close_attempted": True,
+        "blocks_new_entries": False,
+    })
+    records[target_key] = updated
+    payload = {
+        "updated_at": now_utc().isoformat(),
+        "external_inventory": records,
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
+    except Exception as exc:
+        logger.warning(f"external_inventory_update_failed symbol={symbol}: {exc}")
 
 
 class PositionManager:
@@ -86,6 +186,12 @@ class PositionManager:
 
         restored = 0
         for sym, pos_data in saved.items():
+            if _external_inventory_record_for_symbol(sym):
+                logger.info(
+                    f"restore_state: {sym} is authoritative external/staked inventory; "
+                    "not restoring into active open_positions"
+                )
+                continue
             if sym not in broker_syms:
                 if self._should_keep_without_broker_position(sym, pos_data):
                     logger.warning(
@@ -305,6 +411,21 @@ class PositionManager:
                     avg_entry = safe_float(getattr(pos, "current_price", 0))
                 qty = safe_float(getattr(pos, "qty", 0))
                 ac = _detect_asset_class(sym)
+                observed_notional = safe_float(getattr(pos, "market_value", 0))
+                if observed_notional <= 0:
+                    observed_notional = avg_entry * qty
+
+                if _external_inventory_record_for_symbol(sym):
+                    _write_external_inventory_observation(
+                        sym,
+                        qty=qty,
+                        observed_notional=observed_notional,
+                    )
+                    logger.info(
+                        f"external_inventory_observed: {sym} seen at broker but classified "
+                        "external/staked/non-bot inventory; not rehydrating into active open_positions"
+                    )
+                    continue
 
                 evidence = self._find_bot_origin_evidence(
                     symbol=sym,

@@ -48,19 +48,53 @@ timestamp,symbol,action,staked_external_position,external_inventory_classificati
     text = op_status.format_human_report(data)
     combined = (json.dumps(data, default=str) + "\n" + text).lower()
 
-    assert data["verdict"] == "BLOCKED"
+    assert data["verdict"] == "WARN"
     assert data["profit_readout"] == "unsafe_to_aggregate"
-    assert data["sol_blocker_detected"] is True
+    assert data["sol_blocker_detected"] is False
+    assert data["active_sol_entry_blocker_detected"] is False
     assert data["staked_external_position"] is True
     assert data["external_inventory_classification"] == "external_staked_position"
     assert data["tradable_by_bot"] is False
     assert data["manual_close_allowed"] is False
     assert data["bot_inventory"] is False
     assert "externally staked sol" in data["next_action"].lower()
-    assert "do not close/remediate while staked" in data["next_action"].lower()
     assert "broker close capability" not in combined
     assert "resolve close" not in combined
-    assert "remediate" not in combined or "do not close/remediate while staked" in combined
+    assert "remediate" not in combined
+
+def test_external_inventory_file_resolves_historical_sol_blocker(tmp_path):
+    write_csv(tmp_path / "journal_coinbase_crypto.csv", """
+timestamp,symbol,action,error
+2026-05-31T18:02:40Z,SOL/USD,WARN,Position dropped after 3 failed close attempts (unrecoverable)
+2026-06-01T13:16:00Z,SOL/USD,BUY,ENTRY_BLOCKED reason=manual_review_position_open
+""")
+    inv_path = tmp_path / "state" / "coinbase" / "external_inventory.json"
+    inv_path.parent.mkdir(parents=True)
+    inv_path.write_text(json.dumps({
+        "external_inventory": {
+            "SOL/USD": {
+                "symbol": "SOL/USD",
+                "staked_external_position": True,
+                "external_inventory_classification": "external_staked_position",
+                "tradable_by_bot": False,
+                "manual_close_allowed": False,
+                "bot_inventory": False,
+                "blocks_new_entries": False,
+                "no_pnl_inference": True,
+                "no_close_attempted": True,
+            }
+        }
+    }), encoding="utf-8")
+
+    data = op_status.build_aggregator_report(tmp_path)
+
+    assert data["verdict"] == "WARN"
+    assert data["profit_readout"] == "unsafe_to_aggregate"
+    assert data["sol_blocker_detected"] is False
+    assert data["active_sol_entry_blocker_detected"] is False
+    assert data["sol_external_inventory_detected"] is True
+    assert data["external_inventory_count"] == 1
+    assert data["details"]["stale_blocker"]["verdict"] == "HISTORICAL_BLOCKER_RESOLVED_EXTERNAL_INVENTORY"
 
 def test_missing_files_produces_safe_report(tmp_path):
     # No journals at all

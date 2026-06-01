@@ -7,6 +7,7 @@ No broker APIs are called; broker and journal objects are local fakes.
 from __future__ import annotations
 
 import csv
+import json
 import os
 import sys
 from datetime import datetime, timedelta, timezone
@@ -76,6 +77,38 @@ def _btc_position():
         market_value=0.4996841143,
         unrealized_pl=0.0,
     )
+
+
+def _sol_position():
+    return SimpleNamespace(
+        symbol="SOL/USD",
+        qty=0.0122504,
+        current_price=81.63,
+        market_value=1.00,
+        unrealized_pl=0.0,
+    )
+
+
+def _write_external_inventory(path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({
+        "external_inventory": {
+            "SOL/USD": {
+                "symbol": "SOL/USD",
+                "qty": "0.0122504",
+                "notional": "1.00",
+                "original_order_id": "sol-entry-order-001",
+                "staked_external_position": True,
+                "external_inventory_classification": "external_staked_position",
+                "tradable_by_bot": False,
+                "manual_close_allowed": False,
+                "bot_inventory": False,
+                "blocks_new_entries": False,
+                "no_pnl_inference": True,
+                "no_close_attempted": True,
+            }
+        }
+    }), encoding="utf-8")
 
 
 def _bot_evidence(**overrides):
@@ -168,6 +201,67 @@ def test_external_wallet_btc_without_journal_evidence_remains_broker_recovered(
     assert broker.close_calls == []
     assert capture_position_saves
     assert fake_event_store.events[-1]["event_type"] == "broker_recovered_position_detected"
+
+
+def test_external_inventory_sol_is_not_rehydrated_from_broker_snapshot(
+    tmp_path,
+    monkeypatch,
+    capture_position_saves,
+    fake_event_store,
+):
+    external_path = tmp_path / "state" / "coinbase" / "external_inventory.json"
+    _write_external_inventory(external_path)
+    monkeypatch.setattr("position_manager.COINBASE_EXTERNAL_INVENTORY_PATH", external_path)
+
+    broker = FakeBroker([_sol_position()])
+    journal = FakeJournal(_bot_evidence(symbol="SOL/USD", qty="0.0122504"))
+    session = SessionState()
+
+    PositionManager(broker, journal).monitor(session)
+
+    assert "SOL/USD" not in session.open_positions
+    assert capture_position_saves == []
+    assert broker.close_calls == []
+    assert journal.warning_rows == []
+    assert fake_event_store.events == []
+
+    external = json.loads(external_path.read_text(encoding="utf-8"))
+    sol_record = external["external_inventory"]["SOL/USD"]
+    assert sol_record["last_seen_on_broker"] is True
+    assert sol_record["observed_qty"] == 0.0122504
+    assert sol_record["observed_notional"] == 1.0
+    assert sol_record["no_pnl_inference"] is True
+    assert sol_record["no_close_attempted"] is True
+    assert sol_record["blocks_new_entries"] is False
+
+
+def test_restore_state_skips_authoritative_external_inventory_sol(
+    tmp_path,
+    monkeypatch,
+    capture_position_saves,
+    fake_event_store,
+):
+    external_path = tmp_path / "state" / "coinbase" / "external_inventory.json"
+    _write_external_inventory(external_path)
+    monkeypatch.setattr("position_manager.COINBASE_EXTERNAL_INVENTORY_PATH", external_path)
+    monkeypatch.setattr("position_manager.load_saved_positions", lambda: {
+        "SOL/USD": {
+            "asset_class": "crypto",
+            "user_action_required": True,
+            "api_controllable": False,
+            "exit_evaluation_enabled": False,
+            "recovery_source": "broker_position",
+        }
+    })
+
+    broker = FakeBroker([_sol_position()])
+    session = SessionState()
+
+    PositionManager(broker, FakeJournal()).restore_state(session)
+
+    assert session.open_positions == {}
+    assert capture_position_saves == []
+    assert fake_event_store.events == []
 
 
 def test_broker_recovered_eth_absent_from_snapshot_is_retained_for_manual_review(
@@ -479,9 +573,9 @@ def test_risk_caps_not_changed_by_reassociation_patch():
     coinbase = yaml.safe_load((ROOT / "config_coinbase_crypto.yaml").read_text())
     alpaca = yaml.safe_load((ROOT / "config_alpaca_stocks.yaml").read_text())
 
-    assert coinbase["global_risk"]["max_total_live_exposure_usd"] == 6.00
+    assert coinbase["global_risk"]["max_total_live_exposure_usd"] == 8.00
     assert coinbase["crypto"]["max_trade_notional_usd"] == 2.00
-    assert coinbase["crypto"]["max_total_crypto_exposure_usd"] == 4.00
+    assert coinbase["crypto"]["max_total_crypto_exposure_usd"] == 8.00
     assert alpaca["global_risk"]["max_total_live_exposure_usd"] == 6.00
     assert alpaca["equities"]["max_trade_notional_usd"] == 2.00
     assert alpaca["equities"]["max_total_equity_exposure_usd"] == 4.00

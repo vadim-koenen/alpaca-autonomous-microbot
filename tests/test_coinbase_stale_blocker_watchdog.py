@@ -131,6 +131,32 @@ def test_stale_state_bug_when_events_but_no_open_manual_position(tmp_path):
     assert state["verdict"] == "STALE_STATE_BUG_REQUIRES_RESET_REVIEW"
 
 
+def test_historical_manual_review_rows_resolved_by_external_inventory():
+    hb = _make_heartbeat()
+    pos = {}
+    events = _make_manual_review_events(count=50, first_minutes_ago=400)
+    external_inventory = {
+        "SOL/USD": {
+            "symbol": "SOL/USD",
+            "staked_external_position": True,
+            "external_inventory_classification": "external_staked_position",
+            "tradable_by_bot": False,
+            "manual_close_allowed": False,
+            "bot_inventory": False,
+            "blocks_new_entries": False,
+        }
+    }
+
+    state = compute_stale_blocker_state(hb, pos, events, external_inventory, stale_threshold_minutes=180)
+
+    assert state["verdict"] == "HISTORICAL_BLOCKER_RESOLVED_EXTERNAL_INVENTORY"
+    assert state["severity"] == "INFO"
+    assert state["trading_progress_state"] == "LIVE_EXTERNAL_INVENTORY_EXCLUDED"
+    assert state["historical_blocker_resolved"] is True
+    assert state["sol_position_classification"]["is_external_staked_locked_inventory"] is True
+    assert state["sol_position_classification"]["is_true_bot_owned_unresolved"] is False
+
+
 def test_under_threshold_is_blocked_but_not_stale(tmp_path):
     hb = _make_heartbeat(last_trade_minutes_ago=10)
     pos = _make_open_positions(manual_review=True)

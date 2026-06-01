@@ -1,0 +1,17 @@
+{
+  "external_inventory": {
+    "SOL/USD": {
+      "symbol": "SOL/USD",
+      "qty": "0.0122504",
+      "notional": "1.00",
+      "staked_external_position": true,
+      "external_inventory_classification": "external_staked_position",
+      "tradable_by_bot": false,
+      "manual_close_allowed": false,
+      "bot_inventory": false,
+      "blocks_new_entries": false,
+      "no_pnl_inference": true,
+      "no_close_attempted": true
+    }
+  }
+}

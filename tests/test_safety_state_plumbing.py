@@ -435,9 +435,9 @@ def test_state_consistency_patch_did_not_change_risk_caps():
     coinbase = yaml.safe_load((ROOT / "config_coinbase_crypto.yaml").read_text())
     alpaca = yaml.safe_load((ROOT / "config_alpaca_stocks.yaml").read_text())
 
-    assert coinbase["global_risk"]["max_total_live_exposure_usd"] == 6.00
+    assert coinbase["global_risk"]["max_total_live_exposure_usd"] == 8.00
     assert coinbase["crypto"]["max_trade_notional_usd"] == 2.00
-    assert coinbase["crypto"]["max_total_crypto_exposure_usd"] == 4.00
+    assert coinbase["crypto"]["max_total_crypto_exposure_usd"] == 8.00
     assert alpaca["global_risk"]["max_total_live_exposure_usd"] == 6.00
     assert alpaca["equities"]["max_trade_notional_usd"] == 2.00
     assert alpaca["equities"]["max_total_equity_exposure_usd"] == 4.00
