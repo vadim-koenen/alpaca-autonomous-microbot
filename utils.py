@@ -526,6 +526,22 @@ def has_manual_review_entry_override(position: dict) -> bool:
     )
 
 
+def is_external_locked_non_bot_inventory(position: dict) -> bool:
+    """
+    Return True only for explicit external/staked inventory that the bot cannot
+    trade or close and must not treat as bot-owned inventory.
+    """
+    classification = str(position.get("external_inventory_classification", "")).lower()
+    return (
+        position.get("staked_external_position") is True
+        and "external" in classification
+        and "staked" in classification
+        and position.get("tradable_by_bot") is False
+        and position.get("manual_close_allowed") is False
+        and position.get("bot_inventory") is False
+    )
+
+
 def calculate_crypto_entry_blockers(open_positions: dict) -> tuple[int, int]:
     """
     Return (manual_review_open_count, non_controllable_open_count).
@@ -542,6 +558,8 @@ def calculate_crypto_entry_blockers(open_positions: dict) -> tuple[int, int]:
         if not isinstance(pos, dict):
             continue
         if pos.get("asset_class", "") != "crypto":
+            continue
+        if is_external_locked_non_bot_inventory(pos):
             continue
         if has_manual_review_entry_override(pos):
             continue

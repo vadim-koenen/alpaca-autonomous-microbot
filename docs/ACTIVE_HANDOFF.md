@@ -1,5 +1,35 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-021C3 review — manual-review blocker remediation
+
+**Branch:** `review/p2-021c3-manual-review-blocker-remediation`
+
+P2-021C3 adds an offline, local, operator-approved state-normalization path for
+stale `manual_review_position_open` blockers caused by proven external/staked
+non-bot-tradable SOL inventory.
+
+Live problem: Coinbase can be running with buying power and still produce no
+entries because `state/coinbase/open_positions.json` contains a stale SOL/USD
+manual-review blocker with `broker_close_capability_unconfirmed`.
+
+Safety semantics:
+
+- Do not close SOL.
+- Do not sell SOL.
+- Do not treat SOL as bot inventory.
+- Do not infer realized P/L from SOL.
+- No risk increase, notional increase, symbol expansion, leverage, or margin.
+- `profit_readout_real_current=unsafe_to_aggregate`
+- `aggregation_allowed_real_current=false`
+- `scaling_allowed=false`
+
+The remediation script defaults to dry-run. Apply requires
+`--apply --operator-approved-external-inventory-normalization`, creates a
+timestamped backup, moves proven external/staked SOL out of active bot
+`open_positions`, and preserves an audit record in local external inventory.
+
+---
+
 ## P2-021C2 (stacked on P2-021C review branch) — anti-stale manual-review blocker watchdog
 
 **Branch:** `review/p2-021c2-anti-stale-manual-review-blocker-watchdog` (stacked on review/p2-021c-read-only-evidence-capture-bridge at dc34054; P2-021C not yet merged to main)

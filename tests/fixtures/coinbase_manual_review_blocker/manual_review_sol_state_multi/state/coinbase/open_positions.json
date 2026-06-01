@@ -1,0 +1,27 @@
+{
+  "saved_at": "2026-06-01T13:16:00+00:00",
+  "positions": {
+    "SOL/USD": {
+      "symbol": "SOL/USD",
+      "asset_class": "crypto",
+      "qty": "0.0122504",
+      "notional": "1.00",
+      "user_action_required": true,
+      "manual_review_reason": "broker_close_capability_unconfirmed",
+      "api_controllable": false,
+      "exit_evaluation_enabled": false,
+      "bot_opened": true
+    },
+    "BTC/USD": {
+      "symbol": "BTC/USD",
+      "asset_class": "crypto",
+      "qty": "0.0001",
+      "notional": "6.00",
+      "user_action_required": true,
+      "manual_review_reason": "broker_close_capability_unconfirmed",
+      "api_controllable": false,
+      "exit_evaluation_enabled": false,
+      "bot_opened": true
+    }
+  }
+}

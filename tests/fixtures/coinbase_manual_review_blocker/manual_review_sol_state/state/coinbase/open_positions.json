@@ -1,0 +1,21 @@
+{
+  "saved_at": "2026-06-01T13:16:00+00:00",
+  "positions": {
+    "SOL/USD": {
+      "symbol": "SOL/USD",
+      "asset_class": "crypto",
+      "qty": "0.0122504",
+      "notional": "1.00",
+      "order_id": "sol-entry-order-001",
+      "client_order_id": "cb-sol-entry-001",
+      "entry_time": "2026-05-31T16:30:23+00:00",
+      "user_action_required": true,
+      "manual_review_reason": "broker_close_capability_unconfirmed",
+      "api_controllable": false,
+      "exit_evaluation_enabled": false,
+      "bot_opened": true,
+      "recovery_source": "journal_reassociated",
+      "counts_toward_exposure": true
+    }
+  }
+}

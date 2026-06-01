@@ -1,0 +1,2 @@
+timestamp,symbol,action,decision,error
+2026-06-01T13:16:00+00:00,SOL/USD,BUY,SKIPPED,ENTRY_BLOCKED reason=manual_review_position_open
