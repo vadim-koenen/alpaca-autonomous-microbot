@@ -1,5 +1,49 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-017C in progress (YELLOW) — read-only Coinbase full fill payload/proceeds field discovery for matched SOL lot
+
+**Branch:** `review/p2-017c-coinbase-fill-payload-field-discovery`
+
+**Classification:** YELLOW — read-only diagnostics/reporting + new script + tests + handoff note only. MUST NOT self-merge. Push review branch only.
+
+P2-017C adds a dedicated read-only discovery tool that inspects the recent_fills_sample (and any nested structures) from a prior hardened broker probe to determine exactly which direct fee, filled_value/proceeds, order linkage, and timing fields are present (or explicitly null) for the currently open matched SOL lot.
+
+New artifacts:
+- `scripts/coinbase_fill_payload_field_discovery.py`
+- `tests/test_coinbase_fill_payload_field_discovery.py`
+
+The script:
+- Operates in default offline mode against an existing probe JSON only.
+- Focuses on the known matched BUY trade_id = 1f10a7cb-3fe5-4cbb-b990-f74c39529fc9.
+- Reports presence vs non-null status for fee and filled_value.
+- Scans for candidate nested fee/value/order fields.
+- Keeps `profit_readout=unsafe_to_aggregate` and `net_pnl_available=false` while direct non-null values are absent.
+
+**Current verified readout (as of P2-017C, main HEAD before branch = e97eb8b):**
+- main HEAD before this branch: e97eb8b
+- profit_readout: unsafe_to_aggregate
+- broker_truth_available: true
+- SOL held on broker: true
+- current_sol_qty: 0.0122504
+- matched to BUY trade_id: 1f10a7cb-3fe5-4cbb-b990-f74c39529fc9
+- likely entry size: 0.0122504 @ 81.63 (gross cost estimate ~1.000000152)
+- fee and filled_value: present in sample but null (or missing) for the matched trade
+- recent_fills_missing_fee_count: 20
+- recent_fills_missing_filled_value_count: 20
+- net_pnl_available: false from current data
+- risk increase: not approved
+- next action: discovery of direct broker fee + filled_value/proceeds fields (not scaling or closing)
+
+**Safety (re-asserted on review branch):**
+- Default mode: zero broker calls, zero .env reads, zero file mutations.
+- No append_coinbase_fill_row, no logs/coinbase_fills.csv writes.
+- No strategy/risk/sizing/config/runtime/LaunchAgent changes.
+- Optional --live-read-only mode (if ever implemented) is strictly opt-in and never used in verification.
+
+All verification commands must pass using the pre-existing hardened probe JSON only. No --live-read-only during this patch.
+
+---
+
 ## P2-017B complete — read-only Coinbase fill/position lifecycle reconciliation report
 
 **Branch:** `review/p2-017b-coinbase-fill-position-lifecycle-reconciliation`
