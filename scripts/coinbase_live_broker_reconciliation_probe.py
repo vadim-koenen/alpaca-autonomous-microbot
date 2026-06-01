@@ -121,6 +121,9 @@ def _build_safe_default_report() -> dict:
         "profit_readout": "unsafe_to_aggregate",
         "live_read_only": False,
         "broker_calls_made": False,
+        "broker_read_successful": False,
+        "credential_status": "not_attempted",
+        "broker_error_type": None,
         "blockers": [
             "Live broker mode not enabled (no --live-read-only flag). No API calls were made.",
             "Local journal still shows unresolved SOL/USD broker-close / dropped / re-associated position evidence from prior runs (broker close capability remains unconfirmed)."
@@ -299,6 +302,9 @@ def synthesize_reconciliation_report(
     return {
         "verdict": verdict,
         "profit_readout": profit_readout,
+        "live_read_only": True,
+        "broker_calls_made": True,
+        "broker_read_successful": live_snapshot.broker_read_successful,
         "sol_on_broker": sol_on_broker,
         "eth_on_broker": eth_on_broker,
         "open_positions_on_broker": live_snapshot.open_positions,
@@ -307,6 +313,7 @@ def synthesize_reconciliation_report(
         "blockers": blockers,
         "next_action": next_action,
         "credential_status": live_snapshot.credential_status,
+        "broker_error_type": live_snapshot.credential_status if live_snapshot.credential_status in ("adapter_error", "missing_or_blocked") else None,
         "errors": live_snapshot.errors,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
