@@ -1,5 +1,31 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-019A complete — unmerged review branch audit pack (GREEN docs-only)
+
+**Branch:** `review/p2-019a-unmerged-review-branch-audit-pack`
+
+**Functional patch commit:** `50734e5`
+
+P2-019A added `docs/UNMERGED_REVIEW_BRANCH_AUDIT.md`.
+
+This document tracks YELLOW review branches that must not be merged without explicit ChatGPT review:
+
+- review/p2-017d-coinbase-full-fill-payload-capture (f8dc271) — first live read-only capture for matched SOL trade; original transcript did not include exact required live JSON fields.
+- review/p2-018e-local-review-gate-reconciliation-safety (e53b426) — review gate expansion with noisy static scanning.
+
+The document includes:
+- Why each branch is unmerged
+- Exact pre-merge verification requirements
+- Explicit “do not merge overnight” rule
+- Expected ChatGPT review questions
+- Re-assertion that profit_readout remains unsafe_to_aggregate and risk increase is not approved
+
+This is pure GREEN docs-only work.
+
+Verification passed: git diff --check clean, required phrases present, clean fast-forward merge to main.
+
+---
+
 ## P2-018F complete — overnight final handoff and status pack (GREEN docs-only)
 
 **Branch:** `review/p2-018f-overnight-handoff-pack`
