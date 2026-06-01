@@ -1,5 +1,19 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-019H complete — second overnight handoff pack (GREEN docs-only)
+
+**Branch:** `review/p2-019h-second-overnight-handoff-pack`
+
+**Functional patch commit:** (final merge of this run)
+
+P2-019H added `docs/SECOND_OVERNIGHT_STATUS_HANDOFF.md` and closed the second overnight autonomy run.
+
+Records all GREEN patches executed (P2-019A–G), the two review-only branches (P2-017D and P2-018E), final state, and exact transcript locations + copy commands.
+
+Pure GREEN docs closure.
+
+---
+
 ## P2-019G complete — external signal layer safety runbook (GREEN docs-only)
 
 **Branch:** `review/p2-019g-external-signal-layer-safety-runbook`
