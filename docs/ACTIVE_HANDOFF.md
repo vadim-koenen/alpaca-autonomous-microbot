@@ -1,5 +1,35 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-021C2 (stacked on P2-021C review branch) — anti-stale manual-review blocker watchdog
+
+**Branch:** `review/p2-021c2-anti-stale-manual-review-blocker-watchdog` (stacked on review/p2-021c-read-only-evidence-capture-bridge at dc34054; P2-021C not yet merged to main)
+
+P2-021C2 adds a read-only, offline anti-stale watchdog (`scripts/coinbase_stale_blocker_watchdog.py`) that detects when a `manual_review_position_open` entry blocker has aged beyond a configurable threshold (default 180 minutes).
+
+It computes blocker age, counts, severity, and distinguishes:
+- True unresolved bot-owned positions (escalates to STALE_BLOCKER_REQUIRES_OPERATOR_ACTION, still blocks trading).
+- External/staked/non-bot locked inventory (reported as external; never auto-closed or treated as bot inventory).
+- Stale state bugs (repeated blocks with no actual open manual-review position).
+
+The watchdog is integrated into the operator status aggregator for visibility.
+
+**Current live problem addressed:**
+The bot was running with buying power but 0 trades all day due to repeated `ENTRY_BLOCKED reason=manual_review_position_open`, with no age tracking or escalation in the main status tools.
+
+**Preserved truth (no relaxation of gates):**
+- `profit_readout_real_current=unsafe_to_aggregate`
+- `aggregation_allowed_real_current=false`
+- `scaling_allowed=false`
+- risk increase not approved
+- staked SOL remains external locked inventory, not bot inventory
+- No auto-close of any position
+- No auto-clear of unresolved bot-owned positions
+- No live broker calls in this patch or verification
+
+This patch does not unblock trading. It only makes indefinite silent suspension impossible by forcing explicit stale-blocker state and operator action requirements. It connects directly to the P2-021C read-only evidence capture bridge for the safe, human-approved path forward.
+
+---
+
 ## P2-021C review — human-approved read-only evidence capture bridge
 
 **Branch:** `review/p2-021c-read-only-evidence-capture-bridge`

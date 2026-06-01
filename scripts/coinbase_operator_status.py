@@ -62,6 +62,13 @@ try:
 except Exception:
     discover_local_price_coverage = None
 
+try:
+    from scripts.coinbase_stale_blocker_watchdog import (
+        run_stale_blocker_report_json as run_stale_blocker_json,
+    )
+except Exception:
+    run_stale_blocker_json = None
+
 
 def _safe_run_proceeds(root: Path) -> str:
     if run_proceeds_report is None:
@@ -97,6 +104,15 @@ def _safe_price_coverage(telemetry_path: Optional[Path] = None) -> Dict[str, Any
         return discover_local_price_coverage(telemetry_path)
     except Exception as e:
         return {"error": f"PRICE_COVERAGE_ERROR: {e}"}
+
+
+def _safe_stale_blocker() -> Dict[str, Any]:
+    if run_stale_blocker_json is None:
+        return {"error": "STALE_BLOCKER_REPORT_UNAVAILABLE"}
+    try:
+        return run_stale_blocker_json()
+    except Exception as e:
+        return {"error": f"STALE_BLOCKER_ERROR: {e}"}
 
 
 def _contains_sol_blocker(text: str) -> bool:
@@ -135,6 +151,7 @@ def build_aggregator_report(root: Path, telemetry_path: Optional[Path] = None) -
     orphan_text = _safe_run_orphan_text(root)
     orphan_json = _safe_run_orphan_json(root)
     price_cov = _safe_price_coverage(telemetry_path)
+    stale_blocker = _safe_stale_blocker()
 
     # --- Detect key signals ---
     sol_blocker_present = _contains_sol_blocker(orphan_text) or _contains_sol_blocker(proceeds_text)
@@ -242,7 +259,12 @@ def build_aggregator_report(root: Path, telemetry_path: Optional[Path] = None) -
             "proceeds_summary": proceeds_summary,  # first ~30 lines for context
             "orphan_summary": orphan_json if not orphan_error else {"error": orphan_error},
             "price_coverage": price_cov if not price_cov.get("error") else {"error": price_cov.get("error")},
+            "stale_blocker": stale_blocker if not stale_blocker.get("error") else {"error": stale_blocker.get("error")},
         },
+        "stale_blocker_detected": bool(stale_blocker.get("verdict", "").startswith("STALE")),
+        "stale_blocker_reason": stale_blocker.get("blocker_reason"),
+        "stale_blocker_age_minutes": stale_blocker.get("blocker_age_minutes"),
+        "trading_progress_state": stale_blocker.get("trading_progress_state"),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "root": str(root),
     }
@@ -268,6 +290,12 @@ def format_human_report(data: Dict[str, Any]) -> str:
     lines.append("--- NEXT RECOMMENDED ACTION ---")
     lines.append(data["next_action"])
     lines.append("")
+    if data.get("stale_blocker_detected"):
+        lines.append("--- STALE BLOCKER DETECTED (P2-021C2) ---")
+        lines.append(f"Reason: {data.get('stale_blocker_reason')}")
+        lines.append(f"Age (min): {data.get('stale_blocker_age_minutes')}")
+        lines.append(f"Trading state: {data.get('trading_progress_state')}")
+        lines.append("")
     lines.append("--- DETAILED SOURCE REPORTS (truncated) ---")
     lines.append("Proceeds reconciliation (first 20 lines):")
     for line in data["details"].get("proceeds_summary", [])[:20]:
