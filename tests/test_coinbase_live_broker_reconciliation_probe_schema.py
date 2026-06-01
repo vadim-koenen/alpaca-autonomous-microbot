@@ -43,3 +43,24 @@ def test_mocked_broker_failure_keeps_broker_facts_unknown():
     assert report["sol_on_broker"] is None
     assert report["eth_on_broker"] is None
     assert report["broker_read_successful"] is False
+
+
+def test_default_report_includes_all_required_explicit_fields():
+    """Default no-live report must include every required top-level key per P2-017A schema contract."""
+    report = probe._build_safe_default_report()
+    required = [
+        "live_read_only", "broker_calls_made", "broker_read_successful",
+        "sol_on_broker", "eth_on_broker",
+        "open_orders", "recent_fills_sample", "open_positions_on_broker",
+        "errors", "credential_status", "broker_error_type",
+        "verdict", "profit_readout", "blockers", "next_action",
+    ]
+    for k in required:
+        assert k in report, f"missing required key: {k}"
+    assert report["live_read_only"] is False
+    assert report["broker_calls_made"] is False
+    assert report["broker_read_successful"] is False
+    assert report["sol_on_broker"] is None
+    assert report["eth_on_broker"] is None
+    assert isinstance(report["open_orders"], list)
+    assert isinstance(report["errors"], list)

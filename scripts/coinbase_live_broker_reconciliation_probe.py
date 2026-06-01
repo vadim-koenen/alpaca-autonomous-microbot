@@ -124,6 +124,12 @@ def _build_safe_default_report() -> dict:
         "broker_read_successful": False,
         "credential_status": "not_attempted",
         "broker_error_type": None,
+        "sol_on_broker": None,
+        "eth_on_broker": None,
+        "open_positions_on_broker": [],
+        "open_orders": [],
+        "recent_fills_sample": [],
+        "errors": [],
         "blockers": [
             "Live broker mode not enabled (no --live-read-only flag). No API calls were made.",
             "Local journal still shows unresolved SOL/USD broker-close / dropped / re-associated position evidence from prior runs (broker close capability remains unconfirmed)."

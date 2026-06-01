@@ -1,5 +1,56 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-017A in progress (YELLOW) — Coinbase live broker-truth probe schema hardening + read-only reconciliation summary
+
+**Branch:** `review/p2-017a-coinbase-broker-truth-schema-and-summary`
+
+**Classification:** YELLOW — read-only diagnostics/reporting + schema hardening + new summarizer + tests + handoff note only. MUST NOT self-merge. Review branch only; push review branch; do not merge to main.
+
+P2-017A hardens the live broker reconciliation probe JSON contract so every output path (default and --live-read-only) explicitly includes:
+- live_read_only, broker_calls_made, broker_read_successful (booleans)
+- broker_error_type, credential_status
+- sol_on_broker / eth_on_broker (true/false/null with unknown-state semantics)
+- open_orders, recent_fills_sample, open_positions_on_broker
+- Full required top-level keys for downstream consumers.
+
+Added new pure read-only summarizer:
+- `scripts/coinbase_broker_truth_summary.py`
+- Consumes prior probe JSON + local state/closed_positions + runtime/heartbeat + journal (safe columns only)
+- Never calls broker, never reads .env, never mutates files
+- Gracefully handles old probe JSONs missing the new booleans (reports schema_missing_fields)
+- Produces reconciliation_status, broker_truth_available, recommended_next_action, zero-qty journal counts, etc.
+
+**Current verified readout (from live probe + local state as of P2-017A):**
+- build momentum: positive
+- trading/profit readout: unsafe_to_aggregate
+- SOL held on broker: true (per live read-only probe; conflicts with local dropped/re-associated/unconfirmed evidence)
+- open orders: 0
+- recent fills sample: 20
+- risk increase: not approved
+- next action: reconciliation (not strategy/risk scaling or sizing changes)
+- broker close capability for the open SOL position remains unconfirmed
+
+Tests added:
+- tests/test_coinbase_live_broker_reconciliation_probe_schema.py
+- tests/test_coinbase_broker_truth_summary.py
+
+All verification commands (py_compile, pytest subsets, git diff --check, default probe --json, summary using pre-existing /tmp probe JSON only) must pass. No --live-read-only run in this patch. No new broker calls.
+
+**Safety invariants (re-asserted):**
+- No orders, cancels, closes, modifications
+- No writes to logs/coinbase_fills.csv or append_coinbase_fill_row
+- No mutation of state/coinbase/*.json or runtime
+- No LaunchAgent / background / runtime config changes
+- No secrets printed or committed
+- Default probe path: zero broker calls
+- Summary: zero network, zero .env, zero writes
+
+**Next after P2-017A:** Continue reconciliation proof work toward direct sell proceeds + per-fill fees + stable trade_id availability before any fill logger activation or risk scaling. SOL blocker remains the gating item.
+
+Functional work on review branch only. Do not merge.
+
+---
+
 ## P2-016A complete — Grok execution protocol and external signal context plan
 
 Functional patch commit: `061fabc`

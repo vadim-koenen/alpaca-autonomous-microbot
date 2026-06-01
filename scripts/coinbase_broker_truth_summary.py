@@ -88,28 +88,37 @@ def build_summary(probe_json_path: Path) -> Dict[str, Any]:
     open_orders = probe_data.get("open_orders") or []
     recent_fills = probe_data.get("recent_fills_sample") or []
 
-    local_open_count = len(open_pos.get("positions", [])) if isinstance(open_pos, dict) else 0
-    local_open_symbols = []
-    if isinstance(open_pos, dict):
-        for p in open_pos.get("positions", []):
+    positions_data = open_pos.get("positions", {}) if isinstance(open_pos, dict) else (open_pos.get("positions") if isinstance(open_pos, dict) else None)
+    if isinstance(positions_data, dict):
+        local_open_count = len(positions_data)
+        local_open_symbols = [str(k) for k in positions_data.keys()]
+    elif isinstance(positions_data, list):
+        local_open_count = len(positions_data)
+        local_open_symbols = []
+        for p in positions_data:
             if isinstance(p, dict):
                 sym = p.get("symbol") or p.get("product_id")
                 if sym:
-                    local_open_symbols.append(sym)
+                    local_open_symbols.append(str(sym))
+    else:
+        local_open_count = 0
+        local_open_symbols = []
 
     heartbeat_equity = heartbeat.get("equity")
     heartbeat_buying_power = heartbeat.get("buying_power")
     heartbeat_open = heartbeat.get("open_positions")
 
     # Reconciliation status logic
-    if not broker_read_successful:
-        broker_truth_available = False
-        reconciliation_status = "broker_truth_unavailable"
+    # broker_truth_available requires explicit successful read flag from probe (old JSONs will be false)
+    # reconciliation_status and verdict prioritize direct sol_on_broker evidence when present
+    if sol_on_broker is True:
+        broker_truth_available = bool(broker_read_successful)
+        reconciliation_status = "blocked_sol_held_on_broker"
         verdict = "BLOCKED"
         profit_readout = "unsafe_to_aggregate"
-    elif sol_on_broker is True:
-        broker_truth_available = True
-        reconciliation_status = "blocked_sol_held_on_broker"
+    elif not broker_read_successful:
+        broker_truth_available = False
+        reconciliation_status = "broker_truth_unavailable"
         verdict = "BLOCKED"
         profit_readout = "unsafe_to_aggregate"
     else:
@@ -119,7 +128,7 @@ def build_summary(probe_json_path: Path) -> Dict[str, Any]:
         profit_readout = "unsafe_to_aggregate"  # still requires direct fills/proceeds proof
 
     blockers: List[str] = []
-    if not broker_read_successful:
+    if not broker_read_successful and sol_on_broker is None:
         blockers.append("No successful broker read — holdings unknown")
     if sol_on_broker is True:
         blockers.append("SOL reported held on broker (conflicts with some local evidence)")
