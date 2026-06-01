@@ -1,5 +1,47 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-021C5 review — exclude external inventory from Coinbase candidates
+
+**Branch:** `review/p2-021c5-exclude-external-inventory-candidates`
+
+P2-021C5 removes authoritative external/staked inventory symbols from Coinbase
+live entry candidate evaluation. After P2-021C4, `manual_review_position_open`
+is resolved and broker recovery no longer rehydrates user-staked SOL/USD into
+active `open_positions`, but SOL/USD could still consume scan/risk cycles and
+produce safe-but-wasteful journal rows such as `already have open position in
+SOL/USD`.
+
+The new candidate filter excludes a symbol only when
+`state/coinbase/external_inventory.json` proves all of:
+
+- `external_inventory_classification=external_staked_position`
+- `staked_external_position=true`
+- `bot_inventory=false`
+- `tradable_by_bot=false`
+- `manual_close_allowed=false`
+- `blocks_new_entries=false`
+
+BTC/USD and ETH/USD remain eligible candidates. Missing or malformed external
+inventory fails safely by excluding nothing. True active bot-owned unresolved
+positions still flow through the existing blocker/risk logic.
+
+Preserved truth:
+
+- `profit_readout_real_current=unsafe_to_aggregate`
+- `aggregation_allowed_real_current=false`
+- `scaling_allowed=false`
+- risk increase not approved
+- no live broker calls
+- no `--live-read-only`
+- no `.env` or secrets
+- no order/cancel/close/modify
+- no auto-close or auto-sell SOL
+- no risk/notional/symbol/config expansion
+- no `logs/coinbase_fills.csv` writes
+- no `append_coinbase_fill_row` activation
+
+---
+
 ## P2-021C4 review — external-inventory-aware broker recovery
 
 **Branch:** `review/p2-021c4-external-inventory-aware-broker-recovery`

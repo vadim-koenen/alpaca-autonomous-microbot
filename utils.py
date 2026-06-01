@@ -545,6 +545,83 @@ def is_external_locked_non_bot_inventory(position: dict) -> bool:
     )
 
 
+def _normalize_crypto_symbol(symbol: Any) -> str:
+    return str(symbol or "").strip().upper().replace("-", "/")
+
+
+def _as_external_inventory_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in ("true", "1", "yes", "y"):
+            return True
+        if text in ("false", "0", "no", "n"):
+            return False
+    return None
+
+
+def _external_inventory_payload_records(data: Any) -> dict[str, dict[str, Any]]:
+    if isinstance(data, dict) and isinstance(data.get("external_inventory"), dict):
+        data = data["external_inventory"]
+    if not isinstance(data, dict):
+        return {}
+    return {str(symbol): dict(record) for symbol, record in data.items() if isinstance(record, dict)}
+
+
+def _is_external_inventory_candidate_exclusion_record(record: dict[str, Any]) -> bool:
+    classification = str(record.get("external_inventory_classification") or "").lower()
+    return (
+        "external" in classification
+        and "staked" in classification
+        and _as_external_inventory_bool(record.get("staked_external_position")) is True
+        and _as_external_inventory_bool(record.get("bot_inventory")) is False
+        and _as_external_inventory_bool(record.get("tradable_by_bot")) is False
+        and _as_external_inventory_bool(record.get("manual_close_allowed")) is False
+        and _as_external_inventory_bool(record.get("blocks_new_entries", False)) is False
+    )
+
+
+def load_external_inventory_excluded_symbols(root: str | Path | None = None) -> set[str]:
+    """
+    Return symbols that should not be scanned for new Coinbase entries.
+
+    Only explicit external/staked/non-bot inventory is excluded. Missing or
+    malformed state fails safe by returning an empty set, so true active
+    bot-owned positions continue through the normal risk/blocker logic.
+    """
+    base = Path(root) if root is not None else ROOT
+    path = base / "state" / "coinbase" / "external_inventory.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return set()
+
+    excluded: set[str] = set()
+    for raw_symbol, record in _external_inventory_payload_records(data).items():
+        if not _is_external_inventory_candidate_exclusion_record(record):
+            continue
+        symbol = _normalize_crypto_symbol(record.get("symbol") or raw_symbol)
+        if symbol:
+            excluded.add(symbol)
+    return excluded
+
+
+def is_external_inventory_excluded_symbol(
+    symbol: Any,
+    *,
+    excluded_symbols: set[str] | None = None,
+    root: str | Path | None = None,
+) -> bool:
+    """Return True when a symbol is authoritative external inventory."""
+    excluded = (
+        {_normalize_crypto_symbol(s) for s in excluded_symbols}
+        if excluded_symbols is not None
+        else load_external_inventory_excluded_symbols(root)
+    )
+    return _normalize_crypto_symbol(symbol) in excluded
+
+
 def calculate_crypto_entry_blockers(open_positions: dict) -> tuple[int, int]:
     """
     Return (manual_review_open_count, non_controllable_open_count).

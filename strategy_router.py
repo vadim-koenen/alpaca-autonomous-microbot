@@ -23,7 +23,12 @@ from strategy_crypto import CryptoStrategy
 from strategy_equities import EquitiesStrategy
 from strategy_options import OptionsStrategy
 from strategy_shorts import ShortsStrategy
-from utils import get_cfg, get_mode
+from utils import (
+    get_cfg,
+    get_mode,
+    is_external_inventory_excluded_symbol,
+    load_external_inventory_excluded_symbols,
+)
 
 logger = logging.getLogger("strategy_router")
 
@@ -100,6 +105,25 @@ class StrategyRouter:
                     logger.warning(f"P2-012E multi-asset resolution error (non-fatal, using base live_symbols): {e}")
             else:
                 logger.debug("Multi-asset spot expansion disabled (crypto.multi_asset_spot.enabled=false). Only base live_symbols used.")
+
+            external_inventory_excluded = load_external_inventory_excluded_symbols()
+            if external_inventory_excluded:
+                included_live_syms = []
+                skipped_external_syms = []
+                for symbol in live_syms:
+                    if is_external_inventory_excluded_symbol(
+                        symbol,
+                        excluded_symbols=external_inventory_excluded,
+                    ):
+                        skipped_external_syms.append(symbol)
+                    else:
+                        included_live_syms.append(symbol)
+                if skipped_external_syms:
+                    logger.debug(
+                        "EXTERNAL_INVENTORY_SYMBOL_EXCLUDED "
+                        f"symbols={sorted(skipped_external_syms)}"
+                    )
+                live_syms = included_live_syms
 
             for symbol in live_syms:
                 try:

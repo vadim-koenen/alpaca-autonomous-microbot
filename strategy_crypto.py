@@ -32,7 +32,15 @@ import pandas as pd
 
 from market_data import MarketData, Quote, add_indicators
 from risk_manager import TradeProposal
-from utils import get_cfg, now_utc, safe_float, spread_pct as calc_spread, load_saved_positions
+from utils import (
+    get_cfg,
+    is_external_inventory_excluded_symbol,
+    load_external_inventory_excluded_symbols,
+    load_saved_positions,
+    now_utc,
+    safe_float,
+    spread_pct as calc_spread,
+)
 
 # P2-012B: prediction telemetry integration (live scan decisions).
 # Safe import + no-op fallbacks so telemetry can never break strategy loading or execution.
@@ -329,6 +337,7 @@ class CryptoStrategy:
         history = self._load_exploration_history()
         entries_today = self._get_exploration_entries_today()
         open_positions = self._get_open_symbol_positions()
+        external_inventory_excluded = load_external_inventory_excluded_symbols()
         now = now_utc()
         
         # Filter: eligible symbols
@@ -336,6 +345,13 @@ class CryptoStrategy:
         reject_reasons: dict[str, str] = {}
         
         for symbol in approved_symbols:
+            if is_external_inventory_excluded_symbol(
+                symbol,
+                excluded_symbols=external_inventory_excluded,
+            ):
+                reject_reasons[symbol] = "external_inventory_symbol_excluded"
+                continue
+
             # 1. Has open position?
             if symbol in open_positions:
                 reject_reasons[symbol] = "already_has_open_position"
