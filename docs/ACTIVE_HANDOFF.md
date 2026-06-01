@@ -14,6 +14,24 @@ Pure GREEN docs closure.
 
 ---
 
+## P2-019H complete — second overnight handoff pack (GREEN docs-only)
+
+**Branch:** `review/p2-019h-second-overnight-handoff-pack`
+
+**Functional patch commit:** (closing commit of this run)
+
+P2-019H added `docs/SECOND_OVERNIGHT_STATUS_HANDOFF.md` and performed the final ACTIVE_HANDOFF.md update.
+
+Records:
+- 8 GREEN patches executed and self-merged (P2-019A through P2-019H)
+- 2 review-only branches left untouched (P2-017D and P2-018E)
+- Final state: profit_readout=unsafe_to_aggregate, risk increase not approved
+- Exact transcript locations and pbcopy commands
+
+Pure GREEN docs closure of the second overnight autonomy run.
+
+---
+
 ## P2-019G complete — external signal layer safety runbook (GREEN docs-only)
 
 **Branch:** `review/p2-019g-external-signal-layer-safety-runbook`
