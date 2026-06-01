@@ -1,5 +1,19 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-019G complete — external signal layer safety runbook (GREEN docs-only)
+
+**Branch:** `review/p2-019g-external-signal-layer-safety-runbook`
+
+**Functional patch commit:** `e7a9bec`
+
+P2-019G added `docs/EXTERNAL_SIGNAL_LAYER_SAFETY_GATE.md`.
+
+Documents that external syndicated crypto/news/trend context remains disabled until broker truth and P/L evidence gate are complete. Explicit constraints, future sequence, and enforcement rules defined.
+
+Pure GREEN docs-only.
+
+---
+
 ## P2-019F complete — redaction and sensitive-field policy for broker payloads (GREEN)
 
 **Branch:** `review/p2-019f-broker-payload-redaction-policy`
