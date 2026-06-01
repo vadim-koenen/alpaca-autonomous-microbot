@@ -1,5 +1,33 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-018B complete — offline P/L evidence gate checker (GREEN)
+
+**Branch:** `review/p2-018b-offline-pl-evidence-gate-checker`
+
+**Functional patch commit:** `50b26fa`
+
+P2-018B added a strictly offline, read-only evidence gate checker:
+
+- `scripts/coinbase_pl_evidence_gate.py`
+- `tests/test_coinbase_pl_evidence_gate.py` (7 tests)
+
+The checker consumes a probe JSON and reports:
+- `verdict`, `profit_readout`, `net_pnl_available`, `aggregation_allowed`, `scaling_allowed`
+- Entry/exit fee + filled_value availability
+- `zero_qty_rows_excluded` (always true per policy)
+- Clear blockers and required_next_evidence
+
+Current snapshot (as of this patch) correctly produces:
+- BLOCKED + unsafe_to_aggregate
+- sol_on_broker=true blocker
+- aggregation_allowed=false, scaling_allowed=false
+
+This is pure GREEN (offline only, no broker/.env/writes/runtime changes).
+
+Verification passed: git diff --check clean, all tests green, smoke matches expected state, clean fast-forward merge.
+
+---
+
 ## P2-018A complete — BROKER_TRUTH_AND_PL_EVIDENCE_GATE runbook (GREEN docs-only)
 
 **Branch:** `review/p2-018a-broker-truth-evidence-gate-runbook`
