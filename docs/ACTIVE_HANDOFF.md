@@ -1,5 +1,29 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-021C review — human-approved read-only evidence capture bridge
+
+**Branch:** `review/p2-021c-read-only-evidence-capture-bridge`
+
+P2-021C adds an offline checklist bridge for a future human-approved Coinbase
+read-only capture. It does not call live broker APIs, does not execute
+`--live-read-only`, does not import broker clients, does not read `.env`, and
+does not write runtime state/logs.
+
+The bridge documents the exact future order IDs, product IDs, date windows,
+direct broker fields, redaction requirements, adapter input path, adapter
+command, and resolver command needed to feed real captured facts into P2-021B
+and P2-021A after explicit human approval.
+
+Preserved current truth:
+
+- `profit_readout_real_current=unsafe_to_aggregate`
+- `aggregation_allowed_real_current=false`
+- `scaling_allowed=false`
+- risk increase not approved
+- staked SOL remains external locked inventory, not bot inventory
+
+---
+
 ## P2-021A review — profit readout direct evidence resolver
 
 **Branch:** `review/p2-021a-profit-readout-evidence-resolver`

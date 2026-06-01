@@ -1,0 +1,15 @@
+{
+  "cycles": [
+    {
+      "cycle_id": "incomplete-cycle",
+      "product_id": "",
+      "order_ids": {
+        "entry": "",
+        "exit": "exit-order-001"
+      },
+      "date_window": {
+        "start": "2026-05-31T00:00:00Z"
+      }
+    }
+  ]
+}

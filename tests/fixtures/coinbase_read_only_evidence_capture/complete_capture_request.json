@@ -1,0 +1,16 @@
+{
+  "cycles": [
+    {
+      "cycle_id": "btc-cycle-001",
+      "product_id": "BTC-USD",
+      "order_ids": {
+        "entry": "entry-order-commission",
+        "exit": "exit-order-commission"
+      },
+      "date_window": {
+        "start": "2026-05-31T00:00:00Z",
+        "end": "2026-06-01T00:00:00Z"
+      }
+    }
+  ]
+}
