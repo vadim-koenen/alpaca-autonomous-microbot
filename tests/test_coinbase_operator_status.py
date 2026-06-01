@@ -39,6 +39,29 @@ timestamp,symbol,action,error
     assert any("SOL/USD" in b and "unconfirmed" in b.lower() for b in data["blockers"])
     assert "unsafe_to_aggregate" in data["profit_readout"]
 
+def test_staked_sol_external_inventory_does_not_recommend_close_remediation(tmp_path):
+    write_csv(tmp_path / "journal_coinbase_crypto.csv", """
+timestamp,symbol,action,staked_external_position,external_inventory_classification,tradable_by_bot,manual_close_allowed,bot_inventory,error
+2026-06-01T00:00:00Z,SOL/USD,WARN,true,external_staked_position,false,false,false,User confirmed SOL is staked and unavailable to bot
+""")
+    data = op_status.build_aggregator_report(tmp_path)
+    text = op_status.format_human_report(data)
+    combined = (json.dumps(data, default=str) + "\n" + text).lower()
+
+    assert data["verdict"] == "BLOCKED"
+    assert data["profit_readout"] == "unsafe_to_aggregate"
+    assert data["sol_blocker_detected"] is True
+    assert data["staked_external_position"] is True
+    assert data["external_inventory_classification"] == "external_staked_position"
+    assert data["tradable_by_bot"] is False
+    assert data["manual_close_allowed"] is False
+    assert data["bot_inventory"] is False
+    assert "externally staked sol" in data["next_action"].lower()
+    assert "do not close/remediate while staked" in data["next_action"].lower()
+    assert "broker close capability" not in combined
+    assert "resolve close" not in combined
+    assert "remediate" not in combined or "do not close/remediate while staked" in combined
+
 def test_missing_files_produces_safe_report(tmp_path):
     # No journals at all
     data = op_status.build_aggregator_report(tmp_path)

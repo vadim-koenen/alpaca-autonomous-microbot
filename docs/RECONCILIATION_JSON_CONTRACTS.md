@@ -181,7 +181,7 @@ All contracts below apply only to scripts that are merged into main.
 - verdict
 - profit_readout
 - current_bot_blocker_state (string)
-- sol_status (object with held_on_broker and qty)
+- sol_status (object with held_on_broker, qty, and optional P2-020A external-inventory fields)
 - matched_trade (object)
 - fee_value_availability (object)
 - p_l_evidence_gate (object with net_pnl_available, aggregation_allowed, scaling_allowed)
@@ -192,6 +192,30 @@ All contracts below apply only to scripts that are merged into main.
 
 **Contract guarantees**:
 - The `explicit_warning` field must always be present and contain the standard safety language.
+- When staked SOL is explicitly identified, JSON output must include:
+  - `sol_status.staked_external_position=true`
+  - `sol_status.external_inventory_classification` as `external_staked_position` or `externally_locked_inventory`
+  - `sol_status.tradable_by_bot=false`
+  - `sol_status.manual_close_allowed=false`
+  - `sol_status.bot_inventory=false`
+  - `p_l_evidence_gate.aggregation_allowed=false`
+  - `p_l_evidence_gate.scaling_allowed=false`
+- Staked SOL output must preserve `profit_readout=unsafe_to_aggregate` and must not recommend closing or remediation while staked.
+
+## 7. P2-020A shared external inventory fields
+
+Reports that emit staked/external SOL inventory status use these field names:
+
+- staked_external_position (boolean)
+- external_inventory_classification (`external_staked_position` or `externally_locked_inventory`)
+- tradable_by_bot (boolean)
+- manual_close_allowed (boolean)
+- bot_inventory (boolean)
+
+**Contract guarantees**:
+- `staked_external_position=true` means the inventory is not bot-tradable.
+- `tradable_by_bot`, `manual_close_allowed`, and `bot_inventory` must be false for the user-confirmed staked SOL position.
+- These fields do not authorize P/L aggregation, scaling, or close/remediation actions.
 
 ---
 

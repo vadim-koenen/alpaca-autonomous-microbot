@@ -139,6 +139,14 @@ def build_aggregator_report(root: Path, telemetry_path: Optional[Path] = None) -
     # --- Detect key signals ---
     sol_blocker_present = _contains_sol_blocker(orphan_text) or _contains_sol_blocker(proceeds_text)
     unresolved_open_sol = _has_unresolved_open_sol(orphan_text)
+    staked_external_position = bool(orphan_json.get("staked_external_position"))
+    external_inventory_classification = orphan_json.get("external_inventory_classification")
+    tradable_by_bot = orphan_json.get("tradable_by_bot")
+    manual_close_allowed = orphan_json.get("manual_close_allowed")
+    bot_inventory = orphan_json.get("bot_inventory")
+    if staked_external_position:
+        sol_blocker_present = False
+        unresolved_open_sol = False
 
     has_direct_proceeds = _proceeds_has_direct_facts(proceeds_text)
     missing_proceeds = _proceeds_missing_proceeds(proceeds_text)
@@ -148,6 +156,9 @@ def build_aggregator_report(root: Path, telemetry_path: Optional[Path] = None) -
     orphan_error = orphan_json.get("error")
     orphan_blockers = []
     if not orphan_error:
+        for e in orphan_json.get("external_inventory", []):
+            if "SOL" in e.get("symbol", "").upper() and e.get("staked_external_position"):
+                orphan_blockers.append("SOL/USD externally staked / unavailable to bot inventory")
         for o in orphan_json.get("orphan_evidence", []):
             orphan_blockers.append(f"{o.get('symbol', '?')}: {o.get('phrase', '')}")
         for op in orphan_json.get("open_positions", []):
@@ -160,7 +171,7 @@ def build_aggregator_report(root: Path, telemetry_path: Optional[Path] = None) -
         price_evaluable = price_cov.get("evaluable_telemetry_rows_with_local_prices", 0)
 
     # --- Synthesize verdict ---
-    if sol_blocker_present or unresolved_open_sol or (orphan_blockers and any("SOL" in b for b in orphan_blockers)):
+    if staked_external_position or sol_blocker_present or unresolved_open_sol or (orphan_blockers and any("SOL" in b for b in orphan_blockers)):
         verdict = "BLOCKED"
     elif missing_proceeds or proceeds_unsafe or orphan_blockers or price_evaluable == 0:
         verdict = "WARN"
@@ -168,7 +179,7 @@ def build_aggregator_report(root: Path, telemetry_path: Optional[Path] = None) -
         verdict = "OK"
 
     # --- Profit / readout classification (strict rules) ---
-    if sol_blocker_present or unresolved_open_sol or (missing_proceeds and not has_direct_proceeds):
+    if staked_external_position or sol_blocker_present or unresolved_open_sol or (missing_proceeds and not has_direct_proceeds):
         profit_readout = "unsafe_to_aggregate"
     elif has_direct_proceeds:
         profit_readout = "direct"
@@ -179,6 +190,8 @@ def build_aggregator_report(root: Path, telemetry_path: Optional[Path] = None) -
 
     # --- Blockers ---
     blockers: List[str] = []
+    if staked_external_position:
+        blockers.append("SOL/USD externally staked / unavailable to bot inventory")
     if sol_blocker_present or unresolved_open_sol:
         blockers.append("SOL/USD unresolved / re-associated / broker close capability unconfirmed (dropped after 3 failed attempts evidence present)")
     if missing_proceeds:
@@ -192,10 +205,13 @@ def build_aggregator_report(root: Path, telemetry_path: Optional[Path] = None) -
 
     if not blockers:
         blockers.append("No critical blockers detected in local data")
+    blockers = list(dict.fromkeys(blockers))
 
     # --- Next action ---
-    if "SOL/USD" in str(blockers):
-        next_action = "URGENT: Investigate and resolve the SOL/USD position (broker close unconfirmed). Do not aggregate P/L or take further action until direct broker fill + proceeds + close confirmation exists."
+    if staked_external_position:
+        next_action = "Exclude externally staked SOL from bot-tradable inventory. Do not close/remediate while staked. Continue offline P/L evidence work before any risk increase."
+    elif "SOL/USD" in str(blockers):
+        next_action = "URGENT: Investigate the SOL/USD position status. Do not aggregate P/L or take further action until direct broker fill + proceeds facts exist."
     elif missing_proceeds or proceeds_unsafe:
         next_action = "Run detailed reconciliation (coinbase_fill_proceeds_reconciliation_report.py) and collect missing direct sell proceeds / per-fill fees before trusting any P/L numbers."
     elif price_evaluable == 0:
@@ -203,14 +219,27 @@ def build_aggregator_report(root: Path, telemetry_path: Optional[Path] = None) -
     else:
         next_action = "Continue normal monitoring. Re-run this aggregator after any material journal or telemetry update."
 
+    proceeds_summary = proceeds_text.split("\n")[:30]
+    if staked_external_position:
+        legacy_terms = ("broker close capability", "resolve close", "remediate")
+        proceeds_summary = [
+            line for line in proceeds_summary
+            if not any(term in line.lower() for term in legacy_terms)
+        ]
+
     return {
         "verdict": verdict,
         "profit_readout": profit_readout,
         "blockers": blockers,
         "next_action": next_action,
-        "sol_blocker_detected": bool(sol_blocker_present or unresolved_open_sol),
+        "sol_blocker_detected": bool(staked_external_position or sol_blocker_present or unresolved_open_sol),
+        "staked_external_position": staked_external_position,
+        "external_inventory_classification": external_inventory_classification,
+        "tradable_by_bot": tradable_by_bot,
+        "manual_close_allowed": manual_close_allowed,
+        "bot_inventory": bot_inventory,
         "details": {
-            "proceeds_summary": proceeds_text.split("\n")[:30],  # first ~30 lines for context
+            "proceeds_summary": proceeds_summary,  # first ~30 lines for context
             "orphan_summary": orphan_json if not orphan_error else {"error": orphan_error},
             "price_coverage": price_cov if not price_cov.get("error") else {"error": price_cov.get("error")},
         },

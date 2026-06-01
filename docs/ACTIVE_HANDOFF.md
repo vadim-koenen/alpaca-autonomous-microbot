@@ -1,5 +1,25 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-020A review — staked SOL external inventory semantics
+
+**Branch:** `review/p2-020a-staked-sol-external-inventory`
+
+New project fact from Vadim: the current SOL position shown in Coinbase is staked by the user. The bot cannot trade it or close it.
+
+P2-020A classifies this SOL as external staked inventory / externally locked inventory rather than bot-tradable inventory.
+
+Preserved safety state:
+- SOL should be excluded from bot-tradable inventory.
+- No close/remediation recommendation should be made for this SOL while it is staked.
+- `profit_readout=unsafe_to_aggregate`
+- `aggregation_allowed=false`
+- `scaling_allowed=false`
+- risk increase still not approved until P/L evidence and safe tradable-inventory logic are clean
+
+No live broker calls, no `--live-read-only`, no `.env` reads, no order/cancel/close/modify, no runtime/risk/config/background/state/log mutations.
+
+---
+
 ## P2-019H complete — second overnight handoff pack (GREEN docs-only)
 
 **Branch:** `review/p2-019h-second-overnight-handoff-pack`

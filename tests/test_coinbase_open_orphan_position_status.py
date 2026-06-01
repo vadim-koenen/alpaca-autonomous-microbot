@@ -70,6 +70,37 @@ timestamp,symbol,action,error
     assert data["manual_review_required"] is True
     assert any("unconfirmed" in str(o).lower() for o in data["orphan_evidence"])
 
+def test_structured_staked_sol_is_external_inventory_not_bot_tradable(tmp_path):
+    write_csv(tmp_path / "journal_coinbase_crypto.csv", """
+timestamp,symbol,action,staked_external_position,external_inventory_classification,tradable_by_bot,manual_close_allowed,bot_inventory,error
+2026-06-01T00:00:00Z,SOL/USD,WARN,true,external_staked_position,false,false,false,User confirmed SOL is staked and unavailable to bot
+""")
+    data = orphan_status.run_report_json(tmp_path)
+    text = orphan_status.run_report(tmp_path)
+
+    assert data["staked_external_position"] is True
+    assert data["external_inventory_classification"] == "external_staked_position"
+    assert data["tradable_by_bot"] is False
+    assert data["manual_close_allowed"] is False
+    assert data["bot_inventory"] is False
+    assert data["external_inventory"][0]["detection_source"] == "structured"
+    assert "externally staked / unavailable to bot" in text
+    assert "broker close capability" not in data["verdict"].lower()
+    assert "broker close capability" not in data["profit_blocker"].lower()
+
+def test_phrase_detection_is_secondary_fallback_for_staked_sol(tmp_path):
+    write_csv(tmp_path / "journal_coinbase_crypto.csv", """
+timestamp,symbol,action,error
+2026-06-01T00:00:00Z,SOL/USD,WARN,User confirmed SOL is staked; externally_locked_inventory; bot cannot trade; unavailable to bot
+""")
+    data = orphan_status.run_report_json(tmp_path)
+
+    assert data["staked_external_position"] is True
+    assert data["tradable_by_bot"] is False
+    assert data["manual_close_allowed"] is False
+    assert data["bot_inventory"] is False
+    assert data["external_inventory"][0]["detection_source"] == "phrase_fallback"
+
 def test_forbidden_imports_absent():
     text = SCRIPT.read_text(encoding="utf-8")
     # Only check executable code (docstring legitimately references the report we adapted from)

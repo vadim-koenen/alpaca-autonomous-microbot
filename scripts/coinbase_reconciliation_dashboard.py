@@ -48,11 +48,35 @@ def _find_matched_fill(fills, trade_id):
     return None
 
 
+def _bool_or_none(value):
+    if isinstance(value, bool):
+        return value
+    text = str(value or "").strip().lower()
+    if text in ("true", "1", "yes", "y"):
+        return True
+    if text in ("false", "0", "no", "n"):
+        return False
+    return None
+
+
 def build_dashboard(probe_path: Path) -> Dict[str, Any]:
     probe = _safe_load_json(probe_path) or {}
 
     broker_truth = bool(probe.get("broker_read_successful"))
     sol_on_broker = probe.get("sol_on_broker")
+    staked_external_position = bool(probe.get("staked_external_position"))
+    external_inventory_classification = (
+        probe.get("external_inventory_classification")
+        or ("external_staked_position" if staked_external_position else None)
+    )
+    tradable_by_bot = _bool_or_none(probe.get("tradable_by_bot"))
+    manual_close_allowed = _bool_or_none(probe.get("manual_close_allowed"))
+    bot_inventory = _bool_or_none(probe.get("bot_inventory"))
+
+    if staked_external_position:
+        tradable_by_bot = False if tradable_by_bot is None else tradable_by_bot
+        manual_close_allowed = False if manual_close_allowed is None else manual_close_allowed
+        bot_inventory = False if bot_inventory is None else bot_inventory
 
     positions = probe.get("open_positions_on_broker") or []
     fills = probe.get("recent_fills_sample") or []
@@ -79,11 +103,13 @@ def build_dashboard(probe_path: Path) -> Dict[str, Any]:
     exit_filled = False
 
     net_pnl = entry_fee and entry_filled and exit_fee and exit_filled
-    aggregation = net_pnl and not sol_on_broker
+    aggregation = net_pnl and not sol_on_broker and not staked_external_position
     scaling = False  # policy: blocked while SOL is open or evidence incomplete
 
     status_line = "BLOCKED — profit_readout unsafe_to_aggregate"
-    if sol_on_broker:
+    if staked_external_position:
+        status_line = "BLOCKED — SOL externally staked / unavailable to bot inventory"
+    elif sol_on_broker:
         status_line = "BLOCKED — SOL still held on broker with incomplete fill facts"
     elif not broker_truth:
         status_line = "BLOCKED — broker truth unavailable"
@@ -95,6 +121,11 @@ def build_dashboard(probe_path: Path) -> Dict[str, Any]:
         "sol_status": {
             "held_on_broker": sol_on_broker,
             "qty": current_sol_qty,
+            "staked_external_position": staked_external_position,
+            "external_inventory_classification": external_inventory_classification,
+            "tradable_by_bot": tradable_by_bot,
+            "manual_close_allowed": manual_close_allowed,
+            "bot_inventory": bot_inventory,
         },
         "matched_trade": {
             "trade_id": "1f10a7cb-3fe5-4cbb-b990-f74c39529fc9" if matched else None,
@@ -110,8 +141,17 @@ def build_dashboard(probe_path: Path) -> Dict[str, Any]:
             "aggregation_allowed": aggregation,
             "scaling_allowed": scaling,
         },
-        "next_safe_action": "Continue controlled read-only capture of full historical fills for entry and exit legs. Risk increase not approved.",
-        "explicit_warning": "DO NOT SCALE RISK. DO NOT CLOSE AUTOMATICALLY.",
+        "next_safe_action": (
+            "Exclude externally staked SOL from bot-tradable inventory. Continue offline evidence work. "
+            "Risk increase not approved."
+            if staked_external_position else
+            "Continue controlled read-only capture of full historical fills for entry and exit legs. Risk increase not approved."
+        ),
+        "explicit_warning": (
+            "DO NOT SCALE RISK. DO NOT CLOSE OR REMEDIATE WHILE STAKED."
+            if staked_external_position else
+            "DO NOT SCALE RISK. DO NOT CLOSE AUTOMATICALLY."
+        ),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "probe_source": str(probe_path),
     }
@@ -137,6 +177,11 @@ def main(argv=None):
         print()
         print(f"SOL held on broker: {report['sol_status']['held_on_broker']}")
         print(f"SOL qty: {report['sol_status']['qty']}")
+        print(f"Staked external position: {report['sol_status']['staked_external_position']}")
+        print(f"External inventory classification: {report['sol_status']['external_inventory_classification']}")
+        print(f"Tradable by bot: {report['sol_status']['tradable_by_bot']}")
+        print(f"Manual close allowed: {report['sol_status']['manual_close_allowed']}")
+        print(f"Bot inventory: {report['sol_status']['bot_inventory']}")
         print()
         print(f"Matched trade entry facts complete: {report['fee_value_availability']['entry']}")
         print(f"Exit facts complete: {report['fee_value_availability']['exit']}")

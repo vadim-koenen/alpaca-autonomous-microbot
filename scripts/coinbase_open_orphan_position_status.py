@@ -67,6 +67,14 @@ def as_time(value: str) -> Optional[datetime]:
             continue
     return None
 
+def as_bool(value: str) -> Optional[bool]:
+    text = str(value or "").strip().lower()
+    if text in ("true", "1", "yes", "y"):
+        return True
+    if text in ("false", "0", "no", "n"):
+        return False
+    return None
+
 # Column key groups (extended for journal_coinbase_crypto.csv)
 SYMBOL_KEYS = ("symbol", "product_id", "product", "pair", "instrument", "ticker")
 TIME_KEYS = ("timestamp", "ts", "time", "datetime", "created_at", "filled_at", "entry_time", "exit_time")
@@ -75,6 +83,11 @@ ORDER_KEYS = ("order_id", "coinbase_order_id", "client_order_id", "buy_order_id"
 QTY_KEYS = ("quantity", "qty", "size", "filled_size", "base_size", "amount", "base_amount")
 PRICE_KEYS = ("price", "fill_price", "avg_price", "average_price", "entry_price", "exit_price")
 NOTES_KEYS = ("error", "reason", "message", "notes", "warning", "detail", "action", "decision")  # error column holds the gold phrases
+STAKED_EXTERNAL_KEYS = ("staked_external_position", "external_staked_position", "staked")
+EXTERNAL_CLASSIFICATION_KEYS = ("external_inventory_classification", "inventory_classification")
+TRADABLE_BY_BOT_KEYS = ("tradable_by_bot", "bot_tradable")
+MANUAL_CLOSE_ALLOWED_KEYS = ("manual_close_allowed", "close_allowed")
+BOT_INVENTORY_KEYS = ("bot_inventory", "bot_owned_inventory")
 
 ENTRY_TOKENS = ("buy", "entry", "open", "opened", "filled")
 EXIT_TOKENS = ("sell", "exit", "close", "closed", "max_hold", "take_profit", "stop_loss")
@@ -89,6 +102,14 @@ REASSOCIATED_PHRASES = (
 UNCERTAIN_CLOSE_PHRASES = (
     "broker close capability remains unconfirmed",
     "close capability remains unconfirmed",
+)
+EXTERNAL_STAKED_PHRASES = (
+    "external_staked_position",
+    "externally_locked_inventory",
+    "externally staked",
+    "staked",
+    "bot cannot trade",
+    "unavailable to bot",
 )
 
 ALLOWED_ROOT_FILES = ("journal_coinbase_crypto.csv", "journal.csv")
@@ -108,6 +129,11 @@ class PositionEvent:
     quantity: Optional[float]
     fill_price: Optional[float]
     notes: str
+    staked_external_position: Optional[bool]
+    external_inventory_classification: str
+    tradable_by_bot: Optional[bool]
+    manual_close_allowed: Optional[bool]
+    bot_inventory: Optional[bool]
     raw_row: Dict[str, str] = field(repr=False)
 
 @dataclass
@@ -131,6 +157,20 @@ class OrphanEvidence:
     row_number: int
 
 @dataclass
+class ExternalInventoryEvidence:
+    symbol: str
+    staked_external_position: bool
+    external_inventory_classification: str
+    tradable_by_bot: bool
+    manual_close_allowed: bool
+    bot_inventory: bool
+    detection_source: str
+    timestamp_raw: str
+    notes: str
+    source: str
+    row_number: int
+
+@dataclass
 class CloseCapabilityStatus:
     confirmed_closeable: bool = False
     unconfirmed: bool = False
@@ -142,6 +182,7 @@ class Report:
     verdict: str
     open_positions: List[OpenPosition]
     orphan_evidence: List[OrphanEvidence]
+    external_inventory: List[ExternalInventoryEvidence]
     close_capability: CloseCapabilityStatus
     profit_blocker: str
     symbols_with_issues: List[str]
@@ -195,6 +236,11 @@ def to_event(source: Path, row_number: int, row: Dict[str, str]) -> PositionEven
     qty = as_float(first(row, QTY_KEYS))
     price = as_float(first(row, PRICE_KEYS + ("fill_price",)))
     notes = first(row, NOTES_KEYS)
+    explicit_staked = as_bool(first(row, STAKED_EXTERNAL_KEYS))
+    classification = first(row, EXTERNAL_CLASSIFICATION_KEYS)
+    tradable = as_bool(first(row, TRADABLE_BY_BOT_KEYS))
+    manual_close = as_bool(first(row, MANUAL_CLOSE_ALLOWED_KEYS))
+    bot_inventory = as_bool(first(row, BOT_INVENTORY_KEYS))
     return PositionEvent(
         source=source,
         row_number=row_number,
@@ -207,6 +253,11 @@ def to_event(source: Path, row_number: int, row: Dict[str, str]) -> PositionEven
         quantity=qty,
         fill_price=price,
         notes=notes,
+        staked_external_position=explicit_staked,
+        external_inventory_classification=classification,
+        tradable_by_bot=tradable,
+        manual_close_allowed=manual_close,
+        bot_inventory=bot_inventory,
         raw_row=row,
     )
 
@@ -237,6 +288,54 @@ def detect_orphan_evidence(events: Sequence[PositionEvent]) -> List[OrphanEviden
                     row_number=ev.row_number,
                 ))
     return orphans
+
+def detect_external_inventory(events: Sequence[PositionEvent]) -> List[ExternalInventoryEvidence]:
+    """Detect inventory that is explicitly unavailable to the bot.
+
+    Structured columns are authoritative. Phrase detection is a secondary
+    backward-compatible fallback for older local journals/reports.
+    """
+    evidence: List[ExternalInventoryEvidence] = []
+    seen = set()
+    for ev in events:
+        text = " ".join([ev.notes or "", ev.external_inventory_classification or ""]).lower()
+        explicit = (
+            ev.staked_external_position is True or
+            (ev.external_inventory_classification or "").lower() in (
+                "external_staked_position",
+                "externally_locked_inventory",
+            ) or
+            ev.tradable_by_bot is False or
+            ev.manual_close_allowed is False or
+            ev.bot_inventory is False
+        )
+        phrase_fallback = (
+            "SOL" in (ev.symbol or "").upper() and
+            any(phrase in text for phrase in EXTERNAL_STAKED_PHRASES)
+        )
+        if not (explicit or phrase_fallback):
+            continue
+        classification = (ev.external_inventory_classification or "external_staked_position").lower()
+        if classification not in ("external_staked_position", "externally_locked_inventory"):
+            classification = "external_staked_position"
+        item = ExternalInventoryEvidence(
+            symbol=ev.symbol or "UNKNOWN",
+            staked_external_position=True,
+            external_inventory_classification=classification,
+            tradable_by_bot=False if ev.tradable_by_bot is None else ev.tradable_by_bot,
+            manual_close_allowed=False if ev.manual_close_allowed is None else ev.manual_close_allowed,
+            bot_inventory=False if ev.bot_inventory is None else ev.bot_inventory,
+            detection_source="structured" if explicit else "phrase_fallback",
+            timestamp_raw=ev.timestamp_raw,
+            notes=ev.notes,
+            source=str(ev.source),
+            row_number=ev.row_number,
+        )
+        key = (item.symbol, item.external_inventory_classification, item.source, item.row_number)
+        if key not in seen:
+            seen.add(key)
+            evidence.append(item)
+    return evidence
 
 def find_open_positions(events: Sequence[PositionEvent]) -> List[OpenPosition]:
     """Very simple heuristic: for each ENTRY, look for any later EXIT on same symbol.
@@ -275,7 +374,18 @@ def find_open_positions(events: Sequence[PositionEvent]) -> List[OpenPosition]:
                 ))
     return opens
 
-def compute_close_capability(orphans: Sequence[OrphanEvidence], opens: Sequence[OpenPosition]) -> CloseCapabilityStatus:
+def compute_close_capability(
+    orphans: Sequence[OrphanEvidence],
+    opens: Sequence[OpenPosition],
+    external_inventory: Sequence[ExternalInventoryEvidence] = (),
+) -> CloseCapabilityStatus:
+    if external_inventory and not opens and not orphans:
+        return CloseCapabilityStatus(
+            confirmed_closeable=False,
+            unconfirmed=False,
+            failed_close_attempts_seen=0,
+            manual_review_required=False,
+        )
     status = CloseCapabilityStatus()
     for o in orphans:
         n = o.notes.lower()
@@ -297,7 +407,14 @@ def compute_close_capability(orphans: Sequence[OrphanEvidence], opens: Sequence[
         status.manual_review_required = len(opens) > 0
     return status
 
-def build_verdict(opens: Sequence[OpenPosition], orphans: Sequence[OrphanEvidence], status: CloseCapabilityStatus) -> str:
+def build_verdict(
+    opens: Sequence[OpenPosition],
+    orphans: Sequence[OrphanEvidence],
+    status: CloseCapabilityStatus,
+    external_inventory: Sequence[ExternalInventoryEvidence] = (),
+) -> str:
+    if any("SOL" in e.symbol.upper() and e.staked_external_position for e in external_inventory):
+        return "BLOCKED — SOL/USD externally staked / unavailable to bot inventory"
     if orphans or any("SOL" in o.symbol for o in opens):
         return "BLOCKED — unresolved SOL/USD broker close capability / dropped position evidence present"
     if opens:
@@ -306,7 +423,15 @@ def build_verdict(opens: Sequence[OpenPosition], orphans: Sequence[OrphanEvidenc
         return "WARN — broker close capability unconfirmed on historical positions"
     return "PASS — no open or orphan position blockers detected in local journals"
 
-def build_profit_blocker(opens: Sequence[OpenPosition], orphans: Sequence[OrphanEvidence]) -> str:
+def build_profit_blocker(
+    opens: Sequence[OpenPosition],
+    orphans: Sequence[OrphanEvidence],
+    external_inventory: Sequence[ExternalInventoryEvidence] = (),
+) -> str:
+    if any("SOL" in e.symbol.upper() and e.staked_external_position for e in external_inventory):
+        return ("Realized P/L remains unsafe-to-aggregate. SOL/USD is externally staked "
+                "and unavailable to bot inventory, so the bot must not trade it or infer "
+                "realized P/L from it.")
     if opens or orphans:
         return ("Realized P/L and outcome scoring remain unsafe-to-aggregate. "
                 "Open/orphan positions (especially SOL/USD re-associated with unconfirmed broker close) "
@@ -317,12 +442,13 @@ def build_profit_blocker(opens: Sequence[OpenPosition], orphans: Sequence[Orphan
 def run_report(root: Path) -> str:
     root = root.resolve()
     events = scan_events(root)
+    external_inventory = detect_external_inventory(events)
     orphans = detect_orphan_evidence(events)
     opens = find_open_positions(events)
-    close_status = compute_close_capability(orphans, opens)
-    verdict = build_verdict(opens, orphans, close_status)
-    blocker = build_profit_blocker(opens, orphans)
-    symbols = sorted(set(o.symbol for o in opens) | set(o.symbol for o in orphans))
+    close_status = compute_close_capability(orphans, opens, external_inventory)
+    verdict = build_verdict(opens, orphans, close_status, external_inventory)
+    blocker = build_profit_blocker(opens, orphans, external_inventory)
+    symbols = sorted(set(o.symbol for o in opens) | set(o.symbol for o in orphans) | set(e.symbol for e in external_inventory))
 
     lines: List[str] = []
     lines.append("=== Coinbase Open / Orphan Position Status Report (read-only, local journals only) ===")
@@ -355,17 +481,31 @@ def run_report(root: Path) -> str:
     lines.append("")
 
     lines.append("--- 4. Close capability status ---")
+    if external_inventory:
+        lines.append("  staked_inventory_note: do not close/remediate while staked")
     lines.append(f"  confirmed_closeable: {close_status.confirmed_closeable}")
     lines.append(f"  unconfirmed: {close_status.unconfirmed}")
     lines.append(f"  failed_close_attempts_seen: {close_status.failed_close_attempts_seen}")
     lines.append(f"  manual_review_required: {close_status.manual_review_required}")
     lines.append("")
 
-    lines.append("--- 5. Profit / readout blocker ---")
+    lines.append("--- 5. External / locked inventory ---")
+    if external_inventory:
+        for e in external_inventory:
+            lines.append(f"  SYMBOL={e.symbol} | externally staked / unavailable to bot | "
+                         f"classification={e.external_inventory_classification} | "
+                         f"tradable_by_bot={e.tradable_by_bot} | "
+                         f"manual_close_allowed={e.manual_close_allowed} | "
+                         f"bot_inventory={e.bot_inventory} | source={e.source}:{e.row_number}")
+    else:
+        lines.append("  No external locked inventory evidence detected.")
+    lines.append("")
+
+    lines.append("--- 6. Profit / readout blocker ---")
     lines.append(blocker)
     lines.append("")
 
-    lines.append("--- 6. Machine-readable (use --json) ---")
+    lines.append("--- 7. Machine-readable (use --json) ---")
     lines.append("Run with --json for structured output suitable for dashboards.")
     lines.append("")
 
@@ -375,24 +515,36 @@ def run_report(root: Path) -> str:
 def run_report_json(root: Path) -> Dict[str, Any]:
     root = root.resolve()
     events = scan_events(root)
+    external_inventory = detect_external_inventory(events)
     orphans = detect_orphan_evidence(events)
     opens = find_open_positions(events)
-    close_status = compute_close_capability(orphans, opens)
-    verdict = build_verdict(opens, orphans, close_status)
-    blocker = build_profit_blocker(opens, orphans)
-    symbols = sorted(set(o.symbol for o in opens) | set(o.symbol for o in orphans))
+    close_status = compute_close_capability(orphans, opens, external_inventory)
+    verdict = build_verdict(opens, orphans, close_status, external_inventory)
+    blocker = build_profit_blocker(opens, orphans, external_inventory)
+    symbols = sorted(set(o.symbol for o in opens) | set(o.symbol for o in orphans) | set(e.symbol for e in external_inventory))
+    sol_external = any("SOL" in e.symbol.upper() and e.staked_external_position for e in external_inventory)
+
+    note = "Read-only local analysis only. Profit and close actions remain unsafe until direct broker facts confirm resolution."
+    if sol_external:
+        note = "Read-only local analysis only. Staked SOL is unavailable to bot inventory; do not close/remediate while staked."
 
     return {
         "verdict": verdict,
         "open_positions": [asdict(o) for o in opens],
         "orphan_evidence": [asdict(o) for o in orphans],
+        "external_inventory": [asdict(e) for e in external_inventory],
+        "staked_external_position": sol_external,
+        "external_inventory_classification": "external_staked_position" if sol_external else None,
+        "tradable_by_bot": False if sol_external else None,
+        "manual_close_allowed": False if sol_external else None,
+        "bot_inventory": False if sol_external else None,
         "close_capability": asdict(close_status),
         "profit_blocker": blocker,
         "symbols_with_issues": symbols,
         "manual_review_required": close_status.manual_review_required or bool(opens) or bool(orphans),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "root": str(root),
-        "note": "Read-only local analysis only. Profit and close actions remain unsafe until direct broker facts confirm resolution.",
+        "note": note,
     }
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
