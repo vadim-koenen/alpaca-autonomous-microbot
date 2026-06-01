@@ -454,7 +454,7 @@ fee_model:
 ## 6. Git State (as of last update)
 
 ```
-Latest functional patch commit: `061fabc`
+Latest functional patch commit: `d67c37c`
 Commit hashes for handoff updates should be verified with `git log`; this file intentionally avoids storing a self-referential handoff commit hash.
 Clean: no dirty tracked files (except handoff update)
 
@@ -617,3 +617,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 | head=2f2ab7a | P2-015A complete; Added explicit opt-in read-only Coinbase live broker reconciliation probe. Default mode performs zero broker/API calls; --live-read-only required for live reads. Default JSON is valid and reports BLOCKED, profit_readout=unsafe_to_aggregate, live_read_only=false, broker_calls_made=false. No runtime/config/order/risk/strategy changes, no order/close/cancel/modify calls, no file mutations, no fill logger writes, no leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
 - 2026-05-31 | head=c9d8f05 | P2-015B complete; Fixed Coinbase live probe BrokerCoinbase adapter compatibility and unknown-state semantics. Default mode remains zero broker/API calls. When no successful broker read occurs, sol_on_broker and eth_on_broker are null/unknown, not false. No runtime/config/order/risk/strategy changes, no order/close/cancel/modify calls, no file mutations, no fill logger writes, no leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
 - 2026-05-31 | head=061fabc | P2-016A complete; Added Grok Controlled Autonomy execution protocol and external signal context plan. External syndicated crypto/news/trend layer preserved for later as advisory-only after broker truth/direct P&L truth. Docs-only; no runtime/config/order/risk/strategy changes; no broker API calls; no fill logger writes; no leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
+- 2026-05-31 | head=d67c37c | P2-016B complete; Added safe zero-network Coinbase live-readiness diagnostic (redacted credential presence, adapter/import status, text/JSON). Default mode zero broker/network calls. Current verdict BLOCKED due to missing COINBASE_API_KEY/SECRET. No runtime/config/order/risk/strategy changes, no secrets printed, no fill logger writes, no leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
