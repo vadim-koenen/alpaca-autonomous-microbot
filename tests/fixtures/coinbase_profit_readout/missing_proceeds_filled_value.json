@@ -1,0 +1,47 @@
+{
+  "broker_read_successful": true,
+  "staked_external_position": false,
+  "bot_inventory": true,
+  "evidence_cycles": [
+    {
+      "cycle_id": "btc-cycle-missing-value",
+      "product_id": "BTC-USD",
+      "entry": {
+        "order": {
+          "order_id": "entry-order-003",
+          "product_id": "BTC-USD",
+          "side": "BUY",
+          "total_fees": "0.39"
+        },
+        "fills": [
+          {
+            "trade_id": "entry-fill-003",
+            "order_id": "entry-order-003",
+            "side": "BUY",
+            "size": "0.001",
+            "price": "65000.00",
+            "fee": "0.39"
+          }
+        ]
+      },
+      "exit": {
+        "order": {
+          "order_id": "exit-order-003",
+          "product_id": "BTC-USD",
+          "side": "SELL",
+          "total_fees": "0.40"
+        },
+        "fills": [
+          {
+            "trade_id": "exit-fill-003",
+            "order_id": "exit-order-003",
+            "side": "SELL",
+            "size": "0.001",
+            "price": "65100.00",
+            "fee": "0.40"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "broker_read_successful": false,
+  "staked_external_position": false,
+  "bot_inventory": true,
+  "local_journal_only_pnl": true,
+  "journal_rows": [
+    {
+      "timestamp": "2026-06-01T00:00:00Z",
+      "symbol": "BTC/USD",
+      "side": "SELL",
+      "realized_pnl": "0.42",
+      "notes": "Local journal estimate only; not direct broker evidence"
+    }
+  ]
+}

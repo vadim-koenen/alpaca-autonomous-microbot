@@ -1,5 +1,43 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-021A review — profit readout direct evidence resolver
+
+**Branch:** `review/p2-021a-profit-readout-evidence-resolver`
+
+P2-021A adds an offline-only profit readout evidence resolver:
+
+- `scripts/coinbase_profit_readout_evidence_resolver.py`
+- direct broker evidence fixtures under `tests/fixtures/coinbase_profit_readout/`
+- `tests/test_coinbase_profit_readout_evidence_resolver.py`
+- `docs/PROFIT_READOUT_EVIDENCE_RESOLUTION.md`
+
+The resolver keeps `profit_readout=unsafe_to_aggregate` unless closed bot-owned
+entry+exit cycles contain direct order ids, fill/trade ids, direct fees, and
+direct proceeds/filled_value for both legs.
+
+Complete direct broker evidence can produce:
+
+- `profit_readout=measured_broker_backed_limited`
+- `aggregation_allowed=true` for the supplied closed cycles only
+- `scaling_allowed=false` because risk increase remains not approved
+
+Preserved blockers and safety:
+
+- staked SOL remains external locked inventory, not bot inventory
+- local journal P/L never unlocks aggregation
+- incomplete direct evidence stays `unsafe_to_aggregate`
+- no live broker calls
+- no `--live-read-only`
+- no `.env` or secrets
+- no order/cancel/close/modify
+- no runtime/risk/config/background changes
+- no state/log mutation
+- no `logs/coinbase_fills.csv` writes
+- no `append_coinbase_fill_row` activation
+- risk increase not approved
+
+---
+
 ## P2-020A review — staked SOL external inventory semantics
 
 **Branch:** `review/p2-020a-staked-sol-external-inventory`

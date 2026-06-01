@@ -1,0 +1,63 @@
+{
+  "broker_read_successful": true,
+  "staked_external_position": false,
+  "bot_inventory": true,
+  "evidence_cycles": [
+    {
+      "cycle_id": "btc-cycle-001",
+      "product_id": "BTC-USD",
+      "entry": {
+        "order": {
+          "order_id": "entry-order-001",
+          "client_order_id": "client-entry-001",
+          "product_id": "BTC-USD",
+          "side": "BUY",
+          "status": "FILLED",
+          "filled_size": "0.001",
+          "average_filled_price": "65000.00",
+          "filled_value": "65.00",
+          "total_fees": "0.39"
+        },
+        "fills": [
+          {
+            "trade_id": "entry-fill-001",
+            "order_id": "entry-order-001",
+            "product_id": "BTC-USD",
+            "side": "BUY",
+            "size": "0.001",
+            "price": "65000.00",
+            "fee": "0.39",
+            "filled_value": "65.00",
+            "time": "2026-06-01T00:00:00Z"
+          }
+        ]
+      },
+      "exit": {
+        "order": {
+          "order_id": "exit-order-001",
+          "client_order_id": "client-exit-001",
+          "product_id": "BTC-USD",
+          "side": "SELL",
+          "status": "FILLED",
+          "filled_size": "0.001",
+          "average_filled_price": "65100.00",
+          "filled_value": "65.10",
+          "total_fees": "0.40"
+        },
+        "fills": [
+          {
+            "trade_id": "exit-fill-001",
+            "order_id": "exit-order-001",
+            "product_id": "BTC-USD",
+            "side": "SELL",
+            "size": "0.001",
+            "price": "65100.00",
+            "fee": "0.40",
+            "filled_value": "65.10",
+            "time": "2026-06-01T00:10:00Z"
+          }
+        ]
+      }
+    }
+  ]
+}
