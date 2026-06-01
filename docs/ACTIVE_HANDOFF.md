@@ -1,5 +1,21 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-019B complete — reconciliation JSON contract registry (GREEN)
+
+**Branch:** `review/p2-019b-reconciliation-json-contracts`
+
+**Functional patch commit:** `0864be5`
+
+P2-019B added:
+- `docs/RECONCILIATION_JSON_CONTRACTS.md` — stable top-level field contracts for all main reconciliation scripts
+- `tests/test_reconciliation_json_contracts.py` — lightweight offline validation
+
+The document explicitly marks P2-017D and P2-018E scripts as review-only only (not on main).
+
+Pure GREEN (docs + offline tests).
+
+---
+
 ## P2-019A complete — unmerged review branch audit pack (GREEN docs-only)
 
 **Branch:** `review/p2-019a-unmerged-review-branch-audit-pack`
