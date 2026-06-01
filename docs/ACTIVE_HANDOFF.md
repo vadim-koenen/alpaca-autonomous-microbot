@@ -1,5 +1,26 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-018A complete — BROKER_TRUTH_AND_PL_EVIDENCE_GATE runbook (GREEN docs-only)
+
+**Branch:** `review/p2-018a-broker-truth-evidence-gate-runbook`
+
+**Functional patch commit:** `0253cae`
+
+P2-018A added the authoritative evidence ladder document:
+
+- `docs/BROKER_TRUTH_AND_PL_EVIDENCE_GATE.md`
+- Defines L0–L5 evidence levels required before `profit_readout` can leave `unsafe_to_aggregate`
+- Explicitly documents current state (SOL held, fee/filled_value missing, net_pnl_available=false)
+- Prohibits treating zero-qty rows as fills, using avg_entry_price=0, risk scaling while blockers exist
+- Requires explicit human approval for any manual remediation/close of the open SOL position
+- Gate enforcement language for all future patches
+
+This is pure docs-only (GREEN). No runtime, config, risk, order, or background behavior changed.
+
+Verification passed: git diff --check clean, required strings present, clean fast-forward merge to main.
+
+---
+
 ## P2-017C complete — read-only Coinbase full fill payload/proceeds field discovery for matched SOL lot
 
 **Branch:** `review/p2-017c-coinbase-fill-payload-field-discovery`
