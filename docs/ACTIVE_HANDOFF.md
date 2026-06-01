@@ -1,5 +1,44 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-017D in progress (YELLOW) — controlled read-only Coinbase full fill payload capture for matched SOL trade ID
+
+**Branch:** `review/p2-017d-coinbase-full-fill-payload-capture`
+
+**Classification:** YELLOW — read-only diagnostics + controlled opt-in live read-only capture + tests + handoff note only. MUST NOT self-merge. Push review branch only.
+
+P2-017D adds a controlled, opt-in read-only capture tool that can request richer Coinbase fill/order payloads for the specific matched open SOL trade (trade_id=1f10a7cb-3fe5-4cbb-b990-f74c39529fc9, SOL-USD BUY) using only existing safe broker methods (get_historical_fills, get_order_status, etc.).
+
+New artifacts:
+- `scripts/coinbase_full_fill_payload_capture.py`
+- `tests/test_coinbase_full_fill_payload_capture.py`
+
+The script:
+- Default/offline mode: analyzes the probe JSON recent_fills_sample row only (no broker, no .env).
+- --live-read-only (explicit opt-in): uses only read-only broker methods to fetch deeper payloads for the trade/product.
+- Always sanitizes/redacts long IDs and account-like values in output.
+- Never writes raw payloads to the repo.
+- Keeps profit_readout=unsafe_to_aggregate and net_pnl_available=false (exit leg still missing).
+
+**Current verified readout (main before branch = 4410fe6):**
+- main HEAD before this branch: 4410fe6
+- trade_id: 1f10a7cb-3fe5-4cbb-b990-f74c39529fc9 (SOL-USD BUY, size 0.0122504 @ 81.63)
+- Current broker SOL position: qty=0.0122504, market_value=1.0134755, price=82.715
+- profit_readout: unsafe_to_aggregate
+- direct fee and filled_value still unavailable from prior samples (P2-017C)
+- risk increase: not approved
+- next action: controlled deeper read-only full payload capture for the matched trade_id (not scaling or closing)
+
+**Safety (re-asserted on review branch):**
+- Default mode: zero broker calls, zero .env, zero mutations.
+- Live mode: explicit --live-read-only flag only; exactly one controlled call allowed during final verification after sourcing .env.
+- No append_coinbase_fill_row, no logs/coinbase_fills.csv, no state mutation.
+- No strategy/risk/sizing/config/runtime/LaunchAgent changes.
+- Output is always sanitized; raw payloads are never persisted in the repo.
+
+All verification commands must pass. The single live read-only capture (if performed) must be sanitized and documented.
+
+---
+
 ## P2-017C complete — read-only Coinbase full fill payload/proceeds field discovery for matched SOL lot
 
 **Branch:** `review/p2-017c-coinbase-fill-payload-field-discovery`
