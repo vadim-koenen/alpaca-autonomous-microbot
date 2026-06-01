@@ -1,5 +1,22 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-019D complete — operator daily digest generator, offline only (GREEN)
+
+**Branch:** `review/p2-019d-offline-operator-daily-digest`
+
+**Functional patch commit:** `0e20afc`
+
+P2-019D added a lightweight offline daily digest:
+
+- `scripts/operator_daily_digest.py`
+- `tests/test_operator_daily_digest.py`
+
+Produces text + JSON with current gate status and explicit safety warnings.
+
+Pure GREEN (read-only).
+
+---
+
 ## P2-019C complete — offline golden reconciliation regression runner (GREEN)
 
 **Branch:** `review/p2-019c-offline-golden-reconciliation-regression-runner`
