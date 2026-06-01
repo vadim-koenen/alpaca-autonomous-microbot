@@ -1,5 +1,19 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-019E complete — manual SOL remediation decision tree runbook (GREEN docs-only)
+
+**Branch:** `review/p2-019e-manual-sol-remediation-decision-tree`
+
+**Functional patch commit:** `bb1846b`
+
+P2-019E added `docs/SOL_MANUAL_REMEDIATION_DECISION_TREE.md`.
+
+Documents the safe human decision flow for the unresolved SOL position, explicit prohibitions, and required evidence (direct entry + exit facts + human approval) before the blocker can be cleared.
+
+Pure GREEN docs-only.
+
+---
+
 ## P2-019D complete — operator daily digest generator, offline only (GREEN)
 
 **Branch:** `review/p2-019d-offline-operator-daily-digest`
