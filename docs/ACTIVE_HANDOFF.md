@@ -1,5 +1,51 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-017B in progress (YELLOW) — read-only Coinbase fill/position lifecycle reconciliation report
+
+**Branch:** `review/p2-017b-coinbase-fill-position-lifecycle-reconciliation`
+
+**Classification:** YELLOW — read-only diagnostics/reporting + new script + tests + handoff note only. MUST NOT self-merge. Push review branch only.
+
+P2-017B adds a focused read-only lifecycle report that consumes a hardened live broker probe JSON and answers whether recent fills in the broker sample can explain the currently held SOL position reported by the exchange.
+
+New artifacts:
+- `scripts/coinbase_fill_position_lifecycle_reconciliation.py`
+- `tests/test_coinbase_fill_position_lifecycle_reconciliation.py`
+
+The report:
+- Parses open_positions_on_broker and recent_fills_sample from the probe.
+- Normalizes SOL-USD ↔ SOL/USD product IDs.
+- Detects exact/near-exact size match between current broker SOL long and a recent BUY fill.
+- Emits only clearly labeled **provisional estimates** (gross_cost = size × price for the matched BUY; gross_unrealized_pnl = current_market_value − gross_cost).
+- Explicitly reports `fees_available=false`, `filled_value_available=false`, `net_pnl_available=false` when those fields are null/missing in the sample.
+- Keeps `profit_readout=unsafe_to_aggregate` and `verdict=BLOCKED` (SOL still held on broker).
+- Excludes zero-qty journal rows by design (they are never treated as real fills).
+
+**Current verified readout (from hardened live probe /tmp/coinbase_live_probe_hardened_current.json as of P2-017B):**
+- broker_truth_available: true
+- SOL held on broker: true
+- SOL qty: 0.0122504
+- SOL market value: ~1.0134755 (current_price ~82.715)
+- Likely matching recent BUY (exact size): trade_id=1f10a7cb-3fe5-4cbb-b990-f74c39529fc9, size=0.0122504, price=81.63
+- Provisional gross cost estimate: ~1.00000
+- Provisional gross unrealized PnL estimate: ~+0.013475
+- Fees and filled_value: missing (None) in the recent_fills_sample for the candidate entry
+- Recent fills sample: 20 rows (SOL + ETH)
+- open orders: 0
+- Local journal: 92 recent SOL/ETH rows, 51 zero-qty rows (zero-qty rows excluded from all calculations)
+- Official profit_readout: unsafe_to_aggregate (no direct per-fill fee or filled_value/proceeds truth yet)
+- Risk increase: not approved
+- Next action: reconciliation (capture full historical fills for the matched trade_id + any prior lots to obtain stable fee + proceeds). Do not scale, do not close the SOL position until lifecycle is proven with direct broker facts.
+
+**Safety (re-asserted on review branch):**
+- Zero broker calls, zero .env reads, zero file mutations in the new script and tests.
+- No append_coinbase_fill_row, no logs/coinbase_fills.csv writes.
+- No strategy/risk/sizing/config/runtime/LaunchAgent changes.
+
+All verification commands must pass using the pre-existing hardened probe JSON only. No --live-read-only during this patch.
+
+---
+
 ## P2-017A complete — Coinbase live broker-truth probe schema hardening + read-only reconciliation summary
 
 **Branch:** `review/p2-017a-coinbase-broker-truth-schema-and-summary`
