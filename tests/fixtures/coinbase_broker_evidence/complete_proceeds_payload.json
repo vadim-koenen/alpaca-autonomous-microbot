@@ -1,0 +1,44 @@
+{
+  "broker_read_successful": true,
+  "cycle_id": "proceeds-cycle",
+  "product_id": "ETH-USD",
+  "bot_inventory": true,
+  "entry_order": {
+    "order_id": "entry-order-proceeds",
+    "product_id": "ETH-USD",
+    "side": "BUY",
+    "status": "FILLED",
+    "filled_value": "31.00",
+    "total_fees": "0.19"
+  },
+  "exit_order": {
+    "order_id": "exit-order-proceeds",
+    "product_id": "ETH-USD",
+    "side": "SELL",
+    "status": "FILLED",
+    "proceeds": "31.40",
+    "commission": "0.20"
+  },
+  "historical_fills": [
+    {
+      "fill_id": "entry-fill-proceeds",
+      "order_id": "entry-order-proceeds",
+      "product_id": "ETH-USD",
+      "side": "BUY",
+      "size": "0.01",
+      "price": "3100.00",
+      "fee": "0.19",
+      "proceeds": "31.00"
+    },
+    {
+      "fill_id": "exit-fill-proceeds",
+      "order_id": "exit-order-proceeds",
+      "product_id": "ETH-USD",
+      "side": "SELL",
+      "size": "0.01",
+      "price": "3140.00",
+      "fee": "0.20",
+      "proceeds": "31.40"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "broker_read_successful": true,
+  "cycle_id": "commission-cycle",
+  "product_id": "BTC-USD",
+  "bot_inventory": true,
+  "orders": [
+    {
+      "order_id": "entry-order-commission",
+      "client_order_id": "client-entry-commission",
+      "product_id": "BTC-USD",
+      "side": "BUY",
+      "status": "FILLED",
+      "filled_value": "65.00",
+      "total_fees": "0.39"
+    },
+    {
+      "order_id": "exit-order-commission",
+      "client_order_id": "client-exit-commission",
+      "product_id": "BTC-USD",
+      "side": "SELL",
+      "status": "FILLED",
+      "filled_value": "65.20",
+      "total_fees": "0.40"
+    }
+  ],
+  "list_fills": [
+    {
+      "entry_id": "entry-fill-commission",
+      "order_id": "entry-order-commission",
+      "product_id": "BTC-USD",
+      "side": "BUY",
+      "size": "0.001",
+      "price": "65000.00",
+      "commission": "0.39",
+      "filled_value": "65.00"
+    },
+    {
+      "entry_id": "exit-fill-commission",
+      "order_id": "exit-order-commission",
+      "product_id": "BTC-USD",
+      "side": "SELL",
+      "size": "0.001",
+      "price": "65200.00",
+      "commission": "0.40",
+      "filled_value": "65.20"
+    }
+  ]
+}

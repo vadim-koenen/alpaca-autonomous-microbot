@@ -1,0 +1,14 @@
+{
+  "broker_read_successful": false,
+  "bot_inventory": true,
+  "local_journal_only_pnl": true,
+  "journal_rows": [
+    {
+      "timestamp": "2026-06-01T00:00:00Z",
+      "symbol": "BTC/USD",
+      "action": "SELL",
+      "realized_pnl": "0.52",
+      "notes": "Local estimate only"
+    }
+  ]
+}

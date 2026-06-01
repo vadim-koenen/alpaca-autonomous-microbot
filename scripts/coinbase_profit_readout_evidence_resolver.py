@@ -242,8 +242,7 @@ def _bool_or_default(value: Any, default: bool) -> bool:
     return default
 
 
-def build_report(probe_path: Path) -> Dict[str, Any]:
-    probe = _safe_load_json(probe_path)
+def build_report_from_probe(probe: Dict[str, Any], probe_source: str = "<memory>") -> Dict[str, Any]:
     staked_external_position = _bool_or_default(probe.get("staked_external_position"), False)
     bot_inventory = _bool_or_default(probe.get("bot_inventory"), not staked_external_position)
     local_journal_only_pnl = _contains_local_journal_only_pnl(probe)
@@ -354,7 +353,7 @@ def build_report(probe_path: Path) -> Dict[str, Any]:
         "local_journal_only_pnl": local_journal_only_pnl,
         "cycle_reports": cycle_reports,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "probe_source": str(probe_path),
+        "probe_source": probe_source,
         "safety": {
             "offline_only": True,
             "broker_calls_made": False,
@@ -366,6 +365,11 @@ def build_report(probe_path: Path) -> Dict[str, Any]:
             "risk_increase": "not_approved",
         },
     }
+
+
+def build_report(probe_path: Path) -> Dict[str, Any]:
+    probe = _safe_load_json(probe_path)
+    return build_report_from_probe(probe, str(probe_path))
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:

@@ -1,0 +1,38 @@
+{
+  "broker_read_successful": true,
+  "cycle_id": "missing-id-cycle",
+  "product_id": "BTC-USD",
+  "bot_inventory": true,
+  "orders": [
+    {
+      "product_id": "BTC-USD",
+      "side": "BUY",
+      "filled_value": "65.00",
+      "total_fees": "0.39"
+    },
+    {
+      "product_id": "BTC-USD",
+      "side": "SELL",
+      "filled_value": "65.20",
+      "total_fees": "0.40"
+    }
+  ],
+  "fills": [
+    {
+      "product_id": "BTC-USD",
+      "side": "BUY",
+      "size": "0.001",
+      "price": "65000.00",
+      "fee": "0.39",
+      "filled_value": "65.00"
+    },
+    {
+      "product_id": "BTC-USD",
+      "side": "SELL",
+      "size": "0.001",
+      "price": "65200.00",
+      "fee": "0.40",
+      "filled_value": "65.20"
+    }
+  ]
+}
