@@ -1,5 +1,27 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-018D complete — operator reconciliation dashboard, offline only (GREEN)
+
+**Branch:** `review/p2-018d-offline-reconciliation-dashboard`
+
+**Functional patch commit:** `de2f9de`
+
+P2-018D added a strictly offline one-page reconciliation dashboard:
+
+- `scripts/coinbase_reconciliation_dashboard.py`
+- `tests/test_coinbase_reconciliation_dashboard.py`
+
+Produces clear operator output including:
+- Current blocker state
+- SOL status
+- Fee/value availability
+- Explicit "DO NOT SCALE RISK. DO NOT CLOSE AUTOMATICALLY." warning
+- Next safe action
+
+Pure GREEN (read-only, no broker/.env/writes).
+
+---
+
 ## P2-018C complete — offline reconciliation fixture pack (GREEN)
 
 **Branch:** `review/p2-018c-reconciliation-fixtures-and-regression-tests`
