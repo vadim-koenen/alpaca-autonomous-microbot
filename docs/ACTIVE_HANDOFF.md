@@ -1,5 +1,27 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-017D refreshed from current main
+
+**Branch:** `review/p2-017d-refresh-full-fill-payload-capture`
+
+Imported only:
+- `scripts/coinbase_full_fill_payload_capture.py`
+- `tests/test_coinbase_full_fill_payload_capture.py`
+
+Explicitly did not import stale `docs/ACTIVE_HANDOFF.md` from `f8dc271`.
+
+Offline-only verification passed.
+
+No live broker calls, no `--live-read-only`, no `.env` reads, no order/cancel/close/modify, no runtime/risk/config/background/state/log mutations.
+
+Preserved readout:
+- `profit_readout=unsafe_to_aggregate`
+- `aggregation_allowed=false`
+- `scaling_allowed=false`
+- risk increase not approved
+
+---
+
 ## P2-019H complete — second overnight handoff pack (GREEN docs-only)
 
 **Branch:** `review/p2-019h-second-overnight-handoff-pack`
