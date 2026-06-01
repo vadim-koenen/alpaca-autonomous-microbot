@@ -1,5 +1,21 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-019F complete — redaction and sensitive-field policy for broker payloads (GREEN)
+
+**Branch:** `review/p2-019f-broker-payload-redaction-policy`
+
+**Functional patch commit:** `8b2380a`
+
+P2-019F added:
+- `docs/BROKER_PAYLOAD_REDACTION_POLICY.md`
+- `scripts/redact_broker_payload.py` + tests
+
+Defines mandatory redaction rules for sensitive broker fields (account_id, secrets, long identifiers, etc.) and provides a simple offline helper.
+
+Pure GREEN.
+
+---
+
 ## P2-019E complete — manual SOL remediation decision tree runbook (GREEN docs-only)
 
 **Branch:** `review/p2-019e-manual-sol-remediation-decision-tree`
