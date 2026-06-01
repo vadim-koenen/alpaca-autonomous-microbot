@@ -1,5 +1,32 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-018C complete — offline reconciliation fixture pack (GREEN)
+
+**Branch:** `review/p2-018c-reconciliation-fixtures-and-regression-tests`
+
+**Functional patch commit:** `8f7c680`
+
+P2-018C added a set of offline synthetic fixtures for long-term regression safety:
+
+- tests/fixtures/coinbase_reconciliation/
+  - sol_open_missing_fee_value.json
+  - sol_entry_exit_direct_facts_complete.json
+  - sol_zero_qty_noise_rows.csv
+  - broker_truth_unavailable.json
+  - malformed_fill_payloads.json
+
+- tests/test_coinbase_reconciliation_fixtures.py (5 tests)
+
+These fixtures protect critical invariants:
+- Zero-qty rows must never be treated as real fills
+- Missing fee/filled_value keeps the evidence gate blocked
+- Malformed payloads must not crash consumers
+- Direct entry+exit facts are the threshold for aggregation eligibility (in test scenarios)
+
+This is pure GREEN (fixtures + tests only).
+
+---
+
 ## P2-018B complete — offline P/L evidence gate checker (GREEN)
 
 **Branch:** `review/p2-018b-offline-pl-evidence-gate-checker`
