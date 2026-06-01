@@ -1,5 +1,21 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-018F complete — overnight final handoff and status pack (GREEN docs-only)
+
+**Branch:** `review/p2-018f-overnight-handoff-pack`
+
+**Functional patch commit:** `53db020`
+
+P2-018F added:
+- `docs/OVERNIGHT_STATUS_HANDOFF.md` (full summary of the overnight run)
+- Master transcript at `/tmp/overnight_master_verification_transcript.txt`
+
+Records all GREEN patches executed and self-merged, P2-018E left as review-only, P2-017D untouched per instructions, and final state.
+
+Pure GREEN docs closure of the overnight autonomy run.
+
+---
+
 ## P2-018D complete — operator reconciliation dashboard, offline only (GREEN)
 
 **Branch:** `review/p2-018d-offline-reconciliation-dashboard`
