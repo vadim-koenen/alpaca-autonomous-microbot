@@ -1,5 +1,47 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-022B review — paired Coinbase evidence request builder
+
+**Branch:** `review/p2-022b-paired-evidence-request-builder`
+
+P2-022B turns the successful one-off `/tmp` paired evidence request generation
+into a deterministic offline repo script:
+
+- `scripts/coinbase_paired_evidence_request_builder.py`
+- `docs/PAIRED_COINBASE_EVIDENCE_REQUEST_BUILDER.md`
+- `tests/test_coinbase_paired_evidence_request_builder.py`
+
+Latest good state:
+
+- `main` includes P2-021C5.
+- Live execution is repaired.
+- SOL/USD is external/staked, excluded from active recovery, and excluded from
+  Coinbase candidate cycles.
+- Manual paired discovery succeeded with real BTC/ETH rows:
+  `uuid_btc_eth_rows=60` and `paired_cycles_count=8`.
+- The generated request can pass the human-approved read-only capture checklist.
+
+The next step after merge is a human-approved read-only Coinbase broker evidence
+capture for the listed BTC/ETH entry and exit order IDs, followed by redaction,
+offline adapter normalization, and offline profit evidence resolution.
+
+Preserved truth:
+
+- `profit_readout_real_current=unsafe_to_aggregate`
+- `aggregation_allowed_real_current=false`
+- `scaling_allowed=false`
+- risk increase not approved
+- no live broker calls
+- no `--live-read-only` execution
+- no `.env` or secrets
+- no order/cancel/close/modify
+- no state/log mutation outside explicit output path
+- no `logs/coinbase_fills.csv` writes
+- no `append_coinbase_fill_row` activation
+- no risk/notional/symbol/config/strategy expansion
+
+---
+
 ## P2-021C5 review — exclude external inventory from Coinbase candidates
 
 **Branch:** `review/p2-021c5-exclude-external-inventory-candidates`

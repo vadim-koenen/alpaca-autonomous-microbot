@@ -1,0 +1,12 @@
+timestamp,mode,asset_class,symbol,strategy,action,decision,reason,order_id,client_order_id,status,error
+2026-06-01T00:00:00Z,live,crypto,BTC/USD,coinbase_exploration,BUY,PLACED,,11111111-1111-4111-8111-111111111111,cb-btc-entry-1,pending_new,
+2026-06-01T00:01:00Z,live,crypto,BTC/USD,coinbase_exploration,BUY,PLACED,,22222222-2222-4222-8222-222222222222,cb-btc-entry-2,pending_new,
+2026-06-01T00:30:00Z,live,crypto,SOL/USD,coinbase_exploration,BUY,PLACED,,33333333-3333-4333-8333-333333333333,cb-sol-entry,filled,
+2026-06-01T01:00:00Z,live,crypto,BTC/USD,position_manager,EXIT,PLACED,max hold time 90min exceeded,aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa,cb-btc-exit-1,,
+2026-06-01T01:10:00Z,live,crypto,ETH/USD,coinbase_exploration,BUY,PLACED,,44444444-4444-4444-8444-444444444444,cb-eth-entry,pending_new,
+2026-06-01T01:20:00Z,live,crypto,BTC/USD,position_manager,SELL,PLACED,take profit,bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb,cb-btc-exit-2,,
+2026-06-01T02:00:00Z,live,crypto,ETH/USD,position_manager,EXIT,PLACED,max hold time 90min exceeded,cccccccc-cccc-4ccc-8ccc-cccccccccccc,cb-eth-exit,,
+2026-06-01T02:10:00Z,live,crypto,BTC/USD,coinbase_exploration,BUY,PLACED,,55555555-5555-4555-8555-555555555555,cb-btc-unpaired,pending_new,
+2026-06-01T02:20:00Z,live,crypto,ETH/USD,coinbase_exploration,BUY,PLACED,,,66666666-6666-4666-8666-666666666666,pending_new,
+2026-06-01T02:30:00Z,live,crypto,BTC/USD,coinbase_exploration,BUY,PLACED,,not-a-uuid,cb-missing-uuid,pending_new,
+2026-06-01T02:40:00Z,live,crypto,SOL/USD,coinbase_exploration,BUY,SKIPPED,ENTRY_BLOCKED reason=manual_review_position_open,,,
