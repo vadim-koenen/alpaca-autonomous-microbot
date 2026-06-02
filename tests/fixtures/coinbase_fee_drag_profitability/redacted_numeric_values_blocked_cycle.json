@@ -1,0 +1,52 @@
+{
+  "broker_read_successful": true,
+  "bot_inventory": true,
+  "evidence_cycles": [
+    {
+      "cycle_id": "redacted-fee-drag-cycle",
+      "product_id": "ETH-USD",
+      "entry": {
+        "order": {
+          "order_id": "<REDACTED_ORDER_ID>",
+          "product_id": "ETH-USD",
+          "side": "BUY",
+          "status": "FILLED",
+          "settled": true,
+          "filled_value": "<REDACTED_DIRECT_BROKER_FILLED_VALUE_PRESENT>",
+          "total_fees": "<REDACTED_DIRECT_BROKER_TOTAL_FEES_PRESENT>"
+        },
+        "fills": [
+          {
+            "trade_id": "<REDACTED_FILL_ID>",
+            "order_id": "<REDACTED_ORDER_ID>",
+            "product_id": "ETH-USD",
+            "side": "BUY",
+            "fee": "<REDACTED_DIRECT_BROKER_FEE_PRESENT>",
+            "filled_value": "<REDACTED_DIRECT_BROKER_FILLED_VALUE_PRESENT>"
+          }
+        ]
+      },
+      "exit": {
+        "order": {
+          "order_id": "<REDACTED_ORDER_ID>",
+          "product_id": "ETH-USD",
+          "side": "SELL",
+          "status": "FILLED",
+          "settled": true,
+          "filled_value": "<REDACTED_DIRECT_BROKER_FILLED_VALUE_PRESENT>",
+          "total_fees": "<REDACTED_DIRECT_BROKER_TOTAL_FEES_PRESENT>"
+        },
+        "fills": [
+          {
+            "trade_id": "<REDACTED_FILL_ID>",
+            "order_id": "<REDACTED_ORDER_ID>",
+            "product_id": "ETH-USD",
+            "side": "SELL",
+            "fee": "<REDACTED_DIRECT_BROKER_FEE_PRESENT>",
+            "filled_value": "<REDACTED_DIRECT_BROKER_FILLED_VALUE_PRESENT>"
+          }
+        ]
+      }
+    }
+  ]
+}

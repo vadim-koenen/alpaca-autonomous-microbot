@@ -1,5 +1,64 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-023A review — controlled $5 fee-aware Coinbase pilot
+
+**Branch:** `review/p2-023a-controlled-5usd-fee-aware-pilot`
+
+P2-023A replaces ineffective `$1` Coinbase micro-trades with a controlled `$5`
+fee-aware pilot gate.
+
+Measured broker-backed evidence:
+
+- ETH cycle `real-ethusd-029`
+- entry filled_value `1.0000`
+- entry fee `0.0060`
+- exit filled_value `1.0025`
+- exit fee `0.0120`
+- gross P/L `0.0025`
+- total fees `0.0180`
+- net P/L `-0.0155`
+- net direction negative
+
+Conclusion:
+
+- `$1` live micro-trades are no longer treated as meaningful live execution.
+- The measured cycle was directionally right but fee-negative.
+- Future Coinbase entries must clear measured fee drag plus spread/slippage
+  buffer before a proposal is allowed.
+
+P2-023A updates:
+
+- Adds `coinbase_fee_aware_pilot.py`.
+- Adds `scripts/coinbase_fee_drag_profitability_report.py`.
+- Configures a controlled `$5` BTC/ETH-only Coinbase pilot:
+  - `max_trade_notional_usd=5.00`
+  - `pilot_trade_notional_usd=5.00`
+  - `max_open_positions=1`
+  - `max_trades_per_day=3`
+  - BTC/USD and ETH/USD only
+  - SOL/USD excluded
+- Adds a fee-drag gate:
+  - observed round-trip fee rate from broker-backed evidence
+  - expected gross move must exceed fee rate plus spread/slippage buffer
+  - otherwise skip with `fee_drag_expected_edge_too_small`
+
+Preserved truth:
+
+- `$5` is a controlled pilot, not unrestricted scaling.
+- `scaling_allowed=false` beyond the `$5` pilot cap.
+- risk increase beyond the controlled pilot is not approved.
+- no live broker calls during implementation/tests
+- no `--live-read-only` execution during verification
+- no `.env` or secrets
+- no order/cancel/close/modify
+- no `logs/coinbase_fills.csv` writes
+- no `append_coinbase_fill_row` activation
+- no SOL trading
+- no margin/leverage/options/futures/perps/commodities
+- no merge to main from this branch
+
+---
+
 ## P2-022F review — numeric-safe broker fact probe output
 
 **Branch:** `review/p2-022f-numeric-safe-broker-fact-probe`

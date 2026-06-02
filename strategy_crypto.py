@@ -31,6 +31,10 @@ import numpy as np
 import pandas as pd
 
 from market_data import MarketData, Quote, add_indicators
+from coinbase_fee_aware_pilot import (
+    evaluate_pilot_candidate,
+    measured_cycle_metrics_from_config,
+)
 from risk_manager import TradeProposal
 from utils import (
     get_cfg,
@@ -424,6 +428,30 @@ class CryptoStrategy:
     def _exploration_hard_trade_cap_usd(self) -> float:
         exp_cfg = get_cfg("crypto", "controlled_exploration", default={}) or {}
         return float(exp_cfg.get("max_single_trade_notional_usd", 1.00))
+
+    def _fee_aware_pilot_config(self) -> dict:
+        return {
+            "enabled": bool(get_cfg("crypto", "controlled_fee_aware_pilot_enabled", default=False)),
+            "pilot_trade_notional_usd": get_cfg("crypto", "pilot_trade_notional_usd", default=5.00),
+            "max_trade_notional_usd": get_cfg("crypto", "max_trade_notional_usd", default=5.00),
+            "min_trade_notional_usd": get_cfg("crypto", "min_trade_notional_usd", default=0.50),
+            "allowed_symbols": get_cfg(
+                "crypto",
+                "fee_aware_pilot_symbols",
+                default=["BTC/USD", "ETH/USD"],
+            ),
+            "minimum_expected_move_after_fee_buffer": bool(
+                get_cfg("crypto", "minimum_expected_move_after_fee_buffer", default=True)
+            ),
+            "fee_drag_guard_enabled": bool(get_cfg("crypto", "fee_drag_guard_enabled", default=True)),
+            "fee_drag_observed_cycle": get_cfg("crypto", "fee_drag_observed_cycle", default={}) or {},
+            "fee_drag_spread_slippage_buffer_rate": get_cfg(
+                "crypto",
+                "fee_drag_spread_slippage_buffer_rate",
+                default=0.0010,
+            ),
+            "buying_power_buffer": get_cfg("crypto", "buying_power_safety_buffer", default=0.85),
+        }
 
     def _compute_equity_scaled_notional(self, equity: float) -> float:
         """
@@ -861,6 +889,10 @@ class CryptoStrategy:
                 return None
 
             approved_symbols = cfg.get("approved_symbols", ["BTC/USD", "ETH/USD", "SOL/USD"])
+            pilot_cfg = self._fee_aware_pilot_config()
+            if pilot_cfg["enabled"]:
+                allowed_pilot_symbols = set(pilot_cfg["allowed_symbols"] or ["BTC/USD", "ETH/USD"])
+                approved_symbols = [s for s in approved_symbols if s in allowed_pilot_symbols]
             
             # Only offer exploration if this symbol is in the approved list
             if symbol not in approved_symbols:
@@ -895,11 +927,39 @@ class CryptoStrategy:
                 logger.info(f"EXPLORE {selected_symbol} | rejected: spread {spread_pct_val:.3f}% > max {max_spread:.3f}%")
                 return None
 
-            # All good — Propose! (P2-004 sizing: single resolver, all hard caps)
-            notional = self._resolve_exploration_notional(buying_power)
-
             sl_pct = 1.50
             tp_pct = 3.25
+            expected_gross_move_rate = tp_pct / 100.0
+
+            # All good — Propose! (P2-004 sizing: single resolver, all hard caps)
+            notional = self._resolve_exploration_notional(buying_power)
+            pilot_eval = None
+            if pilot_cfg["enabled"]:
+                metrics = measured_cycle_metrics_from_config(pilot_cfg)
+                pilot_eval = evaluate_pilot_candidate(
+                    symbol=selected_symbol,
+                    expected_gross_move_rate=expected_gross_move_rate,
+                    buying_power=buying_power,
+                    buying_power_buffer=pilot_cfg["buying_power_buffer"],
+                    pilot_trade_notional_usd=pilot_cfg["pilot_trade_notional_usd"],
+                    max_trade_notional_usd=pilot_cfg["max_trade_notional_usd"],
+                    min_trade_notional_usd=pilot_cfg["min_trade_notional_usd"],
+                    allowed_symbols=pilot_cfg["allowed_symbols"],
+                    enabled=pilot_cfg["enabled"],
+                    fee_drag_guard_enabled=pilot_cfg["fee_drag_guard_enabled"],
+                    minimum_expected_move_after_fee_buffer=pilot_cfg[
+                        "minimum_expected_move_after_fee_buffer"
+                    ],
+                    metrics=metrics,
+                )
+                if not pilot_eval["allowed"]:
+                    logger.info(
+                        f"EXPLORE {selected_symbol} | rejected: {pilot_eval['reason']} "
+                        f"expected_move={pilot_eval.get('expected_gross_move_rate')} "
+                        f"required={pilot_eval.get('minimum_required_gross_move_rate')}"
+                    )
+                    return None
+                notional = float(pilot_eval["notional_usd"])
             
             meta = {
                 "controlled_exploration_enabled": True,
@@ -912,6 +972,21 @@ class CryptoStrategy:
                 "spread_pct": spread_pct_val,
                 "probe": True,
             }
+            if pilot_eval:
+                meta.update({
+                    "controlled_fee_aware_pilot_enabled": True,
+                    "pilot_trade_notional_usd": float(pilot_eval["notional_usd"]),
+                    "fee_drag_expected_gross_move_rate": float(
+                        pilot_eval.get("expected_gross_move_rate", 0.0)
+                    ),
+                    "fee_drag_required_gross_move_rate": float(
+                        pilot_eval.get("minimum_required_gross_move_rate", 0.0)
+                    ),
+                    "fee_drag_guard_reason": pilot_eval["reason"],
+                    "micro_trade_1usd_disabled": True,
+                    "scale_allowed": False,
+                    "risk_increase": "not_approved",
+                })
             
             logger.info(
                 f"SIGNAL coinbase_exploration {selected_symbol} | regime={regime} | "

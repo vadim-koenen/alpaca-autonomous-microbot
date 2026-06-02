@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
+from coinbase_fee_aware_pilot import DEFAULT_ALLOWED_SYMBOLS, DEFAULT_PILOT_NOTIONAL_USD, decimal_or_none
 from utils import (
     data_is_stale,
     get_cfg,
@@ -132,6 +133,7 @@ class RiskManager:
             self._check_margin_specific,       # equity gate before time gate
             self._check_options_specific,      # broker approval before time gate
             self._check_crypto_specific,
+            self._check_controlled_fee_aware_pilot,
             self._check_crypto_manual_review_gate,
             self._check_total_crypto_exposure,
             # Session limits
@@ -280,6 +282,44 @@ class RiskManager:
         allowed_symbols = self._c("crypto", "symbols", default=[])
         if p.symbol not in allowed_symbols:
             return False, f"{p.symbol} not in allowed crypto symbols list"
+        return True, ""
+
+    def _check_controlled_fee_aware_pilot(self, p, s, mode):
+        if p.asset_class != "crypto":
+            return True, ""
+        if not self._c("crypto", "controlled_fee_aware_pilot_enabled", default=False):
+            return True, ""
+
+        allowed_symbols = set(self._c(
+            "crypto",
+            "fee_aware_pilot_symbols",
+            default=list(DEFAULT_ALLOWED_SYMBOLS),
+        ) or DEFAULT_ALLOWED_SYMBOLS)
+        pilot_cap = decimal_or_none(self._c(
+            "crypto",
+            "max_trade_notional_usd",
+            default=str(DEFAULT_PILOT_NOTIONAL_USD),
+        )) or DEFAULT_PILOT_NOTIONAL_USD
+        if pilot_cap > DEFAULT_PILOT_NOTIONAL_USD:
+            pilot_cap = DEFAULT_PILOT_NOTIONAL_USD
+
+        if p.symbol == "SOL/USD":
+            return False, "sol_external_staked_inventory_excluded"
+        if p.symbol not in allowed_symbols:
+            return False, f"{p.symbol} not in controlled fee-aware pilot symbols"
+        if p.notional > float(pilot_cap):
+            return False, f"notional ${p.notional:.2f} exceeds controlled pilot cap ${float(pilot_cap):.2f}"
+        if p.notional < float(DEFAULT_PILOT_NOTIONAL_USD):
+            return False, "1usd_micro_trades_disabled; controlled pilot requires $5.00 notional"
+
+        if self._c("crypto", "fee_drag_guard_enabled", default=True):
+            expected = decimal_or_none(p.meta.get("fee_drag_expected_gross_move_rate"))
+            required = decimal_or_none(p.meta.get("fee_drag_required_gross_move_rate"))
+            if expected is None or required is None:
+                return False, "fee_drag_expected_edge_missing"
+            if expected <= required:
+                return False, "fee_drag_expected_edge_too_small"
+
         return True, ""
 
     def _check_total_crypto_exposure(self, p, s, mode):

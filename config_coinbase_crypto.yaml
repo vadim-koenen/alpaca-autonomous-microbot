@@ -37,10 +37,10 @@ live_trading:
 # ── Global risk limits ────────────────────────────────────────
 global_risk:
   max_daily_loss_usd: 4.00          # P2-012D: raised conservatively for controlled multi-asset micros (still small)
-  max_trades_per_day: 12
+  max_trades_per_day: 3
   stop_after_consecutive_losses: 3
-  max_open_positions: 3             # P2-012D: small bump for multiple micro positions across assets
-  max_total_live_exposure_usd: 8.00 # P2-012D: conservative bump for controlled multi-asset (max $8)
+  max_open_positions: 1
+  max_total_live_exposure_usd: 5.00
   no_new_trades_after_market_time: "23:55"
   force_flat_before_market_close: false
   force_flat_time: "23:58"
@@ -55,19 +55,31 @@ crypto:
   live_symbols:
     - BTC/USD
     - ETH/USD
-    - SOL/USD
   watch_only_symbols: []
   symbols:
     - BTC/USD
     - ETH/USD
-    - SOL/USD
-  max_trade_notional_usd: 2.00
-  max_total_crypto_exposure_usd: 8.00 # P2-012D: conservative bump for controlled multi-asset spot micros (max $8)
+  controlled_fee_aware_pilot_enabled: true
+  pilot_trade_notional_usd: 5.00
+  max_trade_notional_usd: 5.00
+  max_total_crypto_exposure_usd: 5.00
   min_trade_notional_usd: 0.50
+  minimum_expected_move_after_fee_buffer: true
+  fee_drag_guard_enabled: true
+  fee_drag_spread_slippage_buffer_rate: 0.0010
+  fee_aware_pilot_symbols:
+    - BTC/USD
+    - ETH/USD
+  fee_drag_observed_cycle:
+    cycle_id: real-ethusd-029
+    product_id: ETH-USD
+    entry_value: "1.0000"
+    entry_fee: "0.0060"
+    exit_value: "1.0025"
+    exit_fee: "0.0120"
   max_spread_pct_per_symbol:
     BTC/USD: 0.10
     ETH/USD: 0.15
-    SOL/USD: 0.20
   max_spread_pct: 0.20    # global fallback
   stale_data_seconds: 90
   use_limit_orders: true
@@ -83,19 +95,18 @@ crypto:
   slippage_estimate_pct: 0.05
 
   # ── Controlled Coinbase Exploration (P2-001) ────────────────
-  # Purpose: rotate micro-probes across multiple symbols (BTC, ETH, SOL)
-  # to gather diverse live shadow data.
-  # Default is OFF, but now ENABLED for P2-001 rollout.
+  # Purpose: controlled fee-aware pilot across BTC/ETH only.
+  # The code default for controlled_fee_aware_pilot_enabled is OFF.
+  # This live Coinbase config is explicitly opted in because controlled_exploration was already enabled.
   controlled_exploration:
     enabled: true
     approved_symbols:
       - BTC/USD
       - ETH/USD
-      - SOL/USD
-    max_single_trade_notional_usd: 1.00
-    max_total_exploration_exposure_usd: 6.00
-    max_round_trips_per_day: 12
-    max_entries_per_symbol_per_day: 4
+    max_single_trade_notional_usd: 5.00
+    max_total_exploration_exposure_usd: 5.00
+    max_round_trips_per_day: 3
+    max_entries_per_symbol_per_day: 2
     per_symbol_cooldown_minutes: 30
     max_consecutive_losses: 3
     daily_stop_loss_usd: 3.00
@@ -127,9 +138,9 @@ crypto:
     # Position size as % of current equity
     position_size_pct: 2.5
     # Never trade less than this (protects against dust trades)
-    min_notional_usd: 1.00
+    min_notional_usd: 5.00
     # Never trade more than this regardless of equity (hard safety cap)
-    max_notional_usd: 25.00
+    max_notional_usd: 5.00
     # Only scale above this equity level (below = always use min_notional)
     scaling_threshold_usd: 20.00
     # Daily stop loss as % of equity (7.5% = $3 on $40 account — same as now)
@@ -165,7 +176,7 @@ crypto:
   #       - AVAX/USD
   #     ...
   multi_asset_spot:
-    enabled: true
+    enabled: false
     max_symbols: 8
     allowed_quote_currencies:
       - USD
@@ -180,10 +191,10 @@ crypto:
       - ADA/USD
       - AVAX/USD
     max_new_symbols_per_day: 2
-    # P2-012D: controlled multi-asset spot micro-trading turned on.
-    # Only the explicit allowlist above (plus base BTC/ETH/SOL) will trade.
+    # P2-023A: disabled during controlled fee-aware $5 BTC/ETH-only pilot.
+    # Only base BTC/ETH will trade.
     # All hard filters (spot_crypto only, no perps/gold/silver/leverage/disabled) still enforced by selector.
-    # Micro-size: uses existing max_trade_notional_usd (2.00). Exposure/daily loss bumped conservatively for multiple micros.
+    # Pilot-size: uses existing max_trade_notional_usd (5.00). Exposure/daily loss capped at the BTC/ETH-only pilot limits.
 
 # ── Fee model ─────────────────────────────────────────────────
 fees:

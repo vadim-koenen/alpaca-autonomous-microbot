@@ -1,0 +1,52 @@
+{
+  "broker_read_successful": true,
+  "bot_inventory": true,
+  "evidence_cycles": [
+    {
+      "cycle_id": "real-ethusd-029",
+      "product_id": "ETH-USD",
+      "entry": {
+        "order": {
+          "order_id": "entry-order-real-style",
+          "product_id": "ETH-USD",
+          "side": "BUY",
+          "status": "FILLED",
+          "settled": true,
+          "filled_value": "1.0000",
+          "total_fees": "0.0060"
+        },
+        "fills": [
+          {
+            "trade_id": "entry-fill-real-style",
+            "order_id": "entry-order-real-style",
+            "product_id": "ETH-USD",
+            "side": "BUY",
+            "fee": "0.0060",
+            "filled_value": "1.0000"
+          }
+        ]
+      },
+      "exit": {
+        "order": {
+          "order_id": "exit-order-real-style",
+          "product_id": "ETH-USD",
+          "side": "SELL",
+          "status": "FILLED",
+          "settled": true,
+          "filled_value": "1.0025",
+          "total_fees": "0.0120"
+        },
+        "fills": [
+          {
+            "trade_id": "exit-fill-real-style",
+            "order_id": "exit-order-real-style",
+            "product_id": "ETH-USD",
+            "side": "SELL",
+            "fee": "0.0120",
+            "filled_value": "1.0025"
+          }
+        ]
+      }
+    }
+  ]
+}
