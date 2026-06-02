@@ -1,0 +1,21 @@
+{
+  "api_errors_this_session": 0,
+  "bot": "coinbase",
+  "broker": "coinbase",
+  "buying_power": 49.4345,
+  "consecutive_losses": 0,
+  "daily_pnl": -0.0094,
+  "equity": 50.3681,
+  "halt_reason": null,
+  "kill_switch_present": false,
+  "last_error": null,
+  "last_exit_at": null,
+  "last_loop_time": "2026-06-02T14:16:41.778218-05:00",
+  "last_trade_at": "2026-06-02T00:01:00.357506Z",
+  "mode": "live",
+  "open_positions": 0,
+  "pid": 52004,
+  "risk_halt_active": false,
+  "status": "running",
+  "trades_today": 1
+}

@@ -1,5 +1,62 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-024B review — offline Coinbase opportunity dashboard
+
+**Branch:** `review/p2-024b-coinbase-opportunity-dashboard`
+
+P2-024A is merged on `main` at `dce16d9`. The live Coinbase bot was restarted
+successfully with target `com.vadim.coinbase-crypto-bot` and PID `52004`.
+
+Current live/pilot context provided by the user:
+
+- broker `coinbase`
+- mode `live`
+- open_positions `0`
+- risk_halt_active `false`
+- kill_switch_present `false`
+- buying_power about `49.4345`
+- equity about `50.3681`
+- final trade notional preview `5.0000`
+- balance-relative pilot percent `0.10`
+- min notional `5.00`, max notional `10.00`, absolute hard cap `10.00`
+- BTC/USD and ETH/USD only
+- SOL/USD excluded
+- `fee_drag_guard_enabled=true`
+
+Latest post-restart observation:
+
+- BTC/USD regime `downtrend`, allowed strategies `[]`
+- ETH/USD regime `downtrend`, allowed strategies `[]`
+- bot sat out
+- no new `$5-$10` closed cycle yet
+- trend layer remains `read_only_advisory`
+
+P2-024B adds `scripts/coinbase_opportunity_dashboard.py`, an offline dashboard
+that composes local heartbeat state, balance-relative sizing preview, trend
+advisory, and fee-drag evidence into one operator readout.
+
+Preserved truth:
+
+- `trade_permission=none`
+- no live trade triggers
+- no strategy auto-trigger from trends
+- no sizing changes
+- no risk override
+- no notional increase
+- no symbol expansion beyond BTC/USD and ETH/USD
+- no SOL trading
+- no live broker calls during implementation/tests
+- no `--live-read-only`
+- no `.env` or secrets during tests
+- no order/cancel/close/modify
+- no buy/sell/preview/order placement
+- `profit_readout=unsafe_to_aggregate`
+- `aggregation_allowed=false`
+- `scaling_allowed=false`
+- `risk_increase=not_approved`
+
+---
+
 ## P2-024A review — read-only Coinbase trend advisory registry
 
 **Branch:** `review/p2-024a-read-only-trend-advisory-registry`

@@ -1,0 +1,28 @@
+{
+  "sources": {
+    "coinbase_local_market_context": {
+      "source_status": "available",
+      "symbols": [
+        {
+          "symbol": "BTC/USD",
+          "regime": "uptrend",
+          "allowed_strategies": [
+            "momentum_breakout"
+          ]
+        },
+        {
+          "symbol": "ETH/USD",
+          "regime": "range",
+          "allowed_strategies": []
+        },
+        {
+          "symbol": "SOL/USD",
+          "regime": "uptrend",
+          "allowed_strategies": [
+            "momentum_breakout"
+          ]
+        }
+      ]
+    }
+  }
+}

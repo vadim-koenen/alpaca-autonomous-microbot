@@ -1,0 +1,12 @@
+{
+  "bot": "coinbase",
+  "broker": "coinbase",
+  "buying_power": 44.4345,
+  "equity": 50.3681,
+  "kill_switch_present": false,
+  "mode": "live",
+  "open_positions": 1,
+  "pid": 52004,
+  "risk_halt_active": false,
+  "status": "running"
+}
