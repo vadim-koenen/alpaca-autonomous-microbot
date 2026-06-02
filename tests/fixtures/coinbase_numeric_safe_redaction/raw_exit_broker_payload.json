@@ -1,0 +1,64 @@
+{
+  "account_id": "acct-exit-should-redact",
+  "api_key": "fake-exit-api-key",
+  "broker_calls_made": false,
+  "broker_methods_attempted": [
+    "get_order_status",
+    "get_historical_fills"
+  ],
+  "fill_facts": [
+    {
+      "has_fee": true,
+      "has_liquidity_indicator": true,
+      "has_price": true,
+      "has_size": true,
+      "has_stable_id": true,
+      "stable_id_value": "exit-fill-uuid-000000000001"
+    }
+  ],
+  "fills": [
+    {
+      "commission": "0.0500",
+      "commission_detail_total": "0.0500",
+      "entry_id": "exit-entry-id-000000000001",
+      "liquidity_indicator": "TAKER",
+      "order_id": "22222222-2222-4222-8222-222222222222",
+      "price": "10120.00",
+      "product_id": "ETH-USD",
+      "side": "SELL",
+      "size": "0.0010",
+      "size_in_quote": "10.1200",
+      "trade_id": "exit-trade-id-000000000001",
+      "trade_time": "2026-06-02T03:37:19Z"
+    }
+  ],
+  "leg_type": "exit",
+  "live_read_only_requested": false,
+  "order_facts": {
+    "has_average_filled_price": true,
+    "has_filled_size": true,
+    "has_filled_value": true,
+    "has_settled": true,
+    "has_total_fees": true,
+    "side": "SELL"
+  },
+  "order_id": "22222222-2222-4222-8222-222222222222",
+  "order_status": {
+    "average_filled_price": "10120.00",
+    "client_order_id": "client-exit-should-redact",
+    "filled_size": "0.0010",
+    "filled_value": "10.1200",
+    "normalized_status": "filled",
+    "product_id": "ETH-USD",
+    "proceeds": "10.1200",
+    "retail_portfolio_id": "portfolio-exit-should-redact",
+    "settled": true,
+    "side": "SELL",
+    "total_fees": "0.0500"
+  },
+  "order_mutation_methods_attempted": false,
+  "raw_fills_count": 1,
+  "read_only_only": true,
+  "signature": "fake-exit-signature",
+  "symbol": "ETH-USD"
+}

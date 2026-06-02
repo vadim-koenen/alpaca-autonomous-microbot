@@ -1,5 +1,58 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-022E review — numeric-safe read-only capture/redaction bridge
+
+**Branch:** `review/p2-022e-numeric-safe-read-only-capture`
+
+P2-022E adds an offline numeric-safe redaction and one-cycle payload build step
+so direct Coinbase read-only evidence can preserve broker financial numbers
+needed by the P2-022D numeric P/L engine while still redacting identifiers and
+secret-like material.
+
+Current good state:
+
+- P2-022D is merged on `main` at `47f1103`.
+- The numeric readout engine works for complete direct numeric broker evidence.
+- The real one-cycle payload remained blocked because `filled_value`/proceeds
+  and fee amounts were redacted into presence markers, which prove field
+  presence but are not numeric values.
+
+P2-022E updates:
+
+- Adds `--preserve-numeric-pnl-fields` support to
+  `scripts/redact_broker_payload.py`.
+- Adds `scripts/coinbase_one_cycle_numeric_safe_payload_builder.py`.
+- Preserves direct broker numeric P/L fields such as `filled_value`,
+  `total_fees`, `filled_size`, `average_filled_price`, per-fill `price`,
+  `size`, `fee`/`commission`, `commission_detail_total`, `size_in_quote`, and
+  `proceeds`.
+- Redacts order IDs, trade/fill IDs, client order IDs, account/portfolio/user
+  IDs, and secret/auth/key/token/signature-like fields.
+
+Next step after merge:
+
+- Rebuild a numeric-safe payload from already captured raw entry/exit files if
+  present in `/tmp`.
+- If raw files are absent, perform only one future human-approved read-only
+  capture cycle, then run this offline numeric-safe builder and the P2-022D
+  numeric readout.
+
+Preserved truth:
+
+- `profit_readout_real_current=unsafe_to_aggregate` until numeric-safe broker
+  values are accepted for real-current reporting.
+- `scaling_allowed=false`
+- risk increase not approved
+- no live broker calls during implementation/tests
+- no `--live-read-only` execution during verification
+- no `.env` or secrets
+- no order/cancel/close/modify
+- no `logs/coinbase_fills.csv` writes
+- no `append_coinbase_fill_row` activation
+- no risk/notional/symbol/config/strategy expansion
+
+---
+
 ## P2-022D review — numeric broker-backed one-cycle P/L readout
 
 **Branch:** `review/p2-022d-numeric-broker-backed-cycle-readout`
