@@ -306,6 +306,20 @@ def build_dashboard(
     global_risk = config.get("global_risk") if isinstance(config.get("global_risk"), dict) else {}
     expansion_policy = policy_from_crypto_config(crypto)
 
+    # P2-024F: load local state to separate external/staked inventory (e.g. SOL)
+    # from bot-owned positions for accurate max_open_slot reporting. These loads
+    # are strictly local/offline files; no broker calls.
+    try:
+        base = Path(heartbeat_path).resolve().parent.parent if heartbeat_path else Path(".")
+        state_coinbase = base / "state" / "coinbase"
+    except Exception:
+        state_coinbase = Path("state") / "coinbase"
+    state_open, _ = _load_json(state_coinbase / "open_positions.json")
+    ext_inv_state, _ = _load_json(state_coinbase / "external_inventory.json")
+    bot_owned_open_positions = len((state_open or {}).get("positions", {}) or {})
+    external_inventory_count = len((ext_inv_state or {}).get("external_inventory", {}) or {})
+    external_inventory_symbols = list(((ext_inv_state or {}).get("external_inventory") or {}).keys())
+
     trend_source = trend_source_json if trend_source_json is not None else _default_trend_source()
     trend_payload, trend_error = _load_json(trend_source)
     quote_source = quote_source_json if quote_source_json is not None else _default_quote_source()
@@ -408,7 +422,11 @@ def build_dashboard(
             "broker": heartbeat.get("broker"),
             "mode": heartbeat.get("mode"),
             "pid": heartbeat.get("pid"),
-            "open_positions": heartbeat.get("open_positions"),
+            "open_positions": heartbeat.get("open_positions"),  # bot-owned (P2-024F)
+            "bot_owned_open_positions": bot_owned_open_positions,
+            "external_inventory_count": external_inventory_count,
+            "external_inventory_symbols": external_inventory_symbols,
+            "max_open_slot_available": bool(bot_owned_open_positions < int(global_risk.get("max_open_positions") or 1)),
             "risk_halt_active": heartbeat.get("risk_halt_active"),
             "kill_switch_present": heartbeat.get("kill_switch_present"),
             "blockers": blockers,

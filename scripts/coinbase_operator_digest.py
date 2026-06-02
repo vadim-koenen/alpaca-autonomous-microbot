@@ -125,6 +125,9 @@ def build_operator_digest(observation_loop: Dict[str, Any]) -> Dict[str, Any]:
             "iterations_executed": observation_loop.get("iterations_executed"),
             "verdict_counts": aggregate.get("verdict_counts", {}),
         },
+        # P2-024F: surface runtime with external vs bot_owned separation (populated
+        # by the opportunity dashboard which now loads state/external_inventory).
+        "runtime": (observation_loop.get("runtime") if isinstance(observation_loop, dict) else None) or {},
     }
 
 

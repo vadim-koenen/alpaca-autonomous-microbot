@@ -567,10 +567,11 @@ def main() -> None:
             account_state = AccountState(
                 equity=permissions.equity,
                 buying_power=permissions.buying_power,
-                open_positions=len(open_positions_list),
-                open_position_symbols=[
-                    getattr(p, "symbol", "") for p in open_positions_list
-                ],
+                # Use bot-owned session count for max_open_positions / duplicate checks.
+                # Broker list (open_positions_list) may include external/staked SOL which
+                # must NOT consume the bot's max_open slot (per P2-024F).
+                open_positions=len(_session.open_positions) if _session and hasattr(_session, "open_positions") else 0,
+                open_position_symbols=list((_session.open_positions or {}).keys()) if _session else [],
                 open_orders=len(open_orders_list),
                 open_order_symbols=[
                     getattr(o, "symbol", "") for o in open_orders_list
@@ -670,7 +671,10 @@ def main() -> None:
             # ── Risk check + order execution ──────────────────────────────
             for proposal in proposals:
                 # Re-check account state (may have changed after earlier fills)
-                account_state.open_positions = len(_broker.get_all_positions())
+                # bot-owned (from _session) for max_open / caps; broker list still used
+                # for abandoned detection + non-crypto equity exposure.
+                account_state.open_positions = len(_session.open_positions) if _session and hasattr(_session, "open_positions") else 0
+                account_state.open_position_symbols = list((_session.open_positions or {}).keys()) if _session else []
                 account_state.daily_trade_count = _session.daily_trade_count
                 account_state.consecutive_losses = _session.consecutive_losses
                 account_state.daily_realized_pnl = _session.daily_realized_pnl

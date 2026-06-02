@@ -81,6 +81,12 @@ class AccountState:
     open_position_symbols: list[str] = field(default_factory=list)
     open_orders: int = 0
     open_order_symbols: list[str] = field(default_factory=list)
+    # NOTE (P2-024F): open_positions and open_position_symbols reflect *bot-owned*
+    # controllable positions only (loaded from SessionState / local tracked state).
+    # External/staked inventory (e.g. SOL/USD) is deliberately excluded from this
+    # count so it does not consume the shared max_open_positions=1 slot for the
+    # expanded live basket. Broker-visible abandoned positions are still detected
+    # separately for classification/reporting but do not increment the bot cap.
     daily_realized_pnl: float = 0.0   # negative = loss
     daily_trade_count: int = 0
     consecutive_losses: int = 0
@@ -559,6 +565,9 @@ class RiskManager:
         return True, ""
 
     def _check_max_open_positions(self, p, s, mode):
+        # P2-024F: counts *only bot-owned* positions (external/staked SOL excluded
+        # from s.open_positions by construction in main.py). A pure-external SOL
+        # situation leaves bot_open=0 so max_open=1 slot is available for candidates.
         max_pos = self._c("global_risk", "max_open_positions", default=3)
         if s.open_positions >= max_pos:
             return False, f"max open positions {max_pos} reached"

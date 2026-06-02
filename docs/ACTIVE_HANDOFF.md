@@ -1,5 +1,15 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-024F — external/staked SOL no longer consumes bot max_open_positions slot (review/p2-024f-external-inventory-max-open-slot-fix)
+P2-024D merged/restarted at main 41447eb. Expanded basket (BTC/ETH/ADA/AVAX/DOGE/LINK/LTC) live under shared pilot caps.
+Post-P2-024D observation: expanded basket scanning, candidates (ADA/LTC) in dashboard, but no post-restart trades.
+P2-024E root cause: RISK_GATE_BLOCK (external SOL on broker made broker.get_all_positions()=1, which was fed into AccountState.open_positions for risk check, so max_open=1 "reached" even with bot state=0).
+Fix: main.py now populates AccountState.open_positions / symbols for risk/duplicate from bot SessionState (local bot-owned only). External SOL stays visible (state/external_inventory.json, position_mgr logs, dashboards/audit) but is excluded from the cap count and does not block candidates via max_open or manual_review.
+- SOL remains excluded, non-tradable by bot, no adoption/close by code.
+- max_open=1 still applies to true bot-owned positions.
+- No risk/notional/caps increase, no SOL enablement, all prior guardrails + prohibitions followed.
+- profit_readout unsafe_to_aggregate; next success = first closed broker-backed net P/L from expanded symbol.
+
 ## P2-024D review — controlled live Coinbase spot symbol expansion
 
 **Branch:** `review/p2-024d-controlled-live-symbol-expansion`
