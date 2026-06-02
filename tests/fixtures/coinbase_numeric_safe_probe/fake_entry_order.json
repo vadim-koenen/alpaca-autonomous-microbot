@@ -1,0 +1,17 @@
+{
+  "account_id": "acct-entry-must-redact",
+  "api_key": "fake-entry-key",
+  "average_filled_price": "10000.00",
+  "client_order_id": "client-entry-must-redact",
+  "filled_size": "0.0010",
+  "filled_value": "10.0000",
+  "normalized_status": "filled",
+  "order_id": "11111111-1111-4111-8111-111111111111",
+  "product_id": "ETH-USD",
+  "retail_portfolio_id": "portfolio-entry-must-redact",
+  "settled": true,
+  "side": "BUY",
+  "status": "FILLED",
+  "total_fees": "0.0500",
+  "user_id": "user-entry-must-redact"
+}

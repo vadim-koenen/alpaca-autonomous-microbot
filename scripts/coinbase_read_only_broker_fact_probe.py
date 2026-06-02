@@ -38,7 +38,7 @@ import sys
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 # Make runnable from repo root
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -60,6 +60,62 @@ SENSITIVE_KEYS = {
     "client_order_id",  # can contain strategy hints + timestamps; redact in live mode
 }
 
+ORDER_NUMERIC_PNL_FIELDS = (
+    "filled_value",
+    "total_fees",
+    "filled_size",
+    "average_filled_price",
+)
+
+ORDER_CONTEXT_FIELDS = (
+    "settled",
+    "status",
+    "normalized_status",
+    "side",
+    "product_id",
+)
+
+FILL_NUMERIC_PNL_FIELDS = (
+    "price",
+    "size",
+    "fee",
+    "commission",
+    "commission_detail_total",
+    "size_in_quote",
+)
+
+FILL_CONTEXT_FIELDS = (
+    "product_id",
+    "side",
+)
+
+ORDER_IDENTIFIER_FIELDS = (
+    "order_id",
+    "client_order_id",
+    "retail_portfolio_id",
+    "account_id",
+    "user_id",
+)
+
+FILL_IDENTIFIER_FIELDS = (
+    "order_id",
+    "trade_id",
+    "entry_id",
+    "fill_id",
+)
+
+SECRET_KEY_FRAGMENTS = (
+    "api_key",
+    "auth",
+    "authorization",
+    "bearer",
+    "key",
+    "password",
+    "secret",
+    "signature",
+    "token",
+)
+
 def _redact_value(key: str, value: Any) -> Any:
     if isinstance(value, str) and any(s in key.lower() for s in SENSITIVE_KEYS):
         return "<REDACTED>"
@@ -77,6 +133,61 @@ def redact_payload(payload: Any) -> Any:
     if isinstance(payload, list):
         return [redact_payload(item) for item in payload]
     return payload
+
+
+def _present(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip() != ""
+    return True
+
+
+def _string_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return value
+    return str(value)
+
+
+def _redacted_identifier(label: str) -> str:
+    return f"<REDACTED_{label.upper()}>"
+
+
+def _secret_like_key(key: str) -> bool:
+    lower = key.lower()
+    return any(fragment in lower for fragment in SECRET_KEY_FRAGMENTS)
+
+
+def _select_order_numeric_fields(order: Dict[str, Any]) -> Dict[str, Any]:
+    selected: Dict[str, Any] = {}
+    for key in ORDER_NUMERIC_PNL_FIELDS + ORDER_CONTEXT_FIELDS:
+        if key in order and _present(order.get(key)):
+            selected[key] = _string_value(order.get(key))
+    for key in ORDER_IDENTIFIER_FIELDS:
+        if key in order and _present(order.get(key)):
+            selected[key] = _redacted_identifier(key)
+    for key in order:
+        if _secret_like_key(key):
+            selected[key] = "<REDACTED_SECRET>"
+    return selected
+
+
+def _select_fill_numeric_fields(fill: Dict[str, Any]) -> Dict[str, Any]:
+    selected: Dict[str, Any] = {}
+    for key in FILL_NUMERIC_PNL_FIELDS + FILL_CONTEXT_FIELDS:
+        if key in fill and _present(fill.get(key)):
+            selected[key] = _string_value(fill.get(key))
+    for key in FILL_IDENTIFIER_FIELDS:
+        if key in fill and _present(fill.get(key)):
+            selected[key] = _redacted_identifier(key)
+    for key in fill:
+        if _secret_like_key(key):
+            selected[key] = "<REDACTED_SECRET>"
+    return selected
 
 
 # =============================================================================
@@ -132,6 +243,8 @@ class BrokerFactDiscoveryReport:
     raw_order_shape_keys: List[str] = field(default_factory=list)
     raw_fills_count: int = 0
     raw_fills_shape_keys_sample: List[str] = field(default_factory=list)
+    numeric_order_fields: Dict[str, Any] = field(default_factory=dict)
+    numeric_fill_fields: List[Dict[str, Any]] = field(default_factory=list)
 
     read_only_only: bool = True
     live_read_only_requested: bool = False
@@ -214,6 +327,8 @@ def analyze_broker_facts(
     # Raw shape for proof (we keep the keys, not the values)
     raw_order_keys = sorted(order.keys())
     raw_fills_keys = sorted({k for f in historical_fills for k in f.keys()}) if historical_fills else []
+    numeric_order_fields = _select_order_numeric_fields(order)
+    numeric_fill_fields = [_select_fill_numeric_fields(fill) for fill in historical_fills]
 
     return BrokerFactDiscoveryReport(
         leg_type=leg_type,
@@ -229,6 +344,8 @@ def analyze_broker_facts(
         raw_order_shape_keys=raw_order_keys,
         raw_fills_count=len(historical_fills),
         raw_fills_shape_keys_sample=raw_fills_keys[:15],  # limit for readability
+        numeric_order_fields=numeric_order_fields,
+        numeric_fill_fields=numeric_fill_fields,
         read_only_only=True,
         live_read_only_requested=live_read_only_requested,
         broker_methods_attempted=broker_methods_attempted or [],
@@ -237,15 +354,25 @@ def analyze_broker_facts(
     )
 
 
-def redact_report_for_output(report: BrokerFactDiscoveryReport) -> Dict[str, Any]:
+def redact_report_for_output(
+    report: BrokerFactDiscoveryReport,
+    *,
+    include_numeric_pnl_fields: bool = False,
+) -> Dict[str, Any]:
     """Produce a safe-for-logging version of the report."""
     d = asdict(report)
+    numeric_order_fields = d.pop("numeric_order_fields", {}) or {}
+    numeric_fill_fields = d.pop("numeric_fill_fields", []) or []
     # Redact any potential identifiers that might have leaked into the report
     if d.get("order_id"):
         d["order_id"] = "<REDACTED_ORDER_ID>"
     for f in d.get("fill_facts", []):
         if f.get("stable_id_value"):
             f["stable_id_value"] = "<REDACTED_FILL_ID>"
+    d["numeric_pnl_fields_included"] = include_numeric_pnl_fields
+    if include_numeric_pnl_fields:
+        d["order_status"] = numeric_order_fields
+        d["fills"] = numeric_fill_fields
     return d
 
 
@@ -347,7 +474,7 @@ def run_live_read_only_discovery(
 # CLI
 # =============================================================================
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main(argv: Optional[Sequence[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="P2-011J Read-Only Coinbase Broker-Fact Discovery Probe")
     parser.add_argument("--symbol", default="BTC-USD", help="Product symbol for discovery")
     parser.add_argument("--order-id", default=None, help="Specific order_id to inspect (optional)")
@@ -362,6 +489,15 @@ def main(argv: Optional[List[str]] = None) -> None:
         default="pretty",
         help="Output format",
     )
+    parser.add_argument(
+        "--include-numeric-pnl-fields",
+        "--numeric-safe",
+        action="store_true",
+        help=(
+            "Include numeric-safe direct broker P/L fields in output while keeping "
+            "identifiers and secret-like fields redacted."
+        ),
+    )
     args = parser.parse_args(argv)
 
     if args.live_read_only:
@@ -369,7 +505,10 @@ def main(argv: Optional[List[str]] = None) -> None:
         print("This will make real read-only calls to the Coinbase broker.", file=sys.stderr)
         print("No writes or order actions will be performed.", file=sys.stderr)
         report = run_live_read_only_discovery(args.symbol, args.order_id)
-        redacted = redact_report_for_output(report)
+        redacted = redact_report_for_output(
+            report,
+            include_numeric_pnl_fields=args.include_numeric_pnl_fields,
+        )
     else:
         if args.order_id:
             report = build_non_live_refusal_report(args.symbol, args.order_id)
@@ -401,7 +540,10 @@ def main(argv: Optional[List[str]] = None) -> None:
                 symbol=args.symbol,
                 order_id=args.order_id or "demo-order",
             )
-        redacted = redact_report_for_output(report)
+        redacted = redact_report_for_output(
+            report,
+            include_numeric_pnl_fields=args.include_numeric_pnl_fields,
+        )
 
     if args.output == "json":
         print(json.dumps(redacted, indent=2, default=str))
@@ -419,6 +561,8 @@ def main(argv: Optional[List[str]] = None) -> None:
             print(f"  {k}: {v}")
         print(f"\nRaw order shape keys (proof): {redacted.get('raw_order_shape_keys')}")
         print(f"Raw fills count: {redacted.get('raw_fills_count')}")
+        if redacted.get("numeric_pnl_fields_included"):
+            print("Numeric-safe direct broker P/L fields included.")
         print("Redacted for safety. No secrets or raw identifiers emitted.")
 
 

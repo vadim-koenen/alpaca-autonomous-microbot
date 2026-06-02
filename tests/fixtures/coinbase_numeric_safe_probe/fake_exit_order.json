@@ -1,0 +1,17 @@
+{
+  "account_id": "acct-exit-must-redact",
+  "average_filled_price": "10120.00",
+  "client_order_id": "client-exit-must-redact",
+  "filled_size": "0.0010",
+  "filled_value": "10.1200",
+  "normalized_status": "filled",
+  "order_id": "22222222-2222-4222-8222-222222222222",
+  "product_id": "ETH-USD",
+  "retail_portfolio_id": "portfolio-exit-must-redact",
+  "settled": true,
+  "side": "SELL",
+  "status": "FILLED",
+  "token": "fake-exit-token",
+  "total_fees": "0.0500",
+  "user_id": "user-exit-must-redact"
+}

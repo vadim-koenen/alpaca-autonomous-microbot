@@ -20,6 +20,56 @@ from scripts.coinbase_read_only_broker_fact_probe import (
     redact_report_for_output,
     BrokerFactDiscoveryReport,
 )
+from scripts.coinbase_one_cycle_numeric_safe_payload_builder import build_one_cycle_payload
+from scripts.coinbase_broker_backed_pnl_readout import build_report as build_numeric_pnl_report
+
+
+FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "coinbase_numeric_safe_probe"
+
+
+def _fixture_json(name):
+    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+
+
+def _numeric_safe_probe_payload(order_name, fills_name, *, leg_type):
+    order = _fixture_json(order_name)
+    fills = _fixture_json(fills_name)
+    report = analyze_broker_facts(
+        order,
+        fills,
+        leg_type=leg_type,
+        symbol="ETH-USD",
+        order_id=order["order_id"],
+        live_read_only_requested=True,
+        broker_methods_attempted=["get_order_status", "get_historical_fills"],
+        broker_calls_made=True,
+    )
+    return redact_report_for_output(report, include_numeric_pnl_fields=True)
+
+
+def _assert_raw_identifiers_absent(payload):
+    text = json.dumps(payload, sort_keys=True)
+    forbidden_values = [
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        "client-entry-must-redact",
+        "client-exit-must-redact",
+        "entry-trade-id-must-redact",
+        "exit-trade-id-must-redact",
+        "entry-entry-id-must-redact",
+        "exit-entry-id-must-redact",
+        "portfolio-entry-must-redact",
+        "portfolio-exit-must-redact",
+        "acct-entry-must-redact",
+        "acct-exit-must-redact",
+        "user-entry-must-redact",
+        "user-exit-must-redact",
+        "fake-entry-key",
+        "fake-entry-signature",
+        "fake-exit-token",
+    ]
+    for value in forbidden_values:
+        assert value not in text
 
 
 def test_default_mode_does_not_perform_live_reads(monkeypatch):
@@ -155,6 +205,124 @@ def test_cli_accepts_output_json(capsys):
     assert payload["live_read_only_requested"] is False
     assert payload["broker_methods_attempted"] == []
     assert payload["broker_calls_made"] is False
+
+
+def test_default_probe_output_does_not_expose_numeric_values(capsys):
+    from scripts import coinbase_read_only_broker_fact_probe as probe_mod
+
+    probe_mod.main(["--output", "json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    text = json.dumps(payload, sort_keys=True)
+    assert payload["numeric_pnl_fields_included"] is False
+    assert "order_status" not in payload
+    assert "fills" not in payload
+    assert "80.25" not in text
+    assert "0.4815" not in text
+
+
+def test_numeric_safe_probe_output_includes_order_numeric_fields_from_fake_payload():
+    payload = _numeric_safe_probe_payload("fake_entry_order.json", "fake_entry_fills.json", leg_type="entry")
+
+    order = payload["order_status"]
+    assert payload["numeric_pnl_fields_included"] is True
+    assert order["filled_value"] == "10.0000"
+    assert order["total_fees"] == "0.0500"
+    assert order["filled_size"] == "0.0010"
+    assert order["average_filled_price"] == "10000.00"
+    assert order["settled"] is True
+    assert order["status"] == "FILLED"
+    assert order["side"] == "BUY"
+    assert order["order_id"] == "<REDACTED_ORDER_ID>"
+    assert order["client_order_id"] == "<REDACTED_CLIENT_ORDER_ID>"
+    assert order["retail_portfolio_id"] == "<REDACTED_RETAIL_PORTFOLIO_ID>"
+    assert order["account_id"] == "<REDACTED_ACCOUNT_ID>"
+    assert order["user_id"] == "<REDACTED_USER_ID>"
+    assert order["api_key"] == "<REDACTED_SECRET>"
+    _assert_raw_identifiers_absent(payload)
+
+
+def test_numeric_safe_probe_output_includes_per_fill_numeric_fields_from_fake_payload():
+    payload = _numeric_safe_probe_payload("fake_exit_order.json", "fake_exit_fills.json", leg_type="exit")
+    fill = payload["fills"][0]
+
+    assert fill["price"] == "10120.00"
+    assert fill["size"] == "0.0010"
+    assert fill["fee"] == "0.0500"
+    assert fill["commission"] == "0.0500"
+    assert fill["commission_detail_total"] == "0.0500"
+    assert fill["size_in_quote"] == "10.1200"
+    assert fill["product_id"] == "ETH-USD"
+    assert fill["side"] == "SELL"
+    assert fill["order_id"] == "<REDACTED_ORDER_ID>"
+    assert fill["trade_id"] == "<REDACTED_TRADE_ID>"
+    assert fill["entry_id"] == "<REDACTED_ENTRY_ID>"
+    _assert_raw_identifiers_absent(payload)
+
+
+def test_numeric_safe_output_json_is_parseable_pure_json(monkeypatch, capsys):
+    from scripts import coinbase_read_only_broker_fact_probe as probe_mod
+
+    report = analyze_broker_facts(
+        _fixture_json("fake_entry_order.json"),
+        _fixture_json("fake_entry_fills.json"),
+        leg_type="entry",
+        symbol="ETH-USD",
+        order_id="11111111-1111-4111-8111-111111111111",
+        live_read_only_requested=True,
+        broker_methods_attempted=["get_order_status", "get_historical_fills"],
+        broker_calls_made=True,
+    )
+    monkeypatch.setattr(probe_mod, "run_live_read_only_discovery", lambda symbol, order_id: report)
+
+    probe_mod.main([
+        "--live-read-only",
+        "--output",
+        "json",
+        "--include-numeric-pnl-fields",
+        "--order-id",
+        "11111111-1111-4111-8111-111111111111",
+        "--symbol",
+        "ETH-USD",
+    ])
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["numeric_pnl_fields_included"] is True
+    assert payload["order_status"]["filled_value"] == "10.0000"
+    assert "LIVE READ-ONLY MODE ENABLED" not in captured.out
+    assert "LIVE READ-ONLY MODE ENABLED" in captured.err
+    _assert_raw_identifiers_absent(payload)
+
+
+def test_numeric_safe_probe_output_flows_through_builder_and_numeric_pnl_readout(tmp_path):
+    entry_payload = _numeric_safe_probe_payload("fake_entry_order.json", "fake_entry_fills.json", leg_type="entry")
+    exit_payload = _numeric_safe_probe_payload("fake_exit_order.json", "fake_exit_fills.json", leg_type="exit")
+    entry_path = tmp_path / "entry_probe_numeric_safe.json"
+    exit_path = tmp_path / "exit_probe_numeric_safe.json"
+    output_path = tmp_path / "one_cycle_numeric_safe.json"
+    entry_path.write_text(json.dumps(entry_payload), encoding="utf-8")
+    exit_path.write_text(json.dumps(exit_payload), encoding="utf-8")
+
+    one_cycle = build_one_cycle_payload(
+        entry_raw_path=entry_path,
+        exit_raw_path=exit_path,
+        cycle_id="numeric-safe-probe-ethusd-001",
+        product_id="ETH-USD",
+        entry_order_id="11111111-1111-4111-8111-111111111111",
+        exit_order_id="22222222-2222-4222-8222-222222222222",
+        preserve_numeric_pnl_fields=True,
+    )
+    output_path.write_text(json.dumps(one_cycle), encoding="utf-8")
+    report = build_numeric_pnl_report(output_path)
+
+    assert report["verdict"] == "MEASURED_BROKER_BACKED_LIMITED"
+    assert report["profit_readout"] == "measured_broker_backed_limited"
+    assert report["gross_pnl"] == "0.1200"
+    assert report["total_fees"] == "0.1000"
+    assert report["net_pnl"] == "0.0200"
+    assert report["scaling_allowed"] is False
+    assert report["risk_increase"] == "not_approved"
 
 
 def test_live_read_only_output_json_writes_pure_json_to_stdout_and_warning_to_stderr(monkeypatch, capsys):

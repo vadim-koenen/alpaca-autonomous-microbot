@@ -1,5 +1,59 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-022F review — numeric-safe broker fact probe output
+
+**Branch:** `review/p2-022f-numeric-safe-broker-fact-probe`
+
+P2-022F adds explicit numeric-safe direct broker fact output to
+`scripts/coinbase_read_only_broker_fact_probe.py` so the P2-022E builder and
+P2-022D numeric readout can compute broker-backed P/L from real captured
+financial values, while identifiers remain redacted.
+
+Current good state:
+
+- P2-022E is merged on `main` at `d992510`.
+- P2-022E proved the offline builder/redactor can preserve numeric fields when
+  actual numbers exist.
+- The one-cycle live read-only capture for `real-ethusd-029` remained blocked
+  because the probe emitted presence booleans/markers, not numeric
+  `filled_value` and `total_fees` values.
+
+P2-022F updates:
+
+- Adds `--include-numeric-pnl-fields` / `--numeric-safe`.
+- Numeric-safe probe JSON includes direct broker order fields such as
+  `filled_value`, `total_fees`, `filled_size`, `average_filled_price`,
+  `settled`, `status`, and `side` when available.
+- Numeric-safe probe JSON includes direct broker fill fields such as `price`,
+  `size`, `fee`/`commission`, `commission_detail_total`, `size_in_quote`,
+  `product_id`, and `side` when available.
+- Order IDs, client-order IDs, trade/fill IDs, account/portfolio/user IDs, and
+  secret/auth/key/token/signature-like fields remain redacted.
+- Default probe output remains presence-only unless the numeric-safe flag is
+  explicitly requested.
+
+Next step after merge:
+
+- Retry exactly one human-approved numeric-safe read-only capture for the same
+  ETH cycle (`real-ethusd-029`) using the new flag.
+- Then run the offline one-cycle builder and numeric readout.
+
+Preserved truth:
+
+- `profit_readout_real_current=unsafe_to_aggregate` until numeric-safe broker
+  values are captured and accepted for real-current reporting.
+- `scaling_allowed=false`
+- risk increase not approved
+- no live broker calls during implementation/tests
+- no `--live-read-only` execution during verification
+- no `.env` or secrets
+- no order/cancel/close/modify
+- no `logs/coinbase_fills.csv` writes
+- no `append_coinbase_fill_row` activation
+- no risk/notional/symbol/config/strategy expansion
+
+---
+
 ## P2-022E review — numeric-safe read-only capture/redaction bridge
 
 **Branch:** `review/p2-022e-numeric-safe-read-only-capture`

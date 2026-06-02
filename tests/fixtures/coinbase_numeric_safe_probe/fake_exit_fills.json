@@ -1,0 +1,16 @@
+[
+  {
+    "commission": "0.0500",
+    "commission_detail_total": "0.0500",
+    "entry_id": "exit-entry-id-must-redact",
+    "fee": "0.0500",
+    "liquidity_indicator": "TAKER",
+    "order_id": "22222222-2222-4222-8222-222222222222",
+    "price": "10120.00",
+    "product_id": "ETH-USD",
+    "side": "SELL",
+    "size": "0.0010",
+    "size_in_quote": "10.1200",
+    "trade_id": "exit-trade-id-must-redact"
+  }
+]
