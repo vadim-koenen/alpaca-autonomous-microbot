@@ -1,5 +1,50 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-022D review — numeric broker-backed one-cycle P/L readout
+
+**Branch:** `review/p2-022d-numeric-broker-backed-cycle-readout`
+
+P2-022D adds an offline numeric P/L readout layer for direct Coinbase
+broker-backed evidence cycles.
+
+Current good state:
+
+- P2-022C2 is merged on `main` at `586b5fb`.
+- The real ETH cycle `real-ethusd-029` resolves as L4 direct broker evidence:
+  - `verdict=EVIDENCE_RESOLVED`
+  - `profit_readout=measured_broker_backed_limited`
+  - `cycles_evaluated=1`
+  - `complete_direct_cycles=1`
+  - entry/exit direct order IDs, fill IDs, fees, and filled value/proceeds are
+    available as broker-backed evidence.
+- Numeric realized P/L still requires numeric-safe local extraction of
+  `filled_value`/proceeds and fee amounts.
+- Redacted presence markers prove completeness but are not numeric values.
+
+P2-022D updates:
+
+- Adds `scripts/coinbase_broker_backed_pnl_readout.py`.
+- Computes limited-cycle gross P/L, total fees, and net P/L with `Decimal` only
+  when direct numeric broker values are present.
+- Blocks numeric P/L when values are redacted presence markers.
+- Keeps local journal P/L advisory only.
+
+Preserved truth:
+
+- `profit_readout_real_current=unsafe_to_aggregate` until numeric-safe broker
+  values are accepted for real-current reporting.
+- `scaling_allowed=false`
+- risk increase not approved
+- no live broker calls
+- no `--live-read-only` execution during verification
+- no `.env` or secrets
+- no order/cancel/close/modify
+- no `logs/coinbase_fills.csv` writes
+- no `append_coinbase_fill_row` activation
+- no risk/notional/symbol/config/strategy expansion
+
+---
+
 ## P2-022C2 review — adapt one-cycle read-only payload
 
 **Branch:** `review/p2-022c2-adapt-one-cycle-read-only-payload`

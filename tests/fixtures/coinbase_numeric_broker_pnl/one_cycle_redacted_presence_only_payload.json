@@ -1,0 +1,90 @@
+{
+  "capture_scope": {
+    "cycle_id": "redacted-ethusd-001",
+    "entry_order_id": "entry-order-redacted-001",
+    "exit_order_id": "exit-order-redacted-001",
+    "no_order_cancel_close_modify": true,
+    "no_risk_increase": true,
+    "no_state_or_log_mutation": true,
+    "product_id": "ETH-USD",
+    "profit_readout_before_resolution": "unsafe_to_aggregate",
+    "read_only_only": true
+  },
+  "cycles": [
+    {
+      "cycle_id": "redacted-ethusd-001",
+      "entry_order_id": "entry-order-redacted-001",
+      "exit_order_id": "exit-order-redacted-001",
+      "product_id": "ETH-USD",
+      "entry_broker_payload_redacted": {
+        "blocking_reasons": [],
+        "broker_calls_made": true,
+        "broker_methods_attempted": [
+          "get_order_status",
+          "get_historical_fills"
+        ],
+        "fill_facts": [
+          {
+            "has_fee": true,
+            "has_price": true,
+            "has_size": true,
+            "has_stable_id": true,
+            "stable_id_value": "<REDACTED_ENTRY_FILL_ID>"
+          }
+        ],
+        "leg_type": "entry",
+        "logger_readiness_blocked": false,
+        "order_facts": {
+          "has_average_filled_price": true,
+          "has_filled_size": true,
+          "has_filled_value": true,
+          "has_settled": true,
+          "has_total_fees": true,
+          "side": "BUY"
+        },
+        "order_id": "<REDACTED_ORDER_ID>",
+        "order_mutation_methods_attempted": false,
+        "per_fill_fees_present": true,
+        "raw_fills_count": 1,
+        "read_only_only": true,
+        "stable_per_fill_ids_present": true,
+        "symbol": "ETH-USD"
+      },
+      "exit_broker_payload_redacted": {
+        "blocking_reasons": [],
+        "broker_calls_made": true,
+        "broker_methods_attempted": [
+          "get_order_status",
+          "get_historical_fills"
+        ],
+        "fill_facts": [
+          {
+            "has_fee": true,
+            "has_price": true,
+            "has_size": true,
+            "has_stable_id": true,
+            "stable_id_value": "<REDACTED_EXIT_FILL_ID>"
+          }
+        ],
+        "leg_type": "exit",
+        "logger_readiness_blocked": false,
+        "order_facts": {
+          "has_average_filled_price": true,
+          "has_filled_size": true,
+          "has_filled_value": true,
+          "has_settled": true,
+          "has_total_fees": true,
+          "side": "SELL"
+        },
+        "order_id": "<REDACTED_ORDER_ID>",
+        "order_mutation_methods_attempted": false,
+        "per_fill_fees_present": true,
+        "raw_fills_count": 1,
+        "read_only_only": true,
+        "stable_per_fill_ids_present": true,
+        "symbol": "ETH-USD"
+      }
+    }
+  ],
+  "schema_version": "p2-022c.one_cycle_read_only_payload.v1"
+}
