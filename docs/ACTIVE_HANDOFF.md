@@ -1,5 +1,53 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-024C review — dashboard observation loop and operator digest
+
+**Branch:** `review/p2-024c-dashboard-observation-loop-operator-digest`
+
+P2-024B is merged on `main` at `b87ebca`. P2-024C adds an offline finite
+observation loop and operator digest on top of the Coinbase opportunity
+dashboard.
+
+New files:
+
+- `scripts/coinbase_dashboard_observation_loop.py`
+- `scripts/coinbase_operator_digest.py`
+- `docs/COINBASE_DASHBOARD_OBSERVATION_LOOP.md`
+- `tests/test_coinbase_dashboard_observation_loop_operator_digest.py`
+
+Current-style expected readout remains:
+
+- verdict `SIT_OUT_CONFIRMED`
+- next required action
+  `continue_observing_until_btc_eth_signal_clears_trend_fee_and_risk_gates`
+- final trade notional preview `5.0000`
+- BTC/USD and ETH/USD only
+- SOL/USD excluded
+- `trade_permission=none`
+- `profit_readout=unsafe_to_aggregate`
+- `aggregation_allowed=false`
+- `scaling_allowed=false`
+- `risk_increase=not_approved`
+
+Preserved truth:
+
+- no runtime restart
+- no `launchctl`
+- no live broker calls during implementation/tests
+- no `--live-read-only`
+- no `.env` or secrets during tests
+- no order/cancel/close/modify
+- no buy/sell/preview/order placement
+- no strategy auto-trigger from trends
+- no sizing changes
+- no risk override
+- no notional increase
+- no symbol expansion beyond BTC/USD and ETH/USD
+- no SOL trading
+- no derivatives/perps/prediction-market live execution
+
+---
+
 ## P2-024B review — offline Coinbase opportunity dashboard
 
 **Branch:** `review/p2-024b-coinbase-opportunity-dashboard`
