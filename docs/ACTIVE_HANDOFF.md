@@ -1,5 +1,48 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-022C1 review — read-only probe compatibility fix
+
+**Branch:** `review/p2-022c1-fix-read-only-probe-compatibility`
+
+P2-022C1 fixes the Coinbase read-only broker fact probe compatibility issue found
+during the first one-cycle human-approved capture attempt.
+
+Current good state:
+
+- P2-022B is merged on `main` at `2b89d82`.
+- The paired evidence request builder is ready and can produce checklist-ready
+  BTC/ETH paired order requests.
+- The attempted one-cycle capture for `real-ethusd-029` failed before broker
+  evidence was captured because:
+  - the checklist emitted stale probe syntax using `--json`;
+  - `scripts/coinbase_read_only_broker_fact_probe.py` passed unsupported
+    `dry_run=True` to the current `BrokerCoinbase()` constructor.
+- P2-022C1 updates planned checklist probe commands to use `--output json`.
+- P2-022C1 updates the probe to construct `BrokerCoinbase()` only after explicit
+  `--live-read-only` opt-in and to report structured read-only safety fields.
+
+Next step after merge:
+
+- Retry exactly one human-approved read-only Coinbase evidence capture cycle.
+- Keep capture limited to listed BTC/ETH order IDs and date windows.
+- Redact any captured broker payload before offline adapter/resolver use.
+
+Preserved truth:
+
+- `profit_readout_real_current=unsafe_to_aggregate`
+- `aggregation_allowed_real_current=false`
+- `scaling_allowed=false`
+- risk increase not approved
+- no live broker calls during implementation or tests
+- no `--live-read-only` execution during verification
+- no `.env` or secrets
+- no order/cancel/close/modify
+- no `logs/coinbase_fills.csv` writes
+- no `append_coinbase_fill_row` activation
+- no risk/notional/symbol/config/strategy expansion
+
+---
+
 ## P2-022B review — paired Coinbase evidence request builder
 
 **Branch:** `review/p2-022b-paired-evidence-request-builder`

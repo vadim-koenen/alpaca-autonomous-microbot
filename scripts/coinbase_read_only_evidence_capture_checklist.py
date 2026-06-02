@@ -155,7 +155,7 @@ def _future_shell_commands(cycles: Sequence[Dict[str, Any]]) -> List[str]:
             commands.append(
                 "DO NOT RUN WITHOUT APPROVAL: "
                 "python3 scripts/coinbase_read_only_broker_fact_probe.py "
-                f"--live-read-only --json --order-id {order_id} --symbol {product_id} > {raw_path}"
+                f"--live-read-only --output json --order-id {order_id} --symbol {product_id} > {raw_path}"
             )
             commands.append(
                 "OFFLINE REDACTION ONLY: "

@@ -80,7 +80,24 @@ def test_future_commands_are_output_but_marked_do_not_run_without_approval():
     assert "coinbase_read_only_broker_fact_probe.py" in shell_commands
     assert "manual_coinbase_read_only_capture.py" not in shell_commands
     assert "--live-read-only" in shell_commands
-    assert "--live-read-only --json" in shell_commands
+    assert "--live-read-only --output json" in shell_commands
+
+
+def test_future_probe_commands_do_not_emit_stale_json_flag():
+    report = checklist.build_checklist_report(
+        _request("complete_capture_request.json"),
+        human_approved=True,
+        source_path="fixture",
+    )
+
+    probe_commands = "\n".join(
+        command
+        for command in report["planned_future_shell_commands"]
+        if "coinbase_read_only_broker_fact_probe.py" in command
+    )
+
+    assert "--output json" in probe_commands
+    assert "--json" not in probe_commands
 
 
 def test_checklist_is_offline_and_has_no_forbidden_runtime_hooks(tmp_path, monkeypatch):

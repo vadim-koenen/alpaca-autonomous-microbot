@@ -12,7 +12,7 @@ requirements for trustworthy fill logging are met.
 Strict safety guarantees in this patch:
 - Default mode performs ZERO live network calls.
 - Any live read requires the explicit --live-read-only flag.
-- No writes of any kind (no logs/coinbase_fills.csv, no append_coinbase_fill_row).
+- No writes of any kind (no fill-log CSV writes, no fill-row appender activation).
 - No order submission, cancel, or modify actions are ever performed.
 - When producing output from live data, sensitive values are redacted.
 - The probe never marks the logger as production-ready.
@@ -25,7 +25,7 @@ Usage:
     python3 scripts/coinbase_read_only_broker_fact_probe.py
 
     # Optional controlled live read (only if you have credentials and explicitly want it)
-    python3 scripts/coinbase_read_only_broker_fact_probe.py --live-read-only --order-id <id> --symbol BTC-USD
+    python3 scripts/coinbase_read_only_broker_fact_probe.py --live-read-only --order-id <id> --symbol BTC-USD --output json
 
 This is a Class 1 advisory/read-only patch.
 """
@@ -34,12 +34,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 # Make runnable from repo root
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -134,6 +133,12 @@ class BrokerFactDiscoveryReport:
     raw_fills_count: int = 0
     raw_fills_shape_keys_sample: List[str] = field(default_factory=list)
 
+    read_only_only: bool = True
+    live_read_only_requested: bool = False
+    broker_methods_attempted: List[str] = field(default_factory=list)
+    broker_calls_made: bool = False
+    order_mutation_methods_attempted: bool = False
+
     generated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
@@ -172,6 +177,9 @@ def analyze_broker_facts(
     leg_type: str = "unknown",
     symbol: str = "UNKNOWN",
     order_id: Optional[str] = None,
+    live_read_only_requested: bool = False,
+    broker_methods_attempted: Optional[List[str]] = None,
+    broker_calls_made: bool = False,
 ) -> BrokerFactDiscoveryReport:
     """
     Pure analysis of broker payloads.
@@ -221,6 +229,11 @@ def analyze_broker_facts(
         raw_order_shape_keys=raw_order_keys,
         raw_fills_count=len(historical_fills),
         raw_fills_shape_keys_sample=raw_fills_keys[:15],  # limit for readability
+        read_only_only=True,
+        live_read_only_requested=live_read_only_requested,
+        broker_methods_attempted=broker_methods_attempted or [],
+        broker_calls_made=broker_calls_made,
+        order_mutation_methods_attempted=False,
     )
 
 
@@ -240,8 +253,11 @@ def redact_report_for_output(report: BrokerFactDiscoveryReport) -> Dict[str, Any
 # Live read support (explicitly opt-in only)
 # =============================================================================
 
-def _get_live_broker():
+def _get_live_broker(broker_factory: Optional[Callable[[], Any]] = None) -> Any:
     """Lazily import and return a real broker only when --live-read-only is used."""
+    if broker_factory is not None:
+        return broker_factory()
+
     try:
         from broker_coinbase import BrokerCoinbase  # type: ignore
     except Exception as e:
@@ -251,12 +267,40 @@ def _get_live_broker():
 
     # The real broker will read its own credentials from the environment at construction time.
     # We do not touch .env here.
-    return BrokerCoinbase(dry_run=True)  # still respect dry_run for safety if the class supports it
+    return BrokerCoinbase()
+
+
+def build_non_live_refusal_report(symbol: str, order_id: Optional[str]) -> BrokerFactDiscoveryReport:
+    """Return a structured refusal for order-specific broker facts without live opt-in."""
+    return BrokerFactDiscoveryReport(
+        leg_type="unknown",
+        symbol=symbol,
+        order_id=order_id,
+        order_facts=OrderFactSummary(),
+        fill_facts=[],
+        direct_sell_proceeds_present=False,
+        stable_per_fill_ids_present=False,
+        per_fill_fees_present=False,
+        logger_readiness_blocked=True,
+        blocking_reasons=[
+            "Live read-only broker fact capture requires explicit --live-read-only; "
+            "no broker object was constructed and no broker calls were made."
+        ],
+        raw_order_shape_keys=[],
+        raw_fills_count=0,
+        raw_fills_shape_keys_sample=[],
+        read_only_only=True,
+        live_read_only_requested=False,
+        broker_methods_attempted=[],
+        broker_calls_made=False,
+        order_mutation_methods_attempted=False,
+    )
 
 
 def run_live_read_only_discovery(
     symbol: str,
     order_id: Optional[str] = None,
+    broker_factory: Optional[Callable[[], Any]] = None,
 ) -> BrokerFactDiscoveryReport:
     """
     Perform actual (but read-only) broker calls.
@@ -264,17 +308,20 @@ def run_live_read_only_discovery(
     THIS PATH MUST ONLY BE REACHED WHEN THE USER EXPLICITLY PASSES --live-read-only.
     It is intentionally not used by the test suite.
     """
-    broker = _get_live_broker()
+    broker = _get_live_broker(broker_factory=broker_factory)
+    broker_methods_attempted: List[str] = []
 
     status: Dict[str, Any] = {}
     if order_id:
         try:
-            status = broker.get_order_status(order_id) or {}
+            broker_methods_attempted.append("get_order_status")
+            status = broker.get_order_status(order_id=order_id) or {}
         except Exception as e:
             status = {"error": str(e)}
 
     fills: List[Dict[str, Any]] = []
     try:
+        broker_methods_attempted.append("get_historical_fills")
         fills = broker.get_historical_fills(product_id=symbol, order_id=order_id) or []
     except Exception as e:
         fills = [{"error": str(e)}]
@@ -287,6 +334,9 @@ def run_live_read_only_discovery(
         leg_type=leg_type,
         symbol=symbol,
         order_id=order_id,
+        live_read_only_requested=True,
+        broker_methods_attempted=broker_methods_attempted,
+        broker_calls_made=bool(broker_methods_attempted),
     )
 
     # Redact before returning for any human-visible output
@@ -297,7 +347,7 @@ def run_live_read_only_discovery(
 # CLI
 # =============================================================================
 
-def main() -> None:
+def main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="P2-011J Read-Only Coinbase Broker-Fact Discovery Probe")
     parser.add_argument("--symbol", default="BTC-USD", help="Product symbol for discovery")
     parser.add_argument("--order-id", default=None, help="Specific order_id to inspect (optional)")
@@ -312,7 +362,7 @@ def main() -> None:
         default="pretty",
         help="Output format",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.live_read_only:
         print("!!! LIVE READ-ONLY MODE ENABLED !!!")
@@ -321,33 +371,36 @@ def main() -> None:
         report = run_live_read_only_discovery(args.symbol, args.order_id)
         redacted = redact_report_for_output(report)
     else:
-        # Default: synthetic / controlled mode using the best available static shapes
-        # (we reuse some well-known good shapes from previous proof work)
-        good_entry = {
-            "normalized_status": "filled",
-            "side": "BUY",
-            "filled_size": "0.00123456",
-            "average_filled_price": "65000.50",
-            "total_fees": "0.4815",
-            "filled_value": "80.25",
-        }
-        good_fills = [
-            {
-                "trade_id": "t-demo-1",
-                "price": "65000.50",
-                "size": "0.00123456",
-                "fee": "0.4815",
-                "fee_currency": "USD",
-                "liquidity_indicator": "MAKER",
+        if args.order_id:
+            report = build_non_live_refusal_report(args.symbol, args.order_id)
+        else:
+            # Default: synthetic / controlled mode using the best available static shapes
+            # (we reuse some well-known good shapes from previous proof work)
+            good_entry = {
+                "normalized_status": "filled",
+                "side": "BUY",
+                "filled_size": "0.00123456",
+                "average_filled_price": "65000.50",
+                "total_fees": "0.4815",
+                "filled_value": "80.25",
             }
-        ]
-        report = analyze_broker_facts(
-            good_entry,
-            good_fills,
-            leg_type="entry",
-            symbol=args.symbol,
-            order_id=args.order_id or "demo-order",
-        )
+            good_fills = [
+                {
+                    "trade_id": "t-demo-1",
+                    "price": "65000.50",
+                    "size": "0.00123456",
+                    "fee": "0.4815",
+                    "fee_currency": "USD",
+                    "liquidity_indicator": "MAKER",
+                }
+            ]
+            report = analyze_broker_facts(
+                good_entry,
+                good_fills,
+                leg_type="entry",
+                symbol=args.symbol,
+                order_id=args.order_id or "demo-order",
+            )
         redacted = redact_report_for_output(report)
 
     if args.output == "json":

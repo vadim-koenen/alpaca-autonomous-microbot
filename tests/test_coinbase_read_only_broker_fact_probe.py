@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.coinbase_read_only_broker_fact_probe import (
     analyze_broker_facts,
+    build_non_live_refusal_report,
     redact_report_for_output,
     BrokerFactDiscoveryReport,
 )
@@ -142,3 +143,154 @@ def test_cli_default_does_not_enable_live_reads(monkeypatch, capsys):
     captured = capsys.readouterr()
     # It should have run in synthetic mode and not tried the live path
     assert "LIVE CALL ATTEMPTED" not in captured.out + captured.err
+
+
+def test_cli_accepts_output_json(capsys):
+    from scripts import coinbase_read_only_broker_fact_probe as probe_mod
+
+    probe_mod.main(["--output", "json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["read_only_only"] is True
+    assert payload["live_read_only_requested"] is False
+    assert payload["broker_methods_attempted"] == []
+    assert payload["broker_calls_made"] is False
+
+
+def test_cli_rejects_stale_json_flag():
+    from scripts import coinbase_read_only_broker_fact_probe as probe_mod
+
+    with pytest.raises(SystemExit) as excinfo:
+        probe_mod.main(["--json"])
+
+    assert excinfo.value.code == 2
+
+
+def test_non_live_order_specific_probe_refuses_without_broker_construction(monkeypatch, capsys):
+    from scripts import coinbase_read_only_broker_fact_probe as probe_mod
+
+    monkeypatch.setattr(
+        probe_mod,
+        "_get_live_broker",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("LIVE BROKER CONSTRUCTED")),
+    )
+
+    probe_mod.main([
+        "--output",
+        "json",
+        "--order-id",
+        "b6983cd8-4cf8-4d36-850b-c3ebe995b938",
+        "--symbol",
+        "ETH-USD",
+    ])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["logger_readiness_blocked"] is True
+    assert payload["read_only_only"] is True
+    assert payload["live_read_only_requested"] is False
+    assert payload["broker_methods_attempted"] == []
+    assert payload["broker_calls_made"] is False
+    assert payload["order_mutation_methods_attempted"] is False
+    assert "explicit --live-read-only" in " ".join(payload["blocking_reasons"])
+
+
+def test_get_live_broker_uses_zero_arg_factory_and_no_dry_run_kwarg():
+    from scripts import coinbase_read_only_broker_fact_probe as probe_mod
+
+    constructed = []
+
+    def fake_factory():
+        constructed.append("called")
+        return object()
+
+    broker = probe_mod._get_live_broker(broker_factory=fake_factory)
+
+    assert broker is not None
+    assert constructed == ["called"]
+
+
+def test_live_read_only_path_uses_only_fake_read_methods():
+    from scripts import coinbase_read_only_broker_fact_probe as probe_mod
+
+    class FakeBroker:
+        def __init__(self):
+            self.calls = []
+
+        def get_order_status(self, *, order_id):
+            self.calls.append(("get_order_status", order_id))
+            return {
+                "side": "SELL",
+                "filled_size": "0.01",
+                "average_filled_price": "2000",
+                "filled_value": "20.00",
+                "total_fees": "0.02",
+            }
+
+        def get_historical_fills(self, *, product_id=None, order_id=None, **kwargs):
+            self.calls.append(("get_historical_fills", product_id, order_id, kwargs))
+            return [{"trade_id": "fill-1", "price": "2000", "size": "0.01", "fee": "0.02"}]
+
+        def place_order(self, *args, **kwargs):  # pragma: no cover - must never be called
+            raise AssertionError("mutation method called")
+
+        def cancel_order(self, *args, **kwargs):  # pragma: no cover - must never be called
+            raise AssertionError("mutation method called")
+
+        def close_position(self, *args, **kwargs):  # pragma: no cover - must never be called
+            raise AssertionError("mutation method called")
+
+        def modify_order(self, *args, **kwargs):  # pragma: no cover - must never be called
+            raise AssertionError("mutation method called")
+
+    fake = FakeBroker()
+
+    report = probe_mod.run_live_read_only_discovery(
+        "ETH-USD",
+        "9a584218-1095-4f87-a4a4-5db56ca7a319",
+        broker_factory=lambda: fake,
+    )
+
+    assert fake.calls == [
+        ("get_order_status", "9a584218-1095-4f87-a4a4-5db56ca7a319"),
+        ("get_historical_fills", "ETH-USD", "9a584218-1095-4f87-a4a4-5db56ca7a319", {}),
+    ]
+    assert report.read_only_only is True
+    assert report.live_read_only_requested is True
+    assert report.broker_methods_attempted == ["get_order_status", "get_historical_fills"]
+    assert report.broker_calls_made is True
+    assert report.order_mutation_methods_attempted is False
+
+
+def test_non_live_refusal_report_has_required_safety_fields():
+    report = build_non_live_refusal_report("ETH-USD", "order-1")
+
+    assert report.read_only_only is True
+    assert report.live_read_only_requested is False
+    assert report.broker_methods_attempted == []
+    assert report.broker_calls_made is False
+    assert report.order_mutation_methods_attempted is False
+    assert report.logger_readiness_blocked is True
+
+
+def test_probe_source_has_no_mutation_call_paths():
+    import re
+    import scripts.coinbase_read_only_broker_fact_probe as probe_mod
+
+    source = Path(probe_mod.__file__).read_text(encoding="utf-8")
+    cleaned = re.sub(r'""".*?"""', "", source, flags=re.DOTALL)
+    cleaned = re.sub(r"'''.*?'''", "", cleaned, flags=re.DOTALL)
+    cleaned = re.sub(r"#.*", "", cleaned)
+
+    forbidden_calls = [
+        "place_order(",
+        "place_market_order(",
+        "submit_order(",
+        "preview_order(",
+        "cancel_order(",
+        "close_position(",
+        "modify_order(",
+        "append_coinbase_fill_row(",
+    ]
+    for token in forbidden_calls:
+        assert token not in cleaned
+    assert "logs/coinbase_fills.csv" not in cleaned
