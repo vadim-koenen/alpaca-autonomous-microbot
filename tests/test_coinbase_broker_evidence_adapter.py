@@ -8,6 +8,7 @@ import sys
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "coinbase_broker_evidence_adapter.py"
 FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "coinbase_broker_evidence"
+ONE_CYCLE_FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "coinbase_read_only_one_cycle_payload"
 
 spec = importlib.util.spec_from_file_location("broker_evidence_adapter", SCRIPT)
 adapter = importlib.util.module_from_spec(spec)
@@ -17,6 +18,10 @@ spec.loader.exec_module(adapter)
 
 def _report(name: str):
     return adapter.build_adapter_report(FIXTURES / name)
+
+
+def _one_cycle_report(name: str):
+    return adapter.build_adapter_report(ONE_CYCLE_FIXTURES / name)
 
 
 def test_commission_payload_normalizes_to_measured_broker_backed_limited():
@@ -64,6 +69,61 @@ def test_missing_order_or_fill_id_remains_unsafe():
     missing = report["resolver_report"]["required_missing_fields"]
     assert any("direct_order_id" in field for field in missing)
     assert any("direct_trade_or_fill_id" in field for field in missing)
+
+
+def test_one_cycle_read_only_payload_adapts_to_single_evidence_cycle():
+    report = _one_cycle_report("real_ethusd_029_redacted_payload.json")
+
+    evidence = report["adapted_evidence"]
+    assert evidence["source_schema_version"] == "p2-022c.one_cycle_read_only_payload.v1"
+    assert len(evidence["evidence_cycles"]) == 1
+    assert report["profit_readout"] == "measured_broker_backed_limited"
+    assert report["aggregation_allowed"] is True
+    assert report["scaling_allowed"] is False
+    assert report["resolver_report"]["blockers"] == []
+    assert "No direct entry+exit evidence cycles supplied." not in report["resolver_report"]["blockers"]
+
+
+def test_one_cycle_read_only_payload_maps_entry_and_exit_direct_fields():
+    report = _one_cycle_report("real_ethusd_029_redacted_payload.json")
+    cycle = report["adapted_evidence"]["evidence_cycles"][0]
+    entry_order = cycle["entry"]["order"]
+    exit_order = cycle["exit"]["order"]
+    entry_fill = cycle["entry"]["fills"][0]
+    exit_fill = cycle["exit"]["fills"][0]
+
+    assert cycle["cycle_id"] == "real-ethusd-029"
+    assert cycle["product_id"] == "ETH-USD"
+    assert entry_order["order_id"] == "b6983cd8-4cf8-4d36-850b-c3ebe995b938"
+    assert entry_order["side"] == "BUY"
+    assert entry_order["filled_size"] == "0.001"
+    assert entry_order["average_filled_price"] == "3800.00"
+    assert entry_order["filled_value"] == "3.80"
+    assert entry_order["total_fees"] == "0.0062"
+    assert entry_order["settled"] is True
+    assert entry_fill["trade_id"] == "entry-trade-redacted-029"
+    assert entry_fill["fee"] == "0.0062"
+
+    assert exit_order["order_id"] == "9a584218-1095-4f87-a4a4-5db56ca7a319"
+    assert exit_order["side"] == "SELL"
+    assert exit_order["filled_size"] == "0.001"
+    assert exit_order["average_filled_price"] == "3810.00"
+    assert exit_order["filled_value"] == "3.81"
+    assert exit_order["total_fees"] == "0.0064"
+    assert exit_order["settled"] is True
+    assert exit_order["proceeds"] == "3.81"
+    assert exit_fill["trade_id"] == "exit-trade-redacted-029"
+    assert exit_fill["fee"] == "0.0064"
+
+
+def test_one_cycle_read_only_source_map_marks_schema_recognized():
+    report = _one_cycle_report("real_ethusd_029_redacted_payload.json")
+    source = report["source_map"]["one_cycle_read_only_payload"]
+
+    assert source["recognized"] is True
+    assert source["source_schema_version"] == "p2-022c.one_cycle_read_only_payload.v1"
+    assert "cycles[].entry_broker_payload_redacted" in source["source_keys"]
+    assert report["source_map"]["adapted_counts"] == {"entry_fills": 1, "exit_fills": 1}
 
 
 def test_adapter_is_offline_and_has_no_forbidden_runtime_hooks(tmp_path, monkeypatch):

@@ -1,5 +1,54 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-022C2 review — adapt one-cycle read-only payload
+
+**Branch:** `review/p2-022c2-adapt-one-cycle-read-only-payload`
+
+P2-022C2 adapts the clean one-cycle Coinbase read-only capture payload into the
+offline broker evidence adapter and profit evidence resolver schemas.
+
+Current good state:
+
+- P2-022C1 is merged on `main` at `d39ef3e`.
+- The one-cycle human-approved read-only capture for `real-ethusd-029` succeeded
+  for both entry and exit broker reads after the probe compatibility fix.
+- Entry and exit both showed direct broker-backed order/fill evidence presence:
+  filled size, average filled price, filled value, total fees, settlement, per-fill
+  fees, and stable fill identifiers.
+- The remaining blocker is offline-only: the clean payload used
+  `cycles[].entry_broker_payload_redacted` and
+  `cycles[].exit_broker_payload_redacted`, while the adapter/resolver previously
+  expected normalized `evidence_cycles`.
+- No more live broker reads are needed until this adapter mapping is verified
+  offline.
+
+P2-022C2 updates:
+
+- `scripts/coinbase_read_only_broker_fact_probe.py` keeps `--output json`
+  stdout as pure JSON by sending the live-read-only warning banner to stderr.
+- `scripts/coinbase_broker_evidence_adapter.py` recognizes
+  `schema_version=p2-022c.one_cycle_read_only_payload.v1`.
+- `scripts/coinbase_profit_readout_evidence_resolver.py` can evaluate that
+  payload shape directly in offline mode.
+
+Preserved truth:
+
+- `profit_readout_real_current=unsafe_to_aggregate` until this branch is merged
+  and offline resolver verification passes.
+- Fixture-only one-cycle readout may become `measured_broker_backed_limited`.
+- `aggregation_allowed_real_current=false`
+- `scaling_allowed=false`
+- risk increase not approved
+- no live broker calls
+- no `--live-read-only` execution during verification
+- no `.env` or secrets
+- no order/cancel/close/modify
+- no `logs/coinbase_fills.csv` writes
+- no `append_coinbase_fill_row` activation
+- no risk/notional/symbol/config/strategy expansion
+
+---
+
 ## P2-022C1 review — read-only probe compatibility fix
 
 **Branch:** `review/p2-022c1-fix-read-only-probe-compatibility`

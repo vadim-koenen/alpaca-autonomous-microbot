@@ -365,9 +365,9 @@ def main(argv: Optional[List[str]] = None) -> None:
     args = parser.parse_args(argv)
 
     if args.live_read_only:
-        print("!!! LIVE READ-ONLY MODE ENABLED !!!")
-        print("This will make real read-only calls to the Coinbase broker.")
-        print("No writes or order actions will be performed.")
+        print("!!! LIVE READ-ONLY MODE ENABLED !!!", file=sys.stderr)
+        print("This will make real read-only calls to the Coinbase broker.", file=sys.stderr)
+        print("No writes or order actions will be performed.", file=sys.stderr)
         report = run_live_read_only_discovery(args.symbol, args.order_id)
         redacted = redact_report_for_output(report)
     else:

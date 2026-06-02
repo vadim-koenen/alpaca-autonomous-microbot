@@ -9,6 +9,7 @@ import sys
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "coinbase_profit_readout_evidence_resolver.py"
 FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "coinbase_profit_readout"
+ONE_CYCLE_FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "coinbase_read_only_one_cycle_payload"
 
 spec = importlib.util.spec_from_file_location("profit_resolver", SCRIPT)
 resolver = importlib.util.module_from_spec(spec)
@@ -18,6 +19,10 @@ spec.loader.exec_module(resolver)
 
 def _report(name: str):
     return resolver.build_report(FIXTURES / name)
+
+
+def _one_cycle_report(name: str):
+    return resolver.build_report(ONE_CYCLE_FIXTURES / name)
 
 
 def test_complete_direct_entry_exit_evidence_moves_to_measured_limited_readout():
@@ -124,6 +129,38 @@ def test_existing_recent_fills_sample_with_direct_facts_can_be_resolved(tmp_path
     assert report["profit_readout"] == "measured_broker_backed_limited"
     assert report["aggregation_allowed"] is True
     assert report["scaling_allowed"] is False
+
+
+def test_one_cycle_read_only_payload_resolves_to_limited_broker_backed_readout():
+    report = _one_cycle_report("real_ethusd_029_redacted_payload.json")
+
+    assert report["verdict"] == "EVIDENCE_RESOLVED"
+    assert report["profit_readout"] == "measured_broker_backed_limited"
+    assert report["evidence_level"] == "L4_direct_entry_exit_broker_facts"
+    assert report["aggregation_allowed"] is True
+    assert report["scaling_allowed"] is False
+    assert report["cycles_evaluated"] == 1
+    assert report["complete_direct_cycles"] == 1
+    assert report["required_missing_fields"] == []
+    assert "No direct entry+exit evidence cycles supplied." not in report["blockers"]
+    assert report["direct_order_id_available"] is True
+    assert report["direct_trade_or_fill_id_available"] is True
+    assert report["direct_fee_available"] is True
+    assert report["direct_proceeds_or_filled_value_available"] is True
+    assert report["safety"]["risk_increase"] == "not_approved"
+
+
+def test_one_cycle_read_only_payload_cycle_report_has_entry_and_exit_available():
+    report = _one_cycle_report("real_ethusd_029_redacted_payload.json")
+    cycle = report["cycle_reports"][0]
+
+    assert cycle["cycle_id"] == "real-ethusd-029"
+    assert cycle["product_id"] == "ETH-USD"
+    assert cycle["complete_direct_evidence"] is True
+    assert cycle["entry"]["side"] == "BUY"
+    assert cycle["exit"]["side"] == "SELL"
+    assert cycle["entry"]["fills_count"] == 1
+    assert cycle["exit"]["fills_count"] == 1
 
 
 def test_resolver_does_not_import_broker_or_reference_production_fill_logger():

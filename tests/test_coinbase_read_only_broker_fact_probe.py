@@ -157,6 +157,39 @@ def test_cli_accepts_output_json(capsys):
     assert payload["broker_calls_made"] is False
 
 
+def test_live_read_only_output_json_writes_pure_json_to_stdout_and_warning_to_stderr(monkeypatch, capsys):
+    from scripts import coinbase_read_only_broker_fact_probe as probe_mod
+
+    report = probe_mod.analyze_broker_facts(
+        {
+            "side": "BUY",
+            "filled_size": "0.001",
+            "average_filled_price": "3800.00",
+            "filled_value": "3.80",
+            "total_fees": "0.0062",
+            "settled": True,
+        },
+        [{"trade_id": "fill-1", "price": "3800.00", "size": "0.001", "fee": "0.0062"}],
+        leg_type="entry",
+        symbol="ETH-USD",
+        order_id="order-1",
+        live_read_only_requested=True,
+        broker_methods_attempted=["get_order_status", "get_historical_fills"],
+        broker_calls_made=True,
+    )
+    monkeypatch.setattr(probe_mod, "run_live_read_only_discovery", lambda symbol, order_id: report)
+
+    probe_mod.main(["--live-read-only", "--output", "json", "--order-id", "order-1", "--symbol", "ETH-USD"])
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["read_only_only"] is True
+    assert payload["live_read_only_requested"] is True
+    assert payload["broker_methods_attempted"] == ["get_order_status", "get_historical_fills"]
+    assert "LIVE READ-ONLY MODE ENABLED" not in captured.out
+    assert "LIVE READ-ONLY MODE ENABLED" in captured.err
+
+
 def test_cli_rejects_stale_json_flag():
     from scripts import coinbase_read_only_broker_fact_probe as probe_mod
 

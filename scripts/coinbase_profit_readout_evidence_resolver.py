@@ -22,6 +22,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 MEASURED_READOUT = "measured_broker_backed_limited"
 UNSAFE_READOUT = "unsafe_to_aggregate"
+ONE_CYCLE_READ_ONLY_SCHEMA = "p2-022c.one_cycle_read_only_payload.v1"
 
 ORDER_ID_KEYS = ("order_id", "client_order_id", "coinbase_order_id")
 FILL_ID_KEYS = ("trade_id", "fill_id", "entry_id", "fill_key")
@@ -103,7 +104,172 @@ def _leg_from_recent_fill(fill: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _redacted_fact_value(name: str) -> str:
+    return f"<REDACTED_DIRECT_BROKER_{name.upper()}_PRESENT>"
+
+
+def _payload_order_fact(payload: Dict[str, Any], fact_key: str) -> bool:
+    facts = payload.get("order_facts")
+    if not isinstance(facts, dict):
+        return False
+    return _bool_or_default(facts.get(fact_key), False)
+
+
+def _payload_fill_fact(fill_fact: Dict[str, Any], fact_key: str) -> bool:
+    return _bool_or_default(fill_fact.get(fact_key), False)
+
+
+def _normalize_embedded_order(payload: Dict[str, Any]) -> Dict[str, Any]:
+    for key in (
+        "order",
+        "order_status",
+        "order_status_redacted",
+        "broker_order",
+        "broker_order_payload",
+        "raw_order",
+    ):
+        value = payload.get(key)
+        if isinstance(value, dict):
+            return _unwrap_order(dict(value))
+
+    direct_order_keys = {
+        "order_id",
+        "client_order_id",
+        "product_id",
+        "side",
+        "status",
+        "filled_size",
+        "average_filled_price",
+        "filled_value",
+        "total_fees",
+        "settled",
+    }
+    if any(key in payload for key in direct_order_keys):
+        return dict(payload)
+    return {}
+
+
+def _order_from_broker_payload(payload: Dict[str, Any], cycle: Dict[str, Any], leg: str) -> Dict[str, Any]:
+    side = "BUY" if leg == "entry" else "SELL"
+    order = _normalize_embedded_order(payload)
+    order_id = cycle.get(f"{leg}_order_id") or order.get("order_id") or payload.get("order_id")
+    if isinstance(order_id, str) and order_id.startswith("<REDACTED"):
+        order_id = cycle.get(f"{leg}_order_id")
+    product_id = cycle.get("product_id") or order.get("product_id") or payload.get("product_id") or payload.get("symbol")
+
+    order.setdefault("order_id", order_id)
+    order.setdefault("product_id", product_id)
+    order.setdefault("side", side)
+    order.setdefault("status", "FILLED")
+
+    field_facts = {
+        "filled_size": "has_filled_size",
+        "average_filled_price": "has_average_filled_price",
+        "filled_value": "has_filled_value",
+        "total_fees": "has_total_fees",
+    }
+    for field, fact in field_facts.items():
+        if field not in order and _payload_order_fact(payload, fact):
+            order[field] = _redacted_fact_value(field)
+
+    if "settled" not in order and _payload_order_fact(payload, "has_settled"):
+        order["settled"] = True
+    if side == "SELL" and order.get("filled_value") and not order.get("proceeds"):
+        order["proceeds"] = order["filled_value"]
+    return order
+
+
+def _embedded_fills(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    fills: List[Dict[str, Any]] = []
+    for key in ("fills", "historical_fills", "list_fills", "fills_redacted"):
+        value = payload.get(key)
+        if isinstance(value, dict):
+            value = value.get("fills") or value.get("data") or []
+        fills.extend(_as_list(value))
+    return fills
+
+
+def _fills_from_broker_payload(
+    payload: Dict[str, Any],
+    *,
+    order: Dict[str, Any],
+    cycle: Dict[str, Any],
+    leg: str,
+) -> List[Dict[str, Any]]:
+    side = "BUY" if leg == "entry" else "SELL"
+    product_id = order.get("product_id") or cycle.get("product_id") or payload.get("symbol")
+    order_id = order.get("order_id")
+    fills = [dict(fill) for fill in _embedded_fills(payload)]
+    for fill in fills:
+        fill.setdefault("order_id", order_id)
+        fill.setdefault("product_id", product_id)
+        fill.setdefault("side", side)
+        if "trade_id" not in fill:
+            _, fill_id = _first_present(fill, FILL_ID_KEYS)
+            if fill_id is not None:
+                fill["trade_id"] = fill_id
+        if "fee" not in fill:
+            _, fee = _first_present(fill, FEE_KEYS)
+            if fee is not None:
+                fill["fee"] = fee
+        if order.get("filled_value") and "filled_value" not in fill:
+            fill["filled_value"] = order["filled_value"]
+    if fills:
+        return fills
+
+    synthetic_fills: List[Dict[str, Any]] = []
+    for index, fill_fact in enumerate(_as_list(payload.get("fill_facts")), start=1):
+        fill: Dict[str, Any] = {
+            "order_id": order_id,
+            "product_id": product_id,
+            "side": side,
+        }
+        stable_id = fill_fact.get("stable_id_value")
+        if stable_id and not str(stable_id).startswith("<REDACTED"):
+            fill["trade_id"] = stable_id
+        elif _payload_fill_fact(fill_fact, "has_stable_id"):
+            fill["trade_id"] = _redacted_fact_value(f"{leg}_fill_id_{index}")
+        if _payload_fill_fact(fill_fact, "has_fee"):
+            fill["fee"] = _redacted_fact_value(f"{leg}_fill_fee_{index}")
+        if _payload_fill_fact(fill_fact, "has_price"):
+            fill["price"] = _redacted_fact_value(f"{leg}_fill_price_{index}")
+        if _payload_fill_fact(fill_fact, "has_size"):
+            fill["size"] = _redacted_fact_value(f"{leg}_fill_size_{index}")
+        if order.get("filled_value"):
+            fill["filled_value"] = order["filled_value"]
+        synthetic_fills.append(fill)
+    return synthetic_fills
+
+
+def _cycles_from_one_cycle_read_only_payload(probe: Dict[str, Any]) -> List[Dict[str, Any]]:
+    cycles: List[Dict[str, Any]] = []
+    for index, cycle in enumerate(_as_list(probe.get("cycles")), start=1):
+        entry_payload = cycle.get("entry_broker_payload_redacted")
+        exit_payload = cycle.get("exit_broker_payload_redacted")
+        if not isinstance(entry_payload, dict) or not isinstance(exit_payload, dict):
+            continue
+
+        entry_order = _order_from_broker_payload(entry_payload, cycle, "entry")
+        exit_order = _order_from_broker_payload(exit_payload, cycle, "exit")
+        cycles.append({
+            "cycle_id": cycle.get("cycle_id") or f"one-cycle-read-only-{index}",
+            "product_id": cycle.get("product_id") or entry_order.get("product_id") or exit_order.get("product_id"),
+            "entry": {
+                "order": entry_order,
+                "fills": _fills_from_broker_payload(entry_payload, order=entry_order, cycle=cycle, leg="entry"),
+            },
+            "exit": {
+                "order": exit_order,
+                "fills": _fills_from_broker_payload(exit_payload, order=exit_order, cycle=cycle, leg="exit"),
+            },
+        })
+    return cycles
+
+
 def _cycles_from_probe(probe: Dict[str, Any]) -> List[Dict[str, Any]]:
+    if probe.get("schema_version") == ONE_CYCLE_READ_ONLY_SCHEMA:
+        return _cycles_from_one_cycle_read_only_payload(probe)
+
     if isinstance(probe.get("evidence_cycles"), list):
         return _as_list(probe.get("evidence_cycles"))
 
