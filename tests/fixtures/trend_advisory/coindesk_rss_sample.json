@@ -1,0 +1,24 @@
+{
+  "sources": {
+    "coindesk_rss_news": {
+      "source_status": "available",
+      "headlines": [
+        {
+          "title": "Bitcoin rebounds while Ethereum volumes stabilize",
+          "symbols": [
+            "BTC",
+            "ETH"
+          ],
+          "sentiment": "positive"
+        },
+        {
+          "title": "Solana staking remains active",
+          "symbols": [
+            "SOL"
+          ],
+          "sentiment": "positive"
+        }
+      ]
+    }
+  }
+}

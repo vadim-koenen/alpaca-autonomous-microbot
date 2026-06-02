@@ -1,5 +1,68 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-024A review — read-only Coinbase trend advisory registry
+
+**Branch:** `review/p2-024a-read-only-trend-advisory-registry`
+
+P2-023B is merged on `main` at `2657dd1`. The live Coinbase bot was restarted
+successfully with target `com.vadim.coinbase-crypto-bot` and new PID `52004`.
+
+Current live/pilot context provided by the user:
+
+- broker `coinbase`
+- mode `live`
+- open_positions `0`
+- risk_halt_active `false`
+- buying_power about `49.4345`
+- equity about `50.3681`
+- balance-relative sizing active
+- `pilot_trade_percent_of_balance=0.10`
+- `min_trade_notional_usd=5.00`
+- `max_trade_notional_usd=10.00`
+- `absolute_hard_trade_cap_usd=10.00`
+- BTC/USD and ETH/USD only
+- SOL/USD excluded
+- `fee_drag_guard_enabled=true`
+
+Latest post-restart observation:
+
+- BTC/USD regime `downtrend`, allowed strategies `[]`
+- ETH/USD regime `downtrend`, allowed strategies `[]`
+- bot sat out
+- no new trade yet
+- current bot is not yet pulling broader trend/news/sentiment context
+
+P2-024A adds a read-only advisory layer:
+
+- `scripts/coinbase_trend_signal_registry.py`
+- `scripts/coinbase_trend_advisory_snapshot.py`
+- source registry entries for local Coinbase market context, CoinGecko
+  trending, CoinDesk RSS/news, and future disabled sources
+- normalized schema `p2-024a.trend_advisory.v1`
+- BTC/USD and ETH/USD only
+- SOL/USD excluded from live advisory symbols
+- positive external trend/news can only become `confirm_only`
+- local downtrend with no allowed strategies remains `avoid` or `watch`
+
+Preserved truth:
+
+- advisory layer is read-only
+- `trade_permission=none`
+- no live trade triggers
+- no sizing changes
+- no risk override
+- no live broker calls during implementation/tests
+- no order/cancel/close/modify
+- no buy/sell/preview/order placement
+- no symbol expansion beyond BTC/USD and ETH/USD
+- no SOL trading
+- no derivatives/perps/prediction-market live execution
+- no `.env` or secrets during tests
+- next broker-backed profit readout still depends on the next closed `$5-$10`
+  BTC/ETH cycle
+
+---
+
 ## P2-023B review — balance-relative fee-aware Coinbase sizing and process audit
 
 **Branch:** `review/p2-023b-balance-relative-fee-aware-sizing`

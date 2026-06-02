@@ -1,0 +1,24 @@
+{
+  "sources": {
+    "coingecko_trending": {
+      "source_status": "available",
+      "coins": [
+        {
+          "symbol": "BTC",
+          "name": "Bitcoin",
+          "rank": 1
+        },
+        {
+          "symbol": "ETH",
+          "name": "Ethereum",
+          "rank": 2
+        },
+        {
+          "symbol": "SOL",
+          "name": "Solana",
+          "rank": 3
+        }
+      ]
+    }
+  }
+}
