@@ -70,6 +70,11 @@ def _observation_from_dashboard(iteration: int, dashboard: Dict[str, Any]) -> Di
     profit = dashboard.get("profit_readout") if isinstance(dashboard.get("profit_readout"), dict) else {}
     safety = dashboard.get("safety") if isinstance(dashboard.get("safety"), dict) else {}
     symbols = dashboard.get("symbols") if isinstance(dashboard.get("symbols"), list) else []
+    expansion = (
+        dashboard.get("controlled_live_symbol_expansion")
+        if isinstance(dashboard.get("controlled_live_symbol_expansion"), dict)
+        else {}
+    )
 
     return {
         "iteration": iteration,
@@ -82,6 +87,8 @@ def _observation_from_dashboard(iteration: int, dashboard: Dict[str, Any]) -> Di
         "final_trade_notional": sizing.get("final_trade_notional"),
         "eligible_symbols": list(sizing.get("eligible_symbols") or []),
         "excluded_symbols": list(sizing.get("excluded_symbols") or []),
+        "expanded_live_symbols": list(expansion.get("expanded_live_symbols") or sizing.get("expanded_live_symbols") or []),
+        "shared_caps": bool(expansion.get("shared_caps", True)),
         "symbols": _symbol_summary(symbols),
         "profit_readout": {
             "global_status": profit.get("global_status"),
@@ -107,6 +114,7 @@ def _observation_from_dashboard(iteration: int, dashboard: Dict[str, Any]) -> Di
             "sol_excluded": bool(safety.get("sol_excluded", False)),
             "secrets_or_env_read": bool(safety.get("secrets_or_env_read", False)),
             "state_or_log_mutation": bool(safety.get("state_or_log_mutation", False)),
+            "symbol_expansion": bool(safety.get("symbol_expansion", False)),
             "strategy_auto_trigger_from_trends": bool(
                 safety.get("strategy_auto_trigger_from_trends", False)
             ),
@@ -134,8 +142,11 @@ def _aggregate(observations: List[Dict[str, Any]]) -> Dict[str, Any]:
         "live_order_actions_allowed": bool(last.get("live_order_actions_allowed", False)),
         "eligible_symbols": list(last.get("eligible_symbols") or []),
         "excluded_symbols": list(last.get("excluded_symbols") or []),
+        "expanded_live_symbols": list(last.get("expanded_live_symbols") or last.get("eligible_symbols") or []),
+        "shared_caps": bool(last.get("shared_caps", True)),
         "symbols": symbols,
         "btc_eth_only": [row.get("symbol") for row in symbols] == ["BTC/USD", "ETH/USD"],
+        "expanded_basket_enabled": len([row.get("symbol") for row in symbols]) > 2,
         "sol_excluded": all(row.get("symbol") != "SOL/USD" for row in symbols),
         "profit_readout": last.get("profit_readout", {}),
     }
@@ -145,6 +156,7 @@ def build_observation_loop(
     *,
     heartbeat_path: Path = DEFAULT_HEARTBEAT,
     trend_source_json: Optional[Path] = None,
+    quote_source_json: Optional[Path] = None,
     fee_drag_source_json: Optional[Path] = None,
     include_logs: bool = False,
     iterations: int = 3,
@@ -156,6 +168,7 @@ def build_observation_loop(
         dashboard = build_dashboard(
             heartbeat_path=heartbeat_path,
             trend_source_json=trend_source_json,
+            quote_source_json=quote_source_json,
             fee_drag_source_json=fee_drag_source_json,
             include_logs=include_logs,
             offline_only=offline_only,
@@ -187,7 +200,7 @@ def build_observation_loop(
             "state_or_log_mutation": False,
             "runtime_restart_performed": False,
             "runtime_control_touched": False,
-            "symbol_expansion": False,
+            "symbol_expansion": any(row.get("safety", {}).get("symbol_expansion") is True for row in observations),
             "sol_excluded": all(row.get("safety", {}).get("sol_excluded") is True for row in observations),
             "strategy_auto_trigger_from_trends": False,
         },
@@ -199,6 +212,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--json", action="store_true", help="Emit JSON")
     parser.add_argument("--heartbeat", type=Path, default=DEFAULT_HEARTBEAT, help="Local heartbeat JSON path")
     parser.add_argument("--trend-source-json", type=Path, default=None, help="Local trend/advisory source JSON")
+    parser.add_argument("--quote-source-json", type=Path, default=None, help="Local quote health source JSON")
     parser.add_argument("--fee-drag-source-json", type=Path, default=None, help="Local fee-drag evidence/report JSON")
     parser.add_argument("--include-logs", action="store_true", help="Record that log context was requested")
     parser.add_argument("--iterations", type=int, default=3, help="Finite offline observations to compose")
@@ -207,6 +221,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     loop = build_observation_loop(
         heartbeat_path=args.heartbeat,
         trend_source_json=args.trend_source_json,
+        quote_source_json=args.quote_source_json,
         fee_drag_source_json=args.fee_drag_source_json,
         include_logs=args.include_logs,
         iterations=args.iterations,

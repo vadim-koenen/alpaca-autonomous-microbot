@@ -1,5 +1,62 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-024D review — controlled live Coinbase spot symbol expansion
+
+**Branch:** `review/p2-024d-controlled-live-symbol-expansion`
+
+P2-024C is merged on `main` at `3263ab3`. P2-024D expands the live Coinbase
+spot candidate basket because BTC/ETH-only scope was producing too few
+opportunities under the current trend, fee-drag, and risk gates.
+
+Approved expanded live spot symbols:
+
+- BTC/USD
+- ETH/USD
+- ADA/USD
+- AVAX/USD
+- DOGE/USD
+- LINK/USD
+- LTC/USD
+
+Explicitly excluded:
+
+- SOL/USD
+- derivatives/perps
+- prediction markets
+- unsupported products
+- invalid or stale quote products
+
+Preserved truth:
+
+- expansion increases opportunity count, not trade size
+- shared caps remain active across all symbols
+- `max_trade_notional_usd=10.00`
+- `absolute_hard_trade_cap_usd=10.00`
+- current balance final notional preview remains about `5.0000`
+- `max_open_positions=1`
+- `max_trades_per_day=3`
+- `fee_drag_guard_enabled=true`
+- `trade_permission=none` for dashboard/digest
+- no runtime restart
+- no `launchctl`
+- no live broker calls during implementation/tests
+- no `--live-read-only`
+- no `.env` or secrets during tests
+- no order/cancel/close/modify
+- no buy/sell/preview/order placement
+- no derivatives/perps/prediction-market live execution
+- `profit_readout=unsafe_to_aggregate`
+- `aggregation_allowed=false`
+- `scaling_allowed=false`
+- `risk_increase=not_approved`
+
+Next success metric:
+
+- direct broker-backed net P/L from the first closed expanded-symbol `$5-$10`
+  cycle
+
+---
+
 ## P2-024C review — dashboard observation loop and operator digest
 
 **Branch:** `review/p2-024c-dashboard-observation-loop-operator-digest`

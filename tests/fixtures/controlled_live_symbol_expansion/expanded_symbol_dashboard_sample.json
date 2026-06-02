@@ -1,0 +1,13 @@
+{
+  "scenario": "p2_024d_expanded_symbol_dashboard_sample",
+  "heartbeat": "tests/fixtures/opportunity_dashboard/heartbeat_current_50usd.json",
+  "quotes": "tests/fixtures/controlled_live_symbol_expansion/expanded_symbol_quotes_healthy.json",
+  "regimes": "tests/fixtures/controlled_live_symbol_expansion/expanded_symbol_regimes_sample.json",
+  "expected": {
+    "expanded_live_symbols": ["BTC/USD", "ETH/USD", "ADA/USD", "AVAX/USD", "DOGE/USD", "LINK/USD", "LTC/USD"],
+    "excluded_symbols": ["SOL/USD"],
+    "trade_permission": "none",
+    "final_trade_notional": "5.0000",
+    "positive_hypothetical_candidate": "ADA/USD"
+  }
+}

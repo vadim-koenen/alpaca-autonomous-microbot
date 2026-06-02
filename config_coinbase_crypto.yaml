@@ -55,10 +55,20 @@ crypto:
   live_symbols:
     - BTC/USD
     - ETH/USD
+    - ADA/USD
+    - AVAX/USD
+    - DOGE/USD
+    - LINK/USD
+    - LTC/USD
   watch_only_symbols: []
   symbols:
     - BTC/USD
     - ETH/USD
+    - ADA/USD
+    - AVAX/USD
+    - DOGE/USD
+    - LINK/USD
+    - LTC/USD
   controlled_fee_aware_pilot_enabled: true
   pilot_trade_percent_of_balance: 0.10
   balance_basis: buying_power_then_equity
@@ -72,8 +82,30 @@ crypto:
   fee_aware_pilot_symbols:
     - BTC/USD
     - ETH/USD
+    - ADA/USD
+    - AVAX/USD
+    - DOGE/USD
+    - LINK/USD
+    - LTC/USD
   fee_aware_pilot_excluded_symbols:
     - SOL/USD
+  controlled_live_symbol_expansion:
+    enabled: true
+    live_symbols:
+      - BTC/USD
+      - ETH/USD
+      - ADA/USD
+      - AVAX/USD
+      - DOGE/USD
+      - LINK/USD
+      - LTC/USD
+    excluded_symbols:
+      - SOL/USD
+    shared_caps: true
+    require_quote_health: true
+    require_fee_drag_clearance: true
+    no_derivatives: true
+    block_prediction_products: true
   fee_drag_observed_cycle:
     cycle_id: real-ethusd-029
     product_id: ETH-USD
@@ -84,6 +116,11 @@ crypto:
   max_spread_pct_per_symbol:
     BTC/USD: 0.10
     ETH/USD: 0.15
+    ADA/USD: 0.20
+    AVAX/USD: 0.20
+    DOGE/USD: 0.20
+    LINK/USD: 0.20
+    LTC/USD: 0.20
   max_spread_pct: 0.20    # global fallback
   stale_data_seconds: 90
   use_limit_orders: true
@@ -107,6 +144,11 @@ crypto:
     approved_symbols:
       - BTC/USD
       - ETH/USD
+      - ADA/USD
+      - AVAX/USD
+      - DOGE/USD
+      - LINK/USD
+      - LTC/USD
     max_single_trade_notional_usd: 10.00
     max_total_exploration_exposure_usd: 10.00
     max_round_trips_per_day: 3

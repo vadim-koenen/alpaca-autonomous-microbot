@@ -23,6 +23,7 @@ from strategy_crypto import CryptoStrategy
 from strategy_equities import EquitiesStrategy
 from strategy_options import OptionsStrategy
 from strategy_shorts import ShortsStrategy
+from coinbase_controlled_live_symbol_expansion import resolve_live_symbols_from_crypto_config
 from utils import (
     get_cfg,
     get_mode,
@@ -74,6 +75,17 @@ class StrategyRouter:
             if not live_syms:
                 all_syms = get_cfg("crypto", "symbols", default=[])
                 live_syms = [s for s in all_syms if s not in watch_only]
+
+            crypto_cfg = get_cfg("crypto", default={}) or {}
+            expansion_cfg = crypto_cfg.get("controlled_live_symbol_expansion") or {}
+            if expansion_cfg.get("enabled"):
+                resolved_live_syms = resolve_live_symbols_from_crypto_config(crypto_cfg)
+                if resolved_live_syms != live_syms:
+                    logger.info(
+                        "P2-024D controlled live symbol expansion active: "
+                        f"effective_live_symbols={resolved_live_syms}"
+                    )
+                live_syms = resolved_live_syms
 
             if watch_only:
                 logger.debug(

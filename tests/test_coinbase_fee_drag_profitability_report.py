@@ -17,6 +17,7 @@ from risk_manager import AccountState, RiskManager, TradeProposal
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "coinbase_fee_drag_profitability_report.py"
 FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "coinbase_fee_drag_profitability"
 CONFIG = Path(__file__).resolve().parents[1] / "config_coinbase_crypto.yaml"
+EXPANDED = ["BTC/USD", "ETH/USD", "ADA/USD", "AVAX/USD", "DOGE/USD", "LINK/USD", "LTC/USD"]
 
 spec = importlib.util.spec_from_file_location("coinbase_fee_drag_profitability_report", SCRIPT)
 fee_report = importlib.util.module_from_spec(spec)
@@ -65,7 +66,7 @@ def _pilot_cfg(*keys, default=None):
     cfg = {
         "crypto": {
             "controlled_fee_aware_pilot_enabled": True,
-            "fee_aware_pilot_symbols": ["BTC/USD", "ETH/USD"],
+            "fee_aware_pilot_symbols": EXPANDED,
             "fee_aware_pilot_excluded_symbols": ["SOL/USD"],
             "pilot_trade_percent_of_balance": 0.10,
             "min_trade_notional_usd": 5.00,
@@ -130,7 +131,7 @@ def test_controlled_pilot_notional_is_balance_relative_and_caps_oversized_reques
         max_trade_notional_usd="25.00",
         absolute_hard_trade_cap_usd="10.00",
         min_trade_notional_usd="5.00",
-        allowed_symbols=["BTC/USD", "ETH/USD"],
+        allowed_symbols=EXPANDED,
         enabled=True,
         metrics=metrics,
     )
@@ -148,7 +149,7 @@ def test_skip_when_expected_move_is_below_fee_threshold():
         expected_gross_move_rate="0.0050",
         equity="50.00",
         buying_power="50.00",
-        allowed_symbols=["BTC/USD", "ETH/USD"],
+        allowed_symbols=EXPANDED,
         enabled=True,
         metrics=_measured_metrics(),
     )
@@ -164,7 +165,7 @@ def test_allow_candidate_only_when_expected_move_clears_fee_plus_buffer():
         expected_gross_move_rate="0.0325",
         equity="50.00",
         buying_power="50.00",
-        allowed_symbols=["BTC/USD", "ETH/USD"],
+        allowed_symbols=EXPANDED,
         enabled=True,
         metrics=_measured_metrics(),
     )
@@ -180,7 +181,7 @@ def test_sol_remains_excluded_from_controlled_pilot():
         expected_gross_move_rate="0.0500",
         equity="50.00",
         buying_power="50.00",
-        allowed_symbols=["BTC/USD", "ETH/USD"],
+        allowed_symbols=EXPANDED,
         enabled=True,
         metrics=_measured_metrics(),
     )
@@ -226,7 +227,7 @@ def test_risk_manager_rejects_1usd_above_resolved_size_and_above_10usd(monkeypat
     assert reason_ok == ""
 
 
-def test_coinbase_config_is_controlled_5usd_btc_eth_only():
+def test_coinbase_config_is_controlled_5usd_expanded_spot_basket():
     config = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
 
     assert config["global_risk"]["max_open_positions"] == 1
@@ -237,9 +238,12 @@ def test_coinbase_config_is_controlled_5usd_btc_eth_only():
     assert config["crypto"]["max_trade_notional_usd"] == 10.00
     assert config["crypto"]["absolute_hard_trade_cap_usd"] == 10.00
     assert config["crypto"]["max_total_crypto_exposure_usd"] == 10.00
-    assert config["crypto"]["live_symbols"] == ["BTC/USD", "ETH/USD"]
-    assert config["crypto"]["symbols"] == ["BTC/USD", "ETH/USD"]
-    assert config["crypto"]["controlled_exploration"]["approved_symbols"] == ["BTC/USD", "ETH/USD"]
+    assert config["crypto"]["live_symbols"] == EXPANDED
+    assert config["crypto"]["symbols"] == EXPANDED
+    assert config["crypto"]["fee_aware_pilot_symbols"] == EXPANDED
+    assert config["crypto"]["controlled_exploration"]["approved_symbols"] == EXPANDED
+    assert config["crypto"]["controlled_live_symbol_expansion"]["enabled"] is True
+    assert config["crypto"]["controlled_live_symbol_expansion"]["shared_caps"] is True
     assert config["crypto"]["multi_asset_spot"]["enabled"] is False
     assert "SOL/USD" not in config["crypto"]["live_symbols"]
     assert "SOL/USD" not in config["crypto"]["symbols"]

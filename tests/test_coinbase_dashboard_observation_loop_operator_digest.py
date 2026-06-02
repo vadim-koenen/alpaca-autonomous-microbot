@@ -11,7 +11,9 @@ LOOP_SCRIPT = ROOT / "scripts" / "coinbase_dashboard_observation_loop.py"
 DIGEST_SCRIPT = ROOT / "scripts" / "coinbase_operator_digest.py"
 FIXTURES = ROOT / "tests" / "fixtures" / "opportunity_dashboard"
 TREND_FIXTURES = ROOT / "tests" / "fixtures" / "trend_advisory"
+EXPANSION_FIXTURES = ROOT / "tests" / "fixtures" / "controlled_live_symbol_expansion"
 FEE_FIXTURES = ROOT / "tests" / "fixtures" / "coinbase_fee_drag_profitability"
+EXPANDED = ["BTC/USD", "ETH/USD", "ADA/USD", "AVAX/USD", "DOGE/USD", "LINK/USD", "LTC/USD"]
 
 loop_spec = importlib.util.spec_from_file_location("coinbase_dashboard_observation_loop", LOOP_SCRIPT)
 loop_module = importlib.util.module_from_spec(loop_spec)
@@ -27,7 +29,8 @@ digest_spec.loader.exec_module(digest_module)
 def _loop(**kwargs):
     params = {
         "heartbeat_path": FIXTURES / "heartbeat_current_50usd.json",
-        "trend_source_json": TREND_FIXTURES / "coinbase_local_market_context_sample.json",
+        "trend_source_json": EXPANSION_FIXTURES / "expanded_symbol_regimes_sample.json",
+        "quote_source_json": EXPANSION_FIXTURES / "expanded_symbol_quotes_healthy.json",
         "fee_drag_source_json": FEE_FIXTURES / "real_style_1usd_eth_fee_drag_cycle.json",
         "iterations": 2,
     }
@@ -35,7 +38,7 @@ def _loop(**kwargs):
     return loop_module.build_observation_loop(**params)
 
 
-def test_observation_loop_current_style_sit_out_is_stable_and_read_only():
+def test_observation_loop_current_style_expanded_candidate_is_stable_and_read_only():
     observation = _loop()
     aggregate = observation["aggregate"]
 
@@ -44,23 +47,24 @@ def test_observation_loop_current_style_sit_out_is_stable_and_read_only():
     assert observation["iterations_executed"] == 2
     assert observation["loop_control"]["sleep_performed"] is False
     assert observation["loop_control"]["writes_files"] is False
-    assert aggregate["stable_verdict"] == "SIT_OUT_CONFIRMED"
-    assert aggregate["current_style_verdict"] == "SIT_OUT_CONFIRMED"
-    assert aggregate["next_required_action"] == (
-        "continue_observing_until_btc_eth_signal_clears_trend_fee_and_risk_gates"
-    )
+    assert aggregate["stable_verdict"] == "READY_TO_OBSERVE"
+    assert aggregate["current_style_verdict"] == "READY_TO_OBSERVE"
+    assert aggregate["next_required_action"] == "observe_candidate_only_no_trade_permission"
     assert aggregate["final_trade_notional"] == "5.0000"
     assert aggregate["trade_permission"] == "none"
     assert aggregate["live_order_actions_allowed"] is False
 
 
-def test_observation_loop_preserves_btc_eth_only_sol_excluded_and_profit_gate():
+def test_observation_loop_preserves_expanded_basket_sol_excluded_and_profit_gate():
     observation = _loop()
     aggregate = observation["aggregate"]
 
-    assert aggregate["btc_eth_only"] is True
+    assert aggregate["btc_eth_only"] is False
+    assert aggregate["expanded_basket_enabled"] is True
+    assert aggregate["expanded_live_symbols"] == EXPANDED
+    assert aggregate["shared_caps"] is True
     assert aggregate["sol_excluded"] is True
-    assert aggregate["eligible_symbols"] == ["BTC/USD", "ETH/USD"]
+    assert aggregate["eligible_symbols"] == EXPANDED
     assert aggregate["excluded_symbols"] == ["SOL/USD"]
     assert aggregate["profit_readout"]["global_status"] == "unsafe_to_aggregate"
     assert aggregate["profit_readout"]["aggregation_allowed"] is False
@@ -76,22 +80,26 @@ def test_operator_digest_summarizes_current_style_loop():
 
     assert digest["schema_version"] == "p2-024c.coinbase_operator_digest.v1"
     assert digest["mode"] == "offline_read_only_operator_digest"
-    assert digest["current_style_verdict"] == "SIT_OUT_CONFIRMED"
-    assert digest["stable_verdict"] == "SIT_OUT_CONFIRMED"
-    assert digest["next_required_action"] == (
-        "continue_observing_until_btc_eth_signal_clears_trend_fee_and_risk_gates"
-    )
+    assert digest["current_style_verdict"] == "READY_TO_OBSERVE"
+    assert digest["stable_verdict"] == "READY_TO_OBSERVE"
+    assert digest["next_required_action"] == "observe_candidate_only_no_trade_permission"
     assert digest["final_trade_notional"] == "5.0000"
     assert digest["trade_permission"] == "none"
     assert digest["live_order_actions_allowed"] is False
-    assert digest["btc_eth_only"] is True
+    assert digest["btc_eth_only"] is False
+    assert digest["expanded_basket_enabled"] is True
+    assert digest["expanded_live_symbols"] == EXPANDED
+    assert digest["shared_caps"] is True
     assert digest["sol_excluded"] is True
     assert "trade_permission=none" in digest["operator_digest_text"]
     assert "profit_readout=unsafe_to_aggregate" in digest["operator_digest_text"]
 
 
 def test_candidate_context_digest_observes_but_does_not_grant_trade_permission():
-    observation = _loop(trend_source_json=FIXTURES / "uptrend_candidate_context.json")
+    observation = _loop(
+        trend_source_json=EXPANSION_FIXTURES / "expanded_symbol_regimes_sample.json",
+        quote_source_json=EXPANSION_FIXTURES / "expanded_symbol_quotes_healthy.json",
+    )
     digest = digest_module.build_operator_digest(observation)
 
     assert digest["current_style_verdict"] == "READY_TO_OBSERVE"
@@ -114,12 +122,13 @@ def test_blocked_runtime_digest_investigates_without_runtime_action():
 def test_digest_can_build_directly_from_local_inputs():
     digest = digest_module.build_digest_from_inputs(
         heartbeat_path=FIXTURES / "heartbeat_current_50usd.json",
-        trend_source_json=TREND_FIXTURES / "coinbase_local_market_context_sample.json",
+        trend_source_json=EXPANSION_FIXTURES / "expanded_symbol_regimes_sample.json",
+        quote_source_json=EXPANSION_FIXTURES / "expanded_symbol_quotes_healthy.json",
         fee_drag_source_json=FEE_FIXTURES / "real_style_1usd_eth_fee_drag_cycle.json",
         iterations=1,
     )
 
-    assert digest["current_style_verdict"] == "SIT_OUT_CONFIRMED"
+    assert digest["current_style_verdict"] == "READY_TO_OBSERVE"
     assert digest["source_observation"]["iterations_executed"] == 1
     assert digest["trade_permission"] == "none"
 

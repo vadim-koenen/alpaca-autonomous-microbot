@@ -44,7 +44,7 @@ def _load_json(path: Path) -> Tuple[Dict[str, Any], Optional[str]]:
 
 def _headline(verdict: str) -> str:
     if verdict == "SIT_OUT_CONFIRMED":
-        return "Sit out confirmed; keep observing BTC/USD and ETH/USD only."
+        return "Sit out confirmed; keep observing the controlled expanded Coinbase spot basket."
     if verdict == "READY_TO_OBSERVE":
         return "Candidate context observed; no live trade permission is granted."
     if verdict == "WAIT_FOR_SIGNAL":
@@ -68,6 +68,8 @@ def build_operator_digest(observation_loop: Dict[str, Any]) -> Dict[str, Any]:
         _headline(current_verdict),
         f"next_required_action={next_action}",
         f"final_trade_notional={aggregate.get('final_trade_notional')}",
+        f"expanded_live_symbols={','.join(aggregate.get('expanded_live_symbols') or [])}",
+        f"shared_caps={str(bool(aggregate.get('shared_caps', True))).lower()}",
         "trade_permission=none",
         "profit_readout=unsafe_to_aggregate",
         "risk_increase=not_approved",
@@ -90,6 +92,9 @@ def build_operator_digest(observation_loop: Dict[str, Any]) -> Dict[str, Any]:
         "trade_permission": "none",
         "live_order_actions_allowed": False,
         "btc_eth_only": bool(aggregate.get("btc_eth_only", False)),
+        "expanded_basket_enabled": bool(aggregate.get("expanded_basket_enabled", False)),
+        "expanded_live_symbols": list(aggregate.get("expanded_live_symbols") or []),
+        "shared_caps": bool(aggregate.get("shared_caps", True)),
         "sol_excluded": bool(aggregate.get("sol_excluded", False)),
         "symbols": symbols,
         "profit_readout": {
@@ -111,7 +116,7 @@ def build_operator_digest(observation_loop: Dict[str, Any]) -> Dict[str, Any]:
             "state_or_log_mutation": False,
             "runtime_restart_performed": False,
             "runtime_control_touched": False,
-            "symbol_expansion": False,
+            "symbol_expansion": bool(aggregate.get("expanded_basket_enabled", False)),
             "sol_excluded": bool(aggregate.get("sol_excluded", False)),
             "strategy_auto_trigger_from_trends": False,
         },
@@ -128,6 +133,7 @@ def build_digest_from_inputs(
     observation_json: Optional[Path] = None,
     heartbeat_path: Path = DEFAULT_HEARTBEAT,
     trend_source_json: Optional[Path] = None,
+    quote_source_json: Optional[Path] = None,
     fee_drag_source_json: Optional[Path] = None,
     iterations: int = 3,
 ) -> Dict[str, Any]:
@@ -156,6 +162,7 @@ def build_digest_from_inputs(
     observation_loop = build_observation_loop(
         heartbeat_path=heartbeat_path,
         trend_source_json=trend_source_json,
+        quote_source_json=quote_source_json,
         fee_drag_source_json=fee_drag_source_json,
         iterations=iterations,
     )
@@ -168,6 +175,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--observation-json", type=Path, default=None, help="Saved observation loop JSON")
     parser.add_argument("--heartbeat", type=Path, default=DEFAULT_HEARTBEAT, help="Local heartbeat JSON path")
     parser.add_argument("--trend-source-json", type=Path, default=None, help="Local trend/advisory source JSON")
+    parser.add_argument("--quote-source-json", type=Path, default=None, help="Local quote health source JSON")
     parser.add_argument("--fee-drag-source-json", type=Path, default=None, help="Local fee-drag evidence/report JSON")
     parser.add_argument("--iterations", type=int, default=3, help="Finite offline observations when no observation JSON is supplied")
     args = parser.parse_args(argv)
@@ -176,6 +184,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         observation_json=args.observation_json,
         heartbeat_path=args.heartbeat,
         trend_source_json=args.trend_source_json,
+        quote_source_json=args.quote_source_json,
         fee_drag_source_json=args.fee_drag_source_json,
         iterations=args.iterations,
     )

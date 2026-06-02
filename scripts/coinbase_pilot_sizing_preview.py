@@ -21,6 +21,7 @@ ROOT = _HERE.parent
 sys.path.insert(0, str(ROOT))
 
 from coinbase_fee_aware_pilot import resolve_balance_relative_pilot_sizing
+from coinbase_controlled_live_symbol_expansion import policy_from_crypto_config
 
 
 def _load_config(path: Path) -> Dict[str, Any]:
@@ -50,8 +51,9 @@ def build_preview(
         absolute_hard_trade_cap_usd=crypto.get("absolute_hard_trade_cap_usd", 10.00),
         balance_basis=crypto.get("balance_basis", "buying_power_then_equity"),
     )
-    eligible = list(crypto.get("fee_aware_pilot_symbols") or ["BTC/USD", "ETH/USD"])
-    excluded = list(crypto.get("fee_aware_pilot_excluded_symbols") or ["SOL/USD"])
+    expansion_policy = policy_from_crypto_config(crypto)
+    eligible = list(expansion_policy.get("live_symbols") or crypto.get("fee_aware_pilot_symbols") or ["BTC/USD", "ETH/USD"])
+    excluded = list(expansion_policy.get("excluded_symbols") or crypto.get("fee_aware_pilot_excluded_symbols") or ["SOL/USD"])
 
     return {
         "verdict": sizing.get("verdict", "BLOCKED"),
@@ -69,6 +71,15 @@ def build_preview(
         "min_trade_floor_applied": sizing.get("min_trade_floor_applied", False),
         "eligible_symbols": eligible,
         "excluded_symbols": excluded,
+        "expanded_live_symbols": eligible,
+        "controlled_live_symbol_expansion": {
+            "enabled": expansion_policy.get("enabled", False),
+            "shared_caps": expansion_policy.get("shared_caps", True),
+            "require_quote_health": expansion_policy.get("require_quote_health", True),
+            "require_fee_drag_clearance": expansion_policy.get("require_fee_drag_clearance", True),
+            "no_derivatives": expansion_policy.get("no_derivatives", True),
+            "block_prediction_products": expansion_policy.get("block_prediction_products", True),
+        },
         "max_open_positions": global_risk.get("max_open_positions"),
         "max_trades_per_day": global_risk.get("max_trades_per_day"),
         "risk_increase": "not_approved",

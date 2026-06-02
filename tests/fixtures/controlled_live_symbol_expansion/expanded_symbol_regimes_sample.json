@@ -1,0 +1,63 @@
+{
+  "sources": {
+    "coinbase_local_market_context": {
+      "source_status": "available",
+      "symbols": [
+        {
+          "symbol": "BTC/USD",
+          "regime": "downtrend",
+          "allowed_strategies": [],
+          "expected_gross_move_rate": "0.0050"
+        },
+        {
+          "symbol": "ETH/USD",
+          "regime": "downtrend",
+          "allowed_strategies": [],
+          "expected_gross_move_rate": "0.0050"
+        },
+        {
+          "symbol": "ADA/USD",
+          "regime": "uptrend",
+          "allowed_strategies": ["momentum_breakout"],
+          "expected_gross_move_rate": "0.0500"
+        },
+        {
+          "symbol": "AVAX/USD",
+          "regime": "range",
+          "allowed_strategies": ["mean_reversion"],
+          "expected_gross_move_rate": "0.0050"
+        },
+        {
+          "symbol": "DOGE/USD",
+          "regime": "uptrend",
+          "allowed_strategies": ["momentum_breakout"],
+          "expected_gross_move_rate": "0.0040"
+        },
+        {
+          "symbol": "LINK/USD",
+          "regime": "range",
+          "allowed_strategies": [],
+          "expected_gross_move_rate": "0.0050"
+        },
+        {
+          "symbol": "LTC/USD",
+          "regime": "volatile_range",
+          "allowed_strategies": ["mean_reversion"],
+          "expected_gross_move_rate": "0.0400"
+        },
+        {
+          "symbol": "SOL/USD",
+          "regime": "uptrend",
+          "allowed_strategies": ["momentum_breakout"],
+          "expected_gross_move_rate": "0.0500"
+        },
+        {
+          "symbol": "XRP/USD",
+          "regime": "uptrend",
+          "allowed_strategies": ["momentum_breakout"],
+          "expected_gross_move_rate": "0.0500"
+        }
+      ]
+    }
+  }
+}

@@ -17,10 +17,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+import yaml
+
 _HERE = Path(__file__).resolve().parent
 ROOT = _HERE.parent
 sys.path.insert(0, str(ROOT))
 
+from coinbase_controlled_live_symbol_expansion import (
+    evaluate_symbol_eligibility,
+    policy_from_crypto_config,
+    quote_for_symbol,
+)
 from scripts.coinbase_fee_drag_profitability_report import build_report as build_fee_drag_report
 from scripts.coinbase_pilot_sizing_preview import build_preview as build_sizing_preview
 from scripts.coinbase_trend_signal_registry import (
@@ -35,7 +42,9 @@ SCHEMA_VERSION = "p2-024b.coinbase_opportunity_dashboard.v1"
 MODE = "offline_read_only_dashboard"
 TRADE_PERMISSION = "none"
 DEFAULT_HEARTBEAT = ROOT / "runtime" / "coinbase_heartbeat.json"
-DEFAULT_TREND_SOURCE = ROOT / "tests" / "fixtures" / "trend_advisory" / "coinbase_local_market_context_sample.json"
+DEFAULT_TREND_SOURCE = ROOT / "tests" / "fixtures" / "controlled_live_symbol_expansion" / "expanded_symbol_regimes_sample.json"
+FALLBACK_TREND_SOURCE = ROOT / "tests" / "fixtures" / "trend_advisory" / "coinbase_local_market_context_sample.json"
+DEFAULT_QUOTE_SOURCE = ROOT / "tests" / "fixtures" / "controlled_live_symbol_expansion" / "expanded_symbol_quotes_healthy.json"
 DEFAULT_FEE_DRAG_SOURCE = (
     ROOT
     / "tests"
@@ -73,7 +82,23 @@ def _default_fee_drag_source() -> Optional[Path]:
 def _default_trend_source() -> Optional[Path]:
     if DEFAULT_TREND_SOURCE.exists():
         return DEFAULT_TREND_SOURCE
+    if FALLBACK_TREND_SOURCE.exists():
+        return FALLBACK_TREND_SOURCE
     return None
+
+
+def _default_quote_source() -> Optional[Path]:
+    if DEFAULT_QUOTE_SOURCE.exists():
+        return DEFAULT_QUOTE_SOURCE
+    return None
+
+
+def _load_config(path: Path = ROOT / "config_coinbase_crypto.yaml") -> Dict[str, Any]:
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def _source(payload: Dict[str, Any], source_id: str) -> Dict[str, Any]:
@@ -110,6 +135,11 @@ def _allowed_strategies(local: Dict[str, Any]) -> List[str]:
     if not isinstance(strategies, list):
         return []
     return [str(item) for item in strategies if str(item).strip()]
+
+
+def _expected_move(local: Dict[str, Any]) -> Optional[str]:
+    value = local.get("expected_gross_move_rate")
+    return str(value) if value is not None else None
 
 
 def _advisory_by_symbol(snapshot: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
@@ -162,6 +192,11 @@ def _fee_drag_status(report: Dict[str, Any]) -> str:
     return "unknown"
 
 
+def _required_fee_drag_rate(report: Dict[str, Any]) -> Optional[str]:
+    value = report.get("minimum_required_gross_move_rate")
+    return str(value) if value is not None else None
+
+
 def _heartbeat_blockers(heartbeat: Dict[str, Any], load_error: Optional[str]) -> List[str]:
     blockers: List[str] = []
     if load_error:
@@ -179,11 +214,19 @@ def _symbol_opportunity(
     local: Dict[str, Any],
     advisory: Dict[str, Any],
     fee_status: str,
+    eligibility: Dict[str, Any],
     global_blocked: bool,
 ) -> Dict[str, Any]:
     regime = str(local.get("regime") or "unknown").lower()
     strategies = _allowed_strategies(local)
     advisory_action = str(advisory.get("advisory_action") or "unknown")
+    if advisory_action == "unknown":
+        if regime in {"downtrend", "dead_chop"} and not strategies:
+            advisory_action = "avoid"
+        elif strategies:
+            advisory_action = "confirm_only"
+        elif regime != "unknown":
+            advisory_action = "watch"
     reasons: List[str] = []
 
     if regime != "unknown":
@@ -196,18 +239,20 @@ def _symbol_opportunity(
         reasons.append(f"trend_advisory_action={advisory_action}")
     if fee_status == "threshold_active":
         reasons.append("fee_drag_threshold_active")
+    for reason in eligibility.get("skip_reasons") or []:
+        if reason not in reasons:
+            reasons.append(reason)
 
     if global_blocked:
         opportunity_verdict = "blocked"
         reasons.append("global_runtime_blocker")
-    elif advisory_action == "avoid" or (regime in {"downtrend", "dead_chop"} and not strategies):
-        opportunity_verdict = "sit_out"
-    elif advisory_action == "unknown" and regime == "unknown":
-        opportunity_verdict = "blocked"
-        reasons.append("trend_evidence_unavailable")
-    elif strategies and advisory_action in {"watch", "confirm_only"}:
+    elif eligibility.get("allowed"):
         opportunity_verdict = "candidate"
         reasons.append("candidate_requires_separate_strategy_and_risk_gates")
+    elif advisory_action == "avoid" or (regime in {"downtrend", "dead_chop"} and not strategies):
+        opportunity_verdict = "sit_out"
+    elif eligibility.get("opportunity_verdict") in {"blocked", "sit_out"}:
+        opportunity_verdict = eligibility.get("opportunity_verdict")
     else:
         opportunity_verdict = "watch"
         reasons.append("wait_for_cleaner_signal")
@@ -219,6 +264,8 @@ def _symbol_opportunity(
         "trend_advisory_action": advisory_action,
         "fee_drag_status": fee_status,
         "opportunity_verdict": opportunity_verdict,
+        "eligibility": eligibility,
+        "skip_reasons": list(eligibility.get("skip_reasons") or []),
         "reason": reasons,
     }
 
@@ -247,17 +294,24 @@ def build_dashboard(
     *,
     heartbeat_path: Path = DEFAULT_HEARTBEAT,
     trend_source_json: Optional[Path] = None,
+    quote_source_json: Optional[Path] = None,
     fee_drag_source_json: Optional[Path] = None,
     include_logs: bool = False,
     offline_only: bool = True,
 ) -> Dict[str, Any]:
     heartbeat, heartbeat_error = _load_json(heartbeat_path)
     blockers = _heartbeat_blockers(heartbeat, heartbeat_error)
+    config = _load_config()
+    crypto = config.get("crypto") if isinstance(config.get("crypto"), dict) else {}
+    global_risk = config.get("global_risk") if isinstance(config.get("global_risk"), dict) else {}
+    expansion_policy = policy_from_crypto_config(crypto)
 
     trend_source = trend_source_json if trend_source_json is not None else _default_trend_source()
     trend_payload, trend_error = _load_json(trend_source)
+    quote_source = quote_source_json if quote_source_json is not None else _default_quote_source()
+    quote_payload, quote_error = _load_json(quote_source)
     trend_snapshot = build_advisory_snapshot(
-        symbols=list(ELIGIBLE_SYMBOLS) + list(EXCLUDED_SYMBOLS),
+        symbols=list(expansion_policy.get("live_symbols") or ELIGIBLE_SYMBOLS) + list(expansion_policy.get("excluded_symbols") or EXCLUDED_SYMBOLS),
         source_json=trend_source,
         allow_network=False,
     )
@@ -266,21 +320,38 @@ def build_dashboard(
 
     fee_report = _load_fee_drag(fee_drag_source_json)
     fee_status = _fee_drag_status(fee_report)
+    required_fee_drag_rate = _required_fee_drag_rate(fee_report)
     sizing = build_sizing_preview(
         equity=heartbeat.get("equity"),
         buying_power=heartbeat.get("buying_power"),
     )
 
-    symbol_rows = [
-        _symbol_opportunity(
+    symbol_rows = []
+    for symbol in expansion_policy.get("live_symbols") or list(ELIGIBLE_SYMBOLS):
+        local = local_by_symbol.get(symbol, {})
+        eligibility = evaluate_symbol_eligibility(
             symbol=symbol,
-            local=local_by_symbol.get(symbol, {}),
-            advisory=advisory_by_symbol.get(symbol, {}),
-            fee_status=fee_status,
-            global_blocked=bool(blockers),
+            policy=expansion_policy,
+            quote=quote_for_symbol(symbol, quote_payload),
+            regime=str(local.get("regime") or "unknown"),
+            allowed_strategies=_allowed_strategies(local),
+            expected_gross_move_rate=_expected_move(local),
+            required_gross_move_rate=required_fee_drag_rate,
+            open_positions=int(heartbeat.get("open_positions") or 0),
+            max_open_positions=int(global_risk.get("max_open_positions") or 1),
+            daily_trade_count=int(heartbeat.get("trades_today") or 0),
+            max_trades_per_day=int(global_risk.get("max_trades_per_day") or 3),
         )
-        for symbol in ELIGIBLE_SYMBOLS
-    ]
+        symbol_rows.append(
+            _symbol_opportunity(
+                symbol=symbol,
+                local=local,
+                advisory=advisory_by_symbol.get(symbol, {}),
+                fee_status=fee_status,
+                eligibility=eligibility,
+                global_blocked=bool(blockers),
+            )
+        )
     verdict = _global_verdict(symbol_rows, blockers, heartbeat.get("open_positions"))
 
     return {
@@ -292,6 +363,19 @@ def build_dashboard(
         "live_order_actions_allowed": False,
         "risk_increase": "not_approved",
         "sizing": sizing,
+        "controlled_live_symbol_expansion": {
+            "enabled": expansion_policy.get("enabled", False),
+            "expanded_live_symbols": list(expansion_policy.get("live_symbols") or []),
+            "excluded_symbols": list(expansion_policy.get("excluded_symbols") or []),
+            "shared_caps": expansion_policy.get("shared_caps", True),
+            "require_quote_health": expansion_policy.get("require_quote_health", True),
+            "require_fee_drag_clearance": expansion_policy.get("require_fee_drag_clearance", True),
+            "no_derivatives": expansion_policy.get("no_derivatives", True),
+            "block_prediction_products": expansion_policy.get("block_prediction_products", True),
+            "warning": "Expansion increases opportunity count, not trade size, caps, or max positions.",
+        },
+        "expanded_live_symbols": list(expansion_policy.get("live_symbols") or []),
+        "excluded_symbols": list(expansion_policy.get("excluded_symbols") or []),
         "symbols": symbol_rows,
         "profit_readout": {
             "global_status": "unsafe_to_aggregate",
@@ -313,6 +397,8 @@ def build_dashboard(
             "trade_permission": trend_snapshot.get("trade_permission"),
             "source_path": str(trend_source) if trend_source is not None else None,
             "source_load_error": trend_error,
+            "quote_source_path": str(quote_source) if quote_source is not None else None,
+            "quote_source_load_error": quote_error,
             "global_narratives": trend_snapshot.get("global_narratives", []),
             "source_status": trend_snapshot.get("source_status", {}),
         },
@@ -344,10 +430,13 @@ def build_dashboard(
             "order_actions_allowed": False,
             "sizing_changes_allowed": False,
             "risk_override_allowed": False,
-            "sol_excluded": all(row.get("symbol") != "SOL/USD" for row in symbol_rows),
+            "sol_excluded": (
+                "SOL/USD" in set(expansion_policy.get("excluded_symbols") or [])
+                and all(row.get("symbol") != "SOL/USD" for row in symbol_rows)
+            ),
             "secrets_or_env_read": False,
             "state_or_log_mutation": False,
-            "symbol_expansion": False,
+            "symbol_expansion": bool(expansion_policy.get("enabled", False)),
             "derivatives_live_execution": False,
             "strategy_auto_trigger_from_trends": False,
         },
@@ -359,6 +448,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--json", action="store_true", help="Emit JSON")
     parser.add_argument("--heartbeat", type=Path, default=DEFAULT_HEARTBEAT, help="Local heartbeat JSON path")
     parser.add_argument("--trend-source-json", type=Path, default=None, help="Local trend/advisory source JSON")
+    parser.add_argument("--quote-source-json", type=Path, default=None, help="Local quote health source JSON")
     parser.add_argument("--fee-drag-source-json", type=Path, default=None, help="Local fee-drag evidence/report JSON")
     parser.add_argument("--include-logs", action="store_true", help="Record that log context was requested")
     parser.add_argument("--offline-only", action="store_true", default=True, help="Reserved; dashboard remains offline-only")
@@ -367,6 +457,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     dashboard = build_dashboard(
         heartbeat_path=args.heartbeat,
         trend_source_json=args.trend_source_json,
+        quote_source_json=args.quote_source_json,
         fee_drag_source_json=args.fee_drag_source_json,
         include_logs=args.include_logs,
         offline_only=args.offline_only,

@@ -26,6 +26,10 @@ from coinbase_fee_aware_pilot import (
     decimal_or_none,
     resolve_balance_relative_pilot_sizing,
 )
+from coinbase_controlled_live_symbol_expansion import (
+    policy_from_crypto_config,
+    product_is_forbidden,
+)
 from utils import (
     data_is_stale,
     get_cfg,
@@ -140,6 +144,7 @@ class RiskManager:
             self._check_margin_specific,       # equity gate before time gate
             self._check_options_specific,      # broker approval before time gate
             self._check_crypto_specific,
+            self._check_controlled_live_symbol_expansion,
             self._check_controlled_fee_aware_pilot,
             self._check_crypto_manual_review_gate,
             self._check_total_crypto_exposure,
@@ -291,12 +296,31 @@ class RiskManager:
             return False, f"{p.symbol} not in allowed crypto symbols list"
         return True, ""
 
+    def _check_controlled_live_symbol_expansion(self, p, s, mode):
+        if p.asset_class != "crypto":
+            return True, ""
+
+        crypto_cfg = self._c("crypto", default={}) or {}
+        policy = policy_from_crypto_config(crypto_cfg)
+        if not policy.get("enabled"):
+            return True, ""
+
+        live_symbols = set(policy.get("live_symbols") or [])
+        excluded_symbols = set(policy.get("excluded_symbols") or [])
+        if p.symbol in excluded_symbols:
+            return False, "symbol_excluded_external_inventory"
+        if p.symbol not in live_symbols or product_is_forbidden(p.symbol, policy):
+            return False, "symbol_not_in_live_basket"
+        return True, ""
+
     def _check_controlled_fee_aware_pilot(self, p, s, mode):
         if p.asset_class != "crypto":
             return True, ""
         if not self._c("crypto", "controlled_fee_aware_pilot_enabled", default=False):
             return True, ""
 
+        crypto_cfg = self._c("crypto", default={}) or {}
+        expansion_policy = policy_from_crypto_config(crypto_cfg)
         allowed_symbols = set(self._c(
             "crypto",
             "fee_aware_pilot_symbols",
@@ -307,6 +331,9 @@ class RiskManager:
             "fee_aware_pilot_excluded_symbols",
             default=list(DEFAULT_EXCLUDED_SYMBOLS),
         ) or DEFAULT_EXCLUDED_SYMBOLS)
+        if expansion_policy.get("enabled"):
+            allowed_symbols = set(expansion_policy.get("live_symbols") or allowed_symbols)
+            excluded_symbols = set(expansion_policy.get("excluded_symbols") or excluded_symbols)
         max_trade = decimal_or_none(self._c(
             "crypto",
             "max_trade_notional_usd",
@@ -325,9 +352,9 @@ class RiskManager:
         pilot_cap = min(max_trade, absolute_cap, DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD)
 
         if p.symbol in excluded_symbols:
-            return False, "sol_external_staked_inventory_excluded"
+            return False, "symbol_excluded_external_inventory"
         if p.symbol not in allowed_symbols:
-            return False, f"{p.symbol} not in controlled fee-aware pilot symbols"
+            return False, "symbol_not_in_live_basket"
         if p.notional > float(pilot_cap):
             return False, f"notional ${p.notional:.2f} exceeds controlled pilot cap ${float(pilot_cap):.2f}"
         if p.notional < float(min_trade):

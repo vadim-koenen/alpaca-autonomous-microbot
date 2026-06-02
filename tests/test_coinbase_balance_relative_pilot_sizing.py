@@ -18,6 +18,7 @@ from risk_manager import AccountState, RiskManager, TradeProposal
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "config_coinbase_crypto.yaml"
 PREVIEW_SCRIPT = ROOT / "scripts" / "coinbase_pilot_sizing_preview.py"
+EXPANDED = ["BTC/USD", "ETH/USD", "ADA/USD", "AVAX/USD", "DOGE/USD", "LINK/USD", "LTC/USD"]
 
 spec = importlib.util.spec_from_file_location("coinbase_pilot_sizing_preview", PREVIEW_SCRIPT)
 preview_module = importlib.util.module_from_spec(spec)
@@ -39,7 +40,7 @@ def _pilot_cfg(*keys, default=None):
     cfg = {
         "crypto": {
             "controlled_fee_aware_pilot_enabled": True,
-            "fee_aware_pilot_symbols": ["BTC/USD", "ETH/USD"],
+            "fee_aware_pilot_symbols": EXPANDED,
             "fee_aware_pilot_excluded_symbols": ["SOL/USD"],
             "pilot_trade_percent_of_balance": 0.10,
             "min_trade_notional_usd": 5.00,
@@ -141,13 +142,14 @@ def test_candidate_never_exceeds_buying_power_or_absolute_hard_cap():
     assert high_balance["absolute_hard_trade_cap_usd"] == "10.0000"
 
 
-def test_btc_eth_eligible_and_sol_excluded():
-    for symbol in ("BTC/USD", "ETH/USD"):
+def test_expanded_symbols_eligible_and_sol_excluded():
+    for symbol in EXPANDED:
         result = evaluate_pilot_candidate(
             symbol=symbol,
             expected_gross_move_rate="0.0325",
             equity="100.00",
             buying_power="100.00",
+            allowed_symbols=EXPANDED,
             enabled=True,
             metrics=_metrics(),
         )
@@ -159,6 +161,7 @@ def test_btc_eth_eligible_and_sol_excluded():
         expected_gross_move_rate="0.0500",
         equity="100.00",
         buying_power="100.00",
+        allowed_symbols=EXPANDED,
         enabled=True,
         metrics=_metrics(),
     )
@@ -196,7 +199,7 @@ def test_risk_manager_enforces_balance_relative_size_and_caps(monkeypatch):
     assert manager._check_controlled_fee_aware_pilot(_proposal(notional=5.00), state_30, "live")[0] is False
 
 
-def test_config_declares_balance_relative_5_to_10_btc_eth_only():
+def test_config_declares_balance_relative_5_to_10_expanded_spot_basket():
     config = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
 
     assert config["global_risk"]["max_open_positions"] == 1
@@ -206,9 +209,12 @@ def test_config_declares_balance_relative_5_to_10_btc_eth_only():
     assert config["crypto"]["min_trade_notional_usd"] == 5.00
     assert config["crypto"]["max_trade_notional_usd"] == 10.00
     assert config["crypto"]["absolute_hard_trade_cap_usd"] == 10.00
-    assert config["crypto"]["live_symbols"] == ["BTC/USD", "ETH/USD"]
-    assert config["crypto"]["symbols"] == ["BTC/USD", "ETH/USD"]
+    assert config["crypto"]["live_symbols"] == EXPANDED
+    assert config["crypto"]["symbols"] == EXPANDED
+    assert config["crypto"]["fee_aware_pilot_symbols"] == EXPANDED
     assert config["crypto"]["fee_aware_pilot_excluded_symbols"] == ["SOL/USD"]
+    assert config["crypto"]["controlled_live_symbol_expansion"]["enabled"] is True
+    assert config["crypto"]["controlled_live_symbol_expansion"]["shared_caps"] is True
     assert config["crypto"]["multi_asset_spot"]["enabled"] is False
 
 
@@ -217,7 +223,8 @@ def test_preview_script_outputs_expected_shape():
 
     assert preview["verdict"] == "SIZING_PREVIEW_OK"
     assert preview["final_trade_notional"] == "5.0000"
-    assert preview["eligible_symbols"] == ["BTC/USD", "ETH/USD"]
+    assert preview["eligible_symbols"] == EXPANDED
+    assert preview["expanded_live_symbols"] == EXPANDED
     assert preview["excluded_symbols"] == ["SOL/USD"]
     assert preview["risk_increase"] == "not_approved"
     assert preview["safety"]["broker_calls_made"] is False

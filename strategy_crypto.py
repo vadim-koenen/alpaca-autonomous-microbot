@@ -880,7 +880,8 @@ class CryptoStrategy:
         """
         Controlled Coinbase exploration (P2-001B).
         
-        Intelligently rotates across BTC, ETH, SOL to gather diverse live shadow data.
+        Intelligently rotates across the approved Coinbase spot basket to gather
+        diverse live shadow data.
         Uses journal-based history to avoid open positions and respect cooldowns.
         """
         try:

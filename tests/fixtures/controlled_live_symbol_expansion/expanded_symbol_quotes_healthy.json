@@ -1,0 +1,14 @@
+{
+  "source": "offline_fixture",
+  "quotes": {
+    "BTC/USD": {"bid": "100000.00", "ask": "100050.00", "fresh": true, "max_spread_pct": "0.10"},
+    "ETH/USD": {"bid": "3800.00", "ask": "3803.00", "fresh": true, "max_spread_pct": "0.15"},
+    "ADA/USD": {"bid": "0.4500", "ask": "0.4503", "fresh": true, "max_spread_pct": "0.20"},
+    "AVAX/USD": {"bid": "36.00", "ask": "36.04", "fresh": true, "max_spread_pct": "0.20"},
+    "DOGE/USD": {"bid": "0.1600", "ask": "0.1602", "fresh": true, "max_spread_pct": "0.20"},
+    "LINK/USD": {"bid": "18.00", "ask": "18.02", "fresh": true, "max_spread_pct": "0.20"},
+    "LTC/USD": {"bid": "85.00", "ask": "85.08", "fresh": true, "max_spread_pct": "0.20"},
+    "SOL/USD": {"bid": "150.00", "ask": "150.12", "fresh": true, "max_spread_pct": "0.20"},
+    "XRP/USD": {"bid": "0.5200", "ask": "0.5204", "fresh": true, "max_spread_pct": "0.20"}
+  }
+}
