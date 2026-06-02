@@ -187,38 +187,36 @@ def test_no_append_coinbase_fill_row_or_fills_csv_references():
         assert "coinbase_fills.csv" not in cleaned
 
 
-def test_active_handoff_unchanged():
-    """Enforced at test time (git must show zero diff)."""
-    result = subprocess.run(
-        ["git", "diff", "main", "--", "docs/ACTIVE_HANDOFF.md"],
-        capture_output=True, text=True, cwd="."
-    )
-    diff_lines = result.stdout.strip().splitlines() if result.stdout else []
-    assert len(diff_lines) == 0, "ACTIVE_HANDOFF.md must remain completely unchanged for P2-012D"
+def test_active_handoff_has_p2_023b_note():
+    handoff = Path("docs/ACTIVE_HANDOFF.md").read_text(encoding="utf-8")
+
+    assert "P2-023B review" in handoff
+    assert "balance-relative fee-aware Coinbase sizing" in handoff
+    assert "com.vadim.price-path-logger.plist" in handoff
 
 
-def test_p2_012d_config_enables_multi_asset_with_explicit_allowlist_and_safe_caps():
-    """P2-012D: config turns the gate on with non-empty explicit allowlist and conservative caps."""
+def test_current_config_keeps_multi_asset_disabled_for_p2_023b_capped_pilot():
+    """P2-023B: config keeps expansion disabled while BTC/ETH use the capped pilot."""
     import yaml
     cfg_path = Path("config_coinbase_crypto.yaml")
     cfg = yaml.safe_load(cfg_path.read_text()) if cfg_path.exists() else {}
 
     crypto = cfg.get("crypto", {})
     multi = crypto.get("multi_asset_spot", {})
-    assert multi.get("enabled") is True, "P2-012D requires multi_asset_spot.enabled=true"
-    allowlist = multi.get("allow_live_trading_symbols", [])
-    assert len(allowlist) > 0, "P2-012D requires explicit non-empty allow_live_trading_symbols"
+    assert multi.get("enabled") is False
 
-    # Base symbols still present
     base_live = crypto.get("live_symbols", [])
-    assert set(base_live) >= {"BTC/USD", "ETH/USD", "SOL/USD"}
+    assert base_live == ["BTC/USD", "ETH/USD"]
+    assert "SOL/USD" not in base_live
 
-    # Caps per P2-012D allowance (notional <=2, exposure<=8, daily loss<=4)
-    assert crypto.get("max_trade_notional_usd", 0) <= 2.0
-    assert crypto.get("max_total_crypto_exposure_usd", 0) <= 8.0
+    assert crypto.get("pilot_trade_percent_of_balance") == 0.10
+    assert crypto.get("max_trade_notional_usd", 0) <= 10.0
+    assert crypto.get("absolute_hard_trade_cap_usd", 0) <= 10.0
+    assert crypto.get("max_total_crypto_exposure_usd", 0) <= 10.0
     global_risk = cfg.get("global_risk", {})
     assert global_risk.get("max_daily_loss_usd", 0) <= 4.0
-    assert global_risk.get("max_open_positions", 0) <= 3
+    assert global_risk.get("max_open_positions", 0) <= 1
+    assert global_risk.get("max_trades_per_day", 0) <= 3
     assert multi.get("max_new_symbols_per_day", 0) <= 2
 
     # Prediction telemetry still referenced/available

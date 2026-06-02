@@ -567,15 +567,17 @@ def test_journal_bot_entry_requires_matching_qty_and_no_later_close(tmp_path):
     ) is None
 
 
-def test_risk_caps_not_changed_by_reassociation_patch():
+def test_current_coinbase_config_uses_p2_023b_capped_pilot_caps():
     import yaml
 
     coinbase = yaml.safe_load((ROOT / "config_coinbase_crypto.yaml").read_text())
     alpaca = yaml.safe_load((ROOT / "config_alpaca_stocks.yaml").read_text())
 
-    assert coinbase["global_risk"]["max_total_live_exposure_usd"] == 8.00
-    assert coinbase["crypto"]["max_trade_notional_usd"] == 2.00
-    assert coinbase["crypto"]["max_total_crypto_exposure_usd"] == 8.00
+    assert coinbase["global_risk"]["max_total_live_exposure_usd"] == 10.00
+    assert coinbase["crypto"]["pilot_trade_percent_of_balance"] == 0.10
+    assert coinbase["crypto"]["max_trade_notional_usd"] == 10.00
+    assert coinbase["crypto"]["absolute_hard_trade_cap_usd"] == 10.00
+    assert coinbase["crypto"]["max_total_crypto_exposure_usd"] == 10.00
     assert alpaca["global_risk"]["max_total_live_exposure_usd"] == 6.00
     assert alpaca["equities"]["max_trade_notional_usd"] == 2.00
     assert alpaca["equities"]["max_total_equity_exposure_usd"] == 4.00

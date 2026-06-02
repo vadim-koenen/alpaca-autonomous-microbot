@@ -432,14 +432,29 @@ class CryptoStrategy:
     def _fee_aware_pilot_config(self) -> dict:
         return {
             "enabled": bool(get_cfg("crypto", "controlled_fee_aware_pilot_enabled", default=False)),
-            "pilot_trade_notional_usd": get_cfg("crypto", "pilot_trade_notional_usd", default=5.00),
-            "max_trade_notional_usd": get_cfg("crypto", "max_trade_notional_usd", default=5.00),
-            "min_trade_notional_usd": get_cfg("crypto", "min_trade_notional_usd", default=0.50),
+            "pilot_trade_percent_of_balance": get_cfg(
+                "crypto",
+                "pilot_trade_percent_of_balance",
+                default=0.10,
+            ),
+            "max_trade_notional_usd": get_cfg("crypto", "max_trade_notional_usd", default=10.00),
+            "min_trade_notional_usd": get_cfg("crypto", "min_trade_notional_usd", default=5.00),
+            "absolute_hard_trade_cap_usd": get_cfg(
+                "crypto",
+                "absolute_hard_trade_cap_usd",
+                default=10.00,
+            ),
+            "balance_basis": get_cfg(
+                "crypto",
+                "balance_basis",
+                default="buying_power_then_equity",
+            ),
             "allowed_symbols": get_cfg(
                 "crypto",
                 "fee_aware_pilot_symbols",
                 default=["BTC/USD", "ETH/USD"],
             ),
+            "excluded_symbols": get_cfg("crypto", "fee_aware_pilot_excluded_symbols", default=["SOL/USD"]),
             "minimum_expected_move_after_fee_buffer": bool(
                 get_cfg("crypto", "minimum_expected_move_after_fee_buffer", default=True)
             ),
@@ -450,7 +465,6 @@ class CryptoStrategy:
                 "fee_drag_spread_slippage_buffer_rate",
                 default=0.0010,
             ),
-            "buying_power_buffer": get_cfg("crypto", "buying_power_safety_buffer", default=0.85),
         }
 
     def _compute_equity_scaled_notional(self, equity: float) -> float:
@@ -936,15 +950,19 @@ class CryptoStrategy:
             pilot_eval = None
             if pilot_cfg["enabled"]:
                 metrics = measured_cycle_metrics_from_config(pilot_cfg)
+                equity = self._resolve_equity_for_sizing()
                 pilot_eval = evaluate_pilot_candidate(
                     symbol=selected_symbol,
                     expected_gross_move_rate=expected_gross_move_rate,
+                    equity=equity,
                     buying_power=buying_power,
-                    buying_power_buffer=pilot_cfg["buying_power_buffer"],
-                    pilot_trade_notional_usd=pilot_cfg["pilot_trade_notional_usd"],
+                    pilot_trade_percent_of_balance=pilot_cfg["pilot_trade_percent_of_balance"],
                     max_trade_notional_usd=pilot_cfg["max_trade_notional_usd"],
                     min_trade_notional_usd=pilot_cfg["min_trade_notional_usd"],
+                    absolute_hard_trade_cap_usd=pilot_cfg["absolute_hard_trade_cap_usd"],
+                    balance_basis=pilot_cfg["balance_basis"],
                     allowed_symbols=pilot_cfg["allowed_symbols"],
+                    excluded_symbols=pilot_cfg["excluded_symbols"],
                     enabled=pilot_cfg["enabled"],
                     fee_drag_guard_enabled=pilot_cfg["fee_drag_guard_enabled"],
                     minimum_expected_move_after_fee_buffer=pilot_cfg[
@@ -976,6 +994,18 @@ class CryptoStrategy:
                 meta.update({
                     "controlled_fee_aware_pilot_enabled": True,
                     "pilot_trade_notional_usd": float(pilot_eval["notional_usd"]),
+                    "pilot_trade_percent_of_balance": float(
+                        pilot_eval.get("pilot_trade_percent_of_balance", 0.0)
+                    ),
+                    "pilot_effective_balance_usd": float(pilot_eval.get("effective_balance", 0.0)),
+                    "pilot_target_trade_notional_usd": float(
+                        pilot_eval.get("target_trade_notional", 0.0)
+                    ),
+                    "pilot_balance_basis": pilot_eval.get("balance_basis"),
+                    "pilot_balance_source": pilot_eval.get("balance_source"),
+                    "pilot_absolute_hard_trade_cap_usd": float(
+                        pilot_eval.get("absolute_hard_trade_cap_usd", 10.0)
+                    ),
                     "fee_drag_expected_gross_move_rate": float(
                         pilot_eval.get("expected_gross_move_rate", 0.0)
                     ),
@@ -985,6 +1015,8 @@ class CryptoStrategy:
                     "fee_drag_guard_reason": pilot_eval["reason"],
                     "micro_trade_1usd_disabled": True,
                     "scale_allowed": False,
+                    "scaling_allowed": False,
+                    "scaling_mode": "balance_relative_capped_pilot",
                     "risk_increase": "not_approved",
                 })
             

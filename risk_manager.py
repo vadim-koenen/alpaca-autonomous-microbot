@@ -18,7 +18,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
-from coinbase_fee_aware_pilot import DEFAULT_ALLOWED_SYMBOLS, DEFAULT_PILOT_NOTIONAL_USD, decimal_or_none
+from coinbase_fee_aware_pilot import (
+    DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD,
+    DEFAULT_ALLOWED_SYMBOLS,
+    DEFAULT_EXCLUDED_SYMBOLS,
+    DEFAULT_MIN_TRADE_NOTIONAL_USD,
+    decimal_or_none,
+    resolve_balance_relative_pilot_sizing,
+)
 from utils import (
     data_is_stale,
     get_cfg,
@@ -295,22 +302,63 @@ class RiskManager:
             "fee_aware_pilot_symbols",
             default=list(DEFAULT_ALLOWED_SYMBOLS),
         ) or DEFAULT_ALLOWED_SYMBOLS)
-        pilot_cap = decimal_or_none(self._c(
+        excluded_symbols = set(self._c(
+            "crypto",
+            "fee_aware_pilot_excluded_symbols",
+            default=list(DEFAULT_EXCLUDED_SYMBOLS),
+        ) or DEFAULT_EXCLUDED_SYMBOLS)
+        max_trade = decimal_or_none(self._c(
             "crypto",
             "max_trade_notional_usd",
-            default=str(DEFAULT_PILOT_NOTIONAL_USD),
-        )) or DEFAULT_PILOT_NOTIONAL_USD
-        if pilot_cap > DEFAULT_PILOT_NOTIONAL_USD:
-            pilot_cap = DEFAULT_PILOT_NOTIONAL_USD
+            default=str(DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD),
+        )) or DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD
+        absolute_cap = decimal_or_none(self._c(
+            "crypto",
+            "absolute_hard_trade_cap_usd",
+            default=str(DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD),
+        )) or DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD
+        min_trade = decimal_or_none(self._c(
+            "crypto",
+            "min_trade_notional_usd",
+            default=str(DEFAULT_MIN_TRADE_NOTIONAL_USD),
+        )) or DEFAULT_MIN_TRADE_NOTIONAL_USD
+        pilot_cap = min(max_trade, absolute_cap, DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD)
 
-        if p.symbol == "SOL/USD":
+        if p.symbol in excluded_symbols:
             return False, "sol_external_staked_inventory_excluded"
         if p.symbol not in allowed_symbols:
             return False, f"{p.symbol} not in controlled fee-aware pilot symbols"
         if p.notional > float(pilot_cap):
             return False, f"notional ${p.notional:.2f} exceeds controlled pilot cap ${float(pilot_cap):.2f}"
-        if p.notional < float(DEFAULT_PILOT_NOTIONAL_USD):
-            return False, "1usd_micro_trades_disabled; controlled pilot requires $5.00 notional"
+        if p.notional < float(min_trade):
+            return False, f"1usd_micro_trades_disabled; controlled pilot requires ${float(min_trade):.2f} minimum notional"
+
+        sizing = resolve_balance_relative_pilot_sizing(
+            equity=s.equity,
+            buying_power=s.buying_power,
+            pilot_trade_percent_of_balance=self._c(
+                "crypto",
+                "pilot_trade_percent_of_balance",
+                default=0.10,
+            ),
+            min_trade_notional_usd=min_trade,
+            max_trade_notional_usd=max_trade,
+            absolute_hard_trade_cap_usd=absolute_cap,
+            balance_basis=self._c(
+                "crypto",
+                "balance_basis",
+                default="buying_power_then_equity",
+            ),
+        )
+        if sizing.get("verdict") == "SIZING_PREVIEW_OK":
+            resolved_notional = decimal_or_none(sizing.get("final_trade_notional"))
+            if resolved_notional is not None and p.notional > float(resolved_notional):
+                return (
+                    False,
+                    f"notional ${p.notional:.2f} exceeds balance-relative pilot size ${float(resolved_notional):.2f}",
+                )
+        elif s.equity > 0 or s.buying_power > 0:
+            return False, str(sizing.get("reason", "balance_relative_sizing_blocked"))
 
         if self._c("crypto", "fee_drag_guard_enabled", default=True):
             expected = decimal_or_none(p.meta.get("fee_drag_expected_gross_move_rate"))

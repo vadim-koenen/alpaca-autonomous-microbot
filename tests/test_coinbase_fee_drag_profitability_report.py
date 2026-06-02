@@ -66,7 +66,12 @@ def _pilot_cfg(*keys, default=None):
         "crypto": {
             "controlled_fee_aware_pilot_enabled": True,
             "fee_aware_pilot_symbols": ["BTC/USD", "ETH/USD"],
-            "max_trade_notional_usd": 5.00,
+            "fee_aware_pilot_excluded_symbols": ["SOL/USD"],
+            "pilot_trade_percent_of_balance": 0.10,
+            "min_trade_notional_usd": 5.00,
+            "max_trade_notional_usd": 10.00,
+            "absolute_hard_trade_cap_usd": 10.00,
+            "balance_basis": "buying_power_then_equity",
             "fee_drag_guard_enabled": True,
         }
     }
@@ -115,15 +120,16 @@ def test_redacted_or_non_numeric_payload_blocks_fee_drag_report():
     assert any("missing_or_non_numeric" in blocker for blocker in report["blockers"])
 
 
-def test_controlled_pilot_notional_is_5_not_1_and_caps_oversized_requests():
+def test_controlled_pilot_notional_is_balance_relative_and_caps_oversized_requests():
     metrics = _measured_metrics()
     result = evaluate_pilot_candidate(
         symbol="ETH/USD",
         expected_gross_move_rate="0.0325",
+        equity="50.00",
         buying_power="50.00",
-        pilot_trade_notional_usd="5.00",
         max_trade_notional_usd="25.00",
-        min_trade_notional_usd="0.50",
+        absolute_hard_trade_cap_usd="10.00",
+        min_trade_notional_usd="5.00",
         allowed_symbols=["BTC/USD", "ETH/USD"],
         enabled=True,
         metrics=metrics,
@@ -131,7 +137,7 @@ def test_controlled_pilot_notional_is_5_not_1_and_caps_oversized_requests():
 
     assert result["allowed"] is True
     assert result["notional_usd"] == "5.0000"
-    assert result["hard_cap_notional_usd"] == "5.0000"
+    assert result["hard_cap_notional_usd"] == "10.0000"
     assert result["micro_trade_1usd_disabled"] is True
     assert result["scaling_allowed"] is False
 
@@ -140,6 +146,7 @@ def test_skip_when_expected_move_is_below_fee_threshold():
     result = evaluate_pilot_candidate(
         symbol="ETH/USD",
         expected_gross_move_rate="0.0050",
+        equity="50.00",
         buying_power="50.00",
         allowed_symbols=["BTC/USD", "ETH/USD"],
         enabled=True,
@@ -155,6 +162,7 @@ def test_allow_candidate_only_when_expected_move_clears_fee_plus_buffer():
     result = evaluate_pilot_candidate(
         symbol="BTC/USD",
         expected_gross_move_rate="0.0325",
+        equity="50.00",
         buying_power="50.00",
         allowed_symbols=["BTC/USD", "ETH/USD"],
         enabled=True,
@@ -170,6 +178,7 @@ def test_sol_remains_excluded_from_controlled_pilot():
     result = evaluate_pilot_candidate(
         symbol="SOL/USD",
         expected_gross_move_rate="0.0500",
+        equity="50.00",
         buying_power="50.00",
         allowed_symbols=["BTC/USD", "ETH/USD"],
         enabled=True,
@@ -180,31 +189,39 @@ def test_sol_remains_excluded_from_controlled_pilot():
     assert result["reason"] == "sol_external_staked_inventory_excluded"
 
 
-def test_risk_manager_rejects_1usd_and_above_5usd_when_pilot_enabled(monkeypatch):
+def test_risk_manager_rejects_1usd_above_resolved_size_and_above_10usd(monkeypatch):
     manager = RiskManager()
     monkeypatch.setattr(manager, "_c", _pilot_cfg)
-    state = AccountState(crypto_enabled=True, buying_power=50.0)
+    state_50 = AccountState(crypto_enabled=True, equity=50.0, buying_power=50.0)
+    state_100 = AccountState(crypto_enabled=True, equity=100.0, buying_power=100.0)
 
     allowed_1, reason_1 = manager._check_controlled_fee_aware_pilot(
         _proposal(notional=1.00),
-        state,
+        state_50,
         "live",
     )
-    allowed_big, reason_big = manager._check_controlled_fee_aware_pilot(
+    allowed_too_big_for_50, reason_too_big_for_50 = manager._check_controlled_fee_aware_pilot(
         _proposal(notional=6.00),
-        state,
+        state_50,
+        "live",
+    )
+    allowed_above_cap, reason_above_cap = manager._check_controlled_fee_aware_pilot(
+        _proposal(notional=11.00),
+        state_100,
         "live",
     )
     allowed_ok, reason_ok = manager._check_controlled_fee_aware_pilot(
         _proposal(notional=5.00),
-        state,
+        state_50,
         "live",
     )
 
     assert allowed_1 is False
     assert "1usd_micro_trades_disabled" in reason_1
-    assert allowed_big is False
-    assert "exceeds controlled pilot cap" in reason_big
+    assert allowed_too_big_for_50 is False
+    assert "exceeds balance-relative pilot size" in reason_too_big_for_50
+    assert allowed_above_cap is False
+    assert "exceeds controlled pilot cap" in reason_above_cap
     assert allowed_ok is True
     assert reason_ok == ""
 
@@ -215,9 +232,11 @@ def test_coinbase_config_is_controlled_5usd_btc_eth_only():
     assert config["global_risk"]["max_open_positions"] == 1
     assert config["global_risk"]["max_trades_per_day"] == 3
     assert config["crypto"]["controlled_fee_aware_pilot_enabled"] is True
-    assert config["crypto"]["pilot_trade_notional_usd"] == 5.00
-    assert config["crypto"]["max_trade_notional_usd"] == 5.00
-    assert config["crypto"]["max_total_crypto_exposure_usd"] == 5.00
+    assert config["crypto"]["pilot_trade_percent_of_balance"] == 0.10
+    assert config["crypto"]["min_trade_notional_usd"] == 5.00
+    assert config["crypto"]["max_trade_notional_usd"] == 10.00
+    assert config["crypto"]["absolute_hard_trade_cap_usd"] == 10.00
+    assert config["crypto"]["max_total_crypto_exposure_usd"] == 10.00
     assert config["crypto"]["live_symbols"] == ["BTC/USD", "ETH/USD"]
     assert config["crypto"]["symbols"] == ["BTC/USD", "ETH/USD"]
     assert config["crypto"]["controlled_exploration"]["approved_symbols"] == ["BTC/USD", "ETH/USD"]

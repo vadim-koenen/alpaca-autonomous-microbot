@@ -13,8 +13,14 @@ from typing import Any, Dict, Iterable, Optional
 MONEY_QUANT = Decimal("0.0001")
 RATE_QUANT = Decimal("0.000001")
 DEFAULT_PILOT_NOTIONAL_USD = Decimal("5.00")
+DEFAULT_MIN_TRADE_NOTIONAL_USD = Decimal("5.00")
+DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD = Decimal("10.00")
+DEFAULT_PILOT_TRADE_PERCENT_OF_BALANCE = Decimal("0.10")
+DEFAULT_MIN_TRADE_FLOOR_TOLERANCE_RATE = Decimal("0.02")
 DEFAULT_ALLOWED_SYMBOLS = ("BTC/USD", "ETH/USD")
+DEFAULT_EXCLUDED_SYMBOLS = ("SOL/USD",)
 DEFAULT_SPREAD_SLIPPAGE_BUFFER_RATE = Decimal("0.0010")
+DEFAULT_BALANCE_BASIS = "buying_power_then_equity"
 
 
 def decimal_or_none(value: Any) -> Optional[Decimal]:
@@ -37,11 +43,143 @@ def fmt_rate(value: Decimal) -> str:
     return str(value.quantize(RATE_QUANT, rounding=ROUND_HALF_UP))
 
 
+def fmt_config_rate(value: Decimal) -> str:
+    return str(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
 def _positive_decimal(value: Any, *, default: Decimal) -> Decimal:
     amount = decimal_or_none(value)
     if amount is None or amount <= 0:
         return default
     return amount
+
+
+def _valid_positive(value: Any) -> Optional[Decimal]:
+    amount = decimal_or_none(value)
+    if amount is None or amount <= 0:
+        return None
+    return amount
+
+
+def resolve_balance_relative_pilot_sizing(
+    *,
+    equity: Any = None,
+    buying_power: Any = None,
+    pilot_trade_percent_of_balance: Any = DEFAULT_PILOT_TRADE_PERCENT_OF_BALANCE,
+    min_trade_notional_usd: Any = DEFAULT_MIN_TRADE_NOTIONAL_USD,
+    max_trade_notional_usd: Any = DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD,
+    absolute_hard_trade_cap_usd: Any = DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD,
+    balance_basis: str = DEFAULT_BALANCE_BASIS,
+    min_trade_floor_tolerance_rate: Any = DEFAULT_MIN_TRADE_FLOOR_TOLERANCE_RATE,
+) -> Dict[str, Any]:
+    """
+    Resolve balance-relative pilot sizing without side effects.
+
+    If the 10% target lands just below the exchange/fee-aware minimum, a small
+    tolerance allows rounding up to the minimum. Materially undersized balances
+    block instead of blindly forcing a $5 trade.
+    """
+    eq = _valid_positive(equity)
+    bp = _valid_positive(buying_power)
+    pct = _positive_decimal(
+        pilot_trade_percent_of_balance,
+        default=DEFAULT_PILOT_TRADE_PERCENT_OF_BALANCE,
+    )
+    min_trade = _positive_decimal(min_trade_notional_usd, default=DEFAULT_MIN_TRADE_NOTIONAL_USD)
+    max_trade = _positive_decimal(max_trade_notional_usd, default=DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD)
+    absolute_cap = _positive_decimal(
+        absolute_hard_trade_cap_usd,
+        default=DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD,
+    )
+    tolerance = _positive_decimal(
+        min_trade_floor_tolerance_rate,
+        default=DEFAULT_MIN_TRADE_FLOOR_TOLERANCE_RATE,
+    )
+    hard_cap = min(max_trade, absolute_cap, DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD)
+
+    effective = None
+    balance_source = "none"
+    if eq is not None and bp is not None:
+        effective = min(eq, bp)
+        balance_source = "min_buying_power_equity"
+    elif bp is not None:
+        effective = bp
+        balance_source = "buying_power"
+    elif eq is not None:
+        effective = eq
+        balance_source = "equity"
+
+    result: Dict[str, Any] = {
+        "verdict": "BLOCKED",
+        "reason": "balance_unavailable",
+        "balance_basis": balance_basis,
+        "balance_source": balance_source,
+        "pilot_trade_percent_of_balance": fmt_config_rate(pct),
+        "min_trade_notional_usd": fmt_money(min_trade),
+        "max_trade_notional_usd": fmt_money(max_trade),
+        "absolute_hard_trade_cap_usd": fmt_money(absolute_cap),
+        "hard_cap_notional_usd": fmt_money(hard_cap),
+        "scale_allowed": False,
+        "scaling_allowed": False,
+        "risk_increase": "not_approved",
+        "scaling_mode": "balance_relative_capped_pilot",
+    }
+
+    if effective is None:
+        return result
+    if pct <= 0:
+        result["reason"] = "invalid_pilot_trade_percent"
+        return result
+
+    target = effective * pct
+    caps = [hard_cap]
+    if bp is not None:
+        caps.append(bp)
+    cap = min(caps)
+
+    result.update({
+        "effective_balance": fmt_money(effective),
+        "target_trade_notional": fmt_money(target),
+        "buying_power": fmt_money(bp) if bp is not None else None,
+        "equity": fmt_money(eq) if eq is not None else None,
+    })
+
+    min_floor_applied = False
+    if target < min_trade:
+        floor_rate = min_trade / effective
+        result["minimum_floor_rate"] = fmt_rate(floor_rate)
+        result["minimum_floor_tolerance_rate"] = fmt_rate(tolerance)
+        if floor_rate <= pct + tolerance and min_trade <= cap:
+            final = min_trade
+            min_floor_applied = True
+        else:
+            result.update({
+                "reason": "target_notional_below_fee_aware_minimum",
+                "final_trade_notional": None,
+                "min_trade_floor_applied": False,
+            })
+            return result
+    else:
+        final = min(target, cap)
+
+    if final > cap:
+        final = cap
+    if final < min_trade:
+        result.update({
+            "reason": "final_notional_below_fee_aware_minimum",
+            "final_trade_notional": fmt_money(final),
+            "min_trade_floor_applied": min_floor_applied,
+        })
+        return result
+
+    result.update({
+        "verdict": "SIZING_PREVIEW_OK",
+        "reason": "ok",
+        "final_trade_notional": fmt_money(final),
+        "notional_usd": fmt_money(final),
+        "min_trade_floor_applied": min_floor_applied,
+    })
+    return result
 
 
 def calculate_fee_drag_metrics(
@@ -139,61 +277,78 @@ def evaluate_pilot_candidate(
     *,
     symbol: str,
     expected_gross_move_rate: Any,
+    equity: Any = None,
     buying_power: Any = None,
     buying_power_buffer: Any = Decimal("0.85"),
     pilot_trade_notional_usd: Any = DEFAULT_PILOT_NOTIONAL_USD,
-    max_trade_notional_usd: Any = DEFAULT_PILOT_NOTIONAL_USD,
-    min_trade_notional_usd: Any = Decimal("0.50"),
+    pilot_trade_percent_of_balance: Any = DEFAULT_PILOT_TRADE_PERCENT_OF_BALANCE,
+    max_trade_notional_usd: Any = DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD,
+    min_trade_notional_usd: Any = DEFAULT_MIN_TRADE_NOTIONAL_USD,
+    absolute_hard_trade_cap_usd: Any = DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD,
+    balance_basis: str = DEFAULT_BALANCE_BASIS,
     allowed_symbols: Iterable[str] = DEFAULT_ALLOWED_SYMBOLS,
+    excluded_symbols: Iterable[str] = DEFAULT_EXCLUDED_SYMBOLS,
     enabled: bool = False,
     fee_drag_guard_enabled: bool = True,
     minimum_expected_move_after_fee_buffer: bool = True,
     metrics: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     allowed_set = set(allowed_symbols or DEFAULT_ALLOWED_SYMBOLS)
+    excluded_set = set(excluded_symbols or DEFAULT_EXCLUDED_SYMBOLS)
     expected_rate = decimal_or_none(expected_gross_move_rate)
     pilot_notional = _positive_decimal(pilot_trade_notional_usd, default=DEFAULT_PILOT_NOTIONAL_USD)
-    max_trade = _positive_decimal(max_trade_notional_usd, default=DEFAULT_PILOT_NOTIONAL_USD)
-    min_trade = _positive_decimal(min_trade_notional_usd, default=Decimal("0.50"))
-    bp = decimal_or_none(buying_power)
-    bp_buffer = _positive_decimal(buying_power_buffer, default=Decimal("0.85"))
-    hard_cap = min(pilot_notional, max_trade, DEFAULT_PILOT_NOTIONAL_USD)
+    max_trade = _positive_decimal(max_trade_notional_usd, default=DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD)
+    min_trade = _positive_decimal(min_trade_notional_usd, default=DEFAULT_MIN_TRADE_NOTIONAL_USD)
+    absolute_cap = _positive_decimal(
+        absolute_hard_trade_cap_usd,
+        default=DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD,
+    )
+    hard_cap = min(max_trade, absolute_cap, DEFAULT_ABSOLUTE_HARD_TRADE_CAP_USD)
 
     result: Dict[str, Any] = {
         "enabled": bool(enabled),
         "symbol": symbol,
         "allowed_symbols": sorted(allowed_set),
+        "excluded_symbols": sorted(excluded_set),
         "pilot_trade_notional_usd": fmt_money(pilot_notional),
+        "pilot_trade_percent_of_balance": fmt_config_rate(_positive_decimal(
+            pilot_trade_percent_of_balance,
+            default=DEFAULT_PILOT_TRADE_PERCENT_OF_BALANCE,
+        )),
         "max_trade_notional_usd": fmt_money(max_trade),
+        "min_trade_notional_usd": fmt_money(min_trade),
+        "absolute_hard_trade_cap_usd": fmt_money(absolute_cap),
         "hard_cap_notional_usd": fmt_money(hard_cap),
-        "notional_usd": fmt_money(hard_cap),
         "scale_allowed": False,
         "scaling_allowed": False,
         "risk_increase": "not_approved",
         "micro_trade_1usd_disabled": True,
+        "scaling_mode": "balance_relative_capped_pilot",
     }
 
     if not enabled:
         result.update({"allowed": False, "reason": "controlled_fee_aware_pilot_disabled"})
         return result
-    if symbol == "SOL/USD":
+    if symbol in excluded_set:
         result.update({"allowed": False, "reason": "sol_external_staked_inventory_excluded"})
         return result
     if symbol not in allowed_set:
         result.update({"allowed": False, "reason": "symbol_not_in_controlled_fee_aware_pilot"})
         return result
-    if hard_cap > DEFAULT_PILOT_NOTIONAL_USD:
-        result.update({"allowed": False, "reason": "pilot_hard_cap_exceeded"})
+
+    sizing = resolve_balance_relative_pilot_sizing(
+        equity=equity,
+        buying_power=buying_power,
+        pilot_trade_percent_of_balance=pilot_trade_percent_of_balance,
+        min_trade_notional_usd=min_trade,
+        max_trade_notional_usd=max_trade,
+        absolute_hard_trade_cap_usd=absolute_cap,
+        balance_basis=balance_basis,
+    )
+    result.update(sizing)
+    if sizing.get("verdict") != "SIZING_PREVIEW_OK":
+        result.update({"allowed": False, "reason": sizing.get("reason", "sizing_blocked")})
         return result
-    if hard_cap < min_trade:
-        result.update({"allowed": False, "reason": "pilot_notional_below_minimum"})
-        return result
-    if bp is not None and bp > 0:
-        safe_bp = bp * bp_buffer
-        result["safe_buying_power_usd"] = fmt_money(safe_bp)
-        if safe_bp < hard_cap:
-            result.update({"allowed": False, "reason": "safe_buying_power_below_5usd_pilot"})
-            return result
 
     if fee_drag_guard_enabled and minimum_expected_move_after_fee_buffer:
         if not metrics or metrics.get("verdict") == "BLOCKED":

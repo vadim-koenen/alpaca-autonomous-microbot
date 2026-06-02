@@ -1,5 +1,63 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-023B review — balance-relative fee-aware Coinbase sizing and process audit
+
+**Branch:** `review/p2-023b-balance-relative-fee-aware-sizing`
+
+P2-023A is merged on `main` at `416e4e6`. P2-023B replaces the fixed-only `$5`
+Coinbase pilot with 10%-of-balance sizing under a `$10` absolute hard cap.
+
+Observed latest account snapshot provided by the user:
+
+- equity `50.3762`
+- buying_power `49.4345`
+- open_positions `0`
+- status `running`
+- mode `live`
+- risk_halt_active `false`
+- kill_switch_present `false`
+
+P2-023B sizing:
+
+- basis: `buying_power_then_equity`
+- effective balance: min(valid positive buying power, valid positive equity)
+- pilot percent: `0.10`
+- min fee-aware notional: `$5.00`
+- max trade notional: `$10.00`
+- absolute hard cap: `$10.00`
+- BTC/USD and ETH/USD only
+- SOL/USD excluded
+- max open positions remains `1`
+- max trades per day remains `3`
+
+Fee-drag guard remains active using the measured ETH cycle:
+
+- gross P/L `0.0025`
+- total fees `0.0180`
+- net P/L `-0.0155`
+- minimum required gross move rate about `0.018970`
+
+Process audit:
+
+- Adds `scripts/coinbase_trading_process_audit.py`.
+- Classifies LaunchAgents as `trading_bot`, `price_logger`, or `unknown`.
+- Prior restart confusion around `com.vadim.price-path-logger.plist` is now
+  explicitly guarded: do not restart unknown or price logger plists.
+
+Preserved truth:
+
+- no live broker calls during implementation/tests
+- no `--live-read-only` execution during verification
+- no `.env` or secrets
+- no order/cancel/close/modify
+- no SOL trading
+- no symbol expansion beyond BTC/USD and ETH/USD
+- no margin/leverage/options/futures/perps
+- no unrestricted risk increase beyond the capped `$10` pilot
+- no merge to main from this branch
+
+---
+
 ## P2-023A review — controlled $5 fee-aware Coinbase pilot
 
 **Branch:** `review/p2-023a-controlled-5usd-fee-aware-pilot`
