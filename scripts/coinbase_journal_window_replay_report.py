@@ -121,6 +121,21 @@ def build_journal_window_report(
             bars = load_bars_from_fixture(ohlcv_fixture, symbol=symbol, start=earliest, end=latest)
         except Exception:
             bars = []
+    elif DATA_DIR.exists():
+        # auto-discover local OHLCV files in data/offline_ohlcv/coinbase/ for needed symbols
+        try:
+            for f in sorted(DATA_DIR.glob("*.csv")) + sorted(DATA_DIR.glob("*.json")):
+                # simple match on symbol in filename
+                fname = f.name.upper()
+                for ns in needed_syms:
+                    n = ns.replace("/", "-").replace("/", "_").upper()
+                    if n in fname or ns.replace("/", "").upper() in fname:
+                        b = load_bars_from_fixture(f, symbol=ns if not symbol else symbol, start=earliest, end=latest)
+                        bars.extend(b)
+            if bars:
+                bars.sort(key=lambda b: b.t)
+        except Exception:
+            pass
 
     # compute coverage using loaded bars (or empty)
     cycles_with = 0

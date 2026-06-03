@@ -41,6 +41,29 @@ Next likely: P2-025H offline-only real OHLCV import/export tool (for user-export
 All invariants: offline, no broker/order/env/launchctl/restart/live.
 
 
+
+## P2-025H — Local OHLCV import tool for journal-window replay (review/p2-025h-local-ohlcv-import-tool)
+P2-025G at 09e1146 on main. Review branch only.
+
+- Added scripts/coinbase_ohlcv_import_validate.py: safe local import/validate for CSV/JSON OHLCV.
+  - Default dry-run (no write). Explicit --write to export normalized CSV to data/offline_ohlcv/coinbase/.
+  - Auto symbol normalization, column mapping, sort/dedup, gap reporting, optional journal coverage hint.
+  - No network by default, no auth/.env/broker. Emits full safety flags (trade_permission=none etc.).
+- Enhanced replay report auto-discovery of local files in data/ dir for coverage (if no --ohlcv-fixture).
+- Added tests/test_coinbase_ohlcv_import_validate.py (csv/json, norm, dups/gaps, dry-run vs write, safety, isolation).
+- Added docs/OHLCV_LOCAL_IMPORT.md (usage, format, placement, why, safety, limitations).
+- Updated ACTIVE_HANDOFF.
+
+Current limitation: without local OHLCV files placed, real journal coverage remains 0. Tool + fixtures allow validation and population of the data dir.
+
+All work offline, no live mutation, no restart, no trading authority.
+
+Next likely:
+- P2-025I: run full journal-window replay against local OHLCV once coverage exists (to reproduce loss directionally with real paths).
+- or P2-025I: opt-in public unauthenticated candle fetcher (if local files still unavailable after manual placement).
+
+
+
 ## P2-025E — Harden offline Coinbase backtest harness (review/p2-025e-harden-offline-backtest-harness)
 P2-025D at e93c286 on main. Review branch for hardening only. No merge, no restart, no live actions of any kind.
 All changes offline/fixture-only; no config/risk/sizing/symbol/strategy/LaunchAgent/.env/launchctl/order changes.
@@ -1883,16 +1906,16 @@ ALWAYS:
 
 | Item | Value |
 |---|---|
-| Coinbase equity | $51.42 |
-| Coinbase status | RUNNING_BY_LAUNCHD (last loop 2026-06-03 08:14 CDT, status=running, halt=none) |
+| Coinbase equity | $56.23 |
+| Coinbase status | RUNNING_BY_LAUNCHD (last loop 2026-06-03 16:03 UTC, status=running, halt=none) |
 | Alpaca equity | $10.00 |
 | Alpaca status | RUNNING_BY_LAUNCHD (last loop 2026-05-31 08:23 CDT, outside market hours) |
 | Kill switch | INACTIVE (trading allowed) |
 | Open positions | 0 bot-tracked (SOL/USD seen at broker, classified external/staked/non-bot inventory; not rehydrated) |
-| Last Coinbase trade | 2026-06-03T01:31:01 UTC (BTC/USD exit, max-hold) |
+| Last Coinbase trade | 2026-05-25T12:06:37 UTC (ALGO/USD SKIPPED — max trades/day) |
 | Last Coinbase exit | 2026-06-03T01:31:01 UTC (BTC/USD, max-hold, -0.93%) |
-| Trades today | 2 (live PLACED) |
-| Current regime | dead_chop / range (0 proposals/scan; bot correctly sitting out) |
+| Trades today | 0 |
+| Current regime | downtrend (0 proposals/scan; bot correctly sitting out) |
 | Live track record | 48 completed exits, 1 win / 47 loss (2.1% win rate), profit factor 0.003, net ≈ -$1.09 |
 | Capital-add gates | 1/5 passing (only Gate 1 trade-count met) |
 
@@ -2143,3 +2166,5 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-06-03 UTC | head=0dd1105 | P2-025F committed on review/p2-025f-journal-window-replay-baseline; added journal-window replay adapter + report + fixtures + tests + docs. Offline baseline for reproducing known live loss (fee drag) before exit experiments. No live state, no restart, no trading authority. Review push only.
 
 - 2026-06-03 UTC | head=0a28beb | P2-025G: OHLCV loader (csv/json), coverage report in replay, fixtures with symbols, doc. Real coverage may be 0 without local data/ dir. No live changes.
+- 2026-06-03 16:03 | equity=$56.23 | positions=0 | regime=downtrend | errors=0 | head=09e1146
+- 2026-06-03 UTC | head=09e1146 | P2-025H: local OHLCV import/validate tool (dry-run default, --write for normalized export), auto data/ dir discovery in replay report, tests, docs. No live changes.
