@@ -1,5 +1,24 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025E — Harden offline Coinbase backtest harness (review/p2-025e-harden-offline-backtest-harness)
+P2-025D at e93c286 on main. Review branch for hardening only. No merge, no restart, no live actions of any kind.
+All changes offline/fixture-only; no config/risk/sizing/symbol/strategy/LaunchAgent/.env/launchctl/order changes.
+
+Hardening scope (addresses Claude review of P2-025D):
+- Intra-bar TP/SL detection (high/low); SL precedence if both in same bar. New fixtures + tests.
+- Fee scenario modeling: default taker/taker (0.012/0.012 conservative); maker/maker optional (lower rates via CLI). New report fields: fee_scenario, gross_return_rate, round_trip_fee_rate, net_return_rate, cleared_fee_hurdle, percent_trades_clearing_fee_hurdle, net_pnl_per_trade.
+- Pluggable exit policy scaffold: --exit-policy static (keeps prior); --exit-policy live_atr (documented placeholder with deterministic output + explicit TODO; full ATR parity with live strategy deferred, no risky imports).
+- Journal-driven replay: --journal-fixture + --ohlcv-fixture; multi-entry simulation from journal (symbol/strategy/entry_time/entry_price/notional) against fixture candles. New fixture + tests.
+- Updated report JSON (p2-025e schema), 5 new fixtures, expanded tests (incl. hardening test file), updated docs.
+- All outputs still force trade_permission=none, risk_increase=not_approved, scaling_allowed=false.
+- Safety: no forbidden action strings in source; full py_compile + pytest (old + new) + smokes + grep pass.
+- Explicit: taker/taker default to avoid optimistic fee drag under-statement; close-only was insufficient; harness still does not approve live changes. Must eventually reproduce journal loss direction (fee ~94% of loss) on fixtures before exit "improvements" can be trusted for live.
+
+- Added/updated: coinbase_offline_backtest.py, scripts/coinbase_offline_backtest_report.py, tests/test_coinbase_offline_backtest_hardening.py, 5 fixtures/, docs/OFFLINE_BACKTEST_REPLAY_HARNESS.md, docs/ACTIVE_HANDOFF.md
+- Review branch only; push review; stop.
+
+Next likely: continue P2-025E exit logic experiments (use hardened harness + journal to prove net-of-fee gains offline first).
+
 ## P2-025D — Offline backtest / replay harness (review/p2-025d-offline-backtest-replay-harness)
 P2-025C merged at 30d0763; controlled restart complete; coinbase_probe_enabled=false now live.
 No further restarts for this patch. All work offline/fixture-only.
@@ -1749,7 +1768,7 @@ Profit / momentum readout:
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-05-31 18:57 UTC — P2-014C complete; added local review-gate automation for Grok/Codex patches to reduce copy/paste, false positives, and human verification error. Latest functional patch commit 1e66b94. No strategy/order/risk/symbol/cap/config/runtime behavior changed. Profit readout remains unsafe-to-aggregate until direct fill/proceeds/fees and open-position status are proven.
+**Last updated:** 2026-06-03 13:14 — automated sync; Coinbase equity $51.42, 0 bot-tracked positions, SOL/USD external inventory, 0 proposals/scan, no errors. (Prior:) P2-014C complete; added local review-gate automation for Grok/Codex patches to reduce copy/paste, false positives, and human verification error. Latest functional patch commit 1e66b94. No strategy/order/risk/symbol/cap/config/runtime behavior changed. Profit readout remains unsafe-to-aggregate until direct fill/proceeds/fees and open-position status are proven.
 **Updated by:** Grok (per P2-014A ritual)
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** review/p2-014a-coinbase-live-status-and-reconciliation-preflight
@@ -1823,15 +1842,18 @@ ALWAYS:
 
 | Item | Value |
 |---|---|
-| Coinbase equity | $45.73 |
-| Coinbase status | RUNNING_BY_LAUNCHD |
+| Coinbase equity | $51.42 |
+| Coinbase status | RUNNING_BY_LAUNCHD (last loop 2026-06-03 08:14 CDT, status=running, halt=none) |
 | Alpaca equity | $10.00 |
-| Alpaca status | RUNNING_BY_LAUNCHD (outside market hours) |
+| Alpaca status | RUNNING_BY_LAUNCHD (last loop 2026-05-31 08:23 CDT, outside market hours) |
 | Kill switch | INACTIVE (trading allowed) |
-| Open positions | 1 (SOL/USD — bot_opened, broker_close_capability_unconfirmed) |
-| Last Coinbase trade | 2026-05-31T16:30:23 UTC (SOL/USD entry, filled) |
-| Last Coinbase exit | 2026-05-25T11:19:39 UTC (ETH/USD, max-hold) |
-| Current regime | downtrend (AVAX/USD scan; bot correctly sitting out) |
+| Open positions | 0 bot-tracked (SOL/USD seen at broker, classified external/staked/non-bot inventory; not rehydrated) |
+| Last Coinbase trade | 2026-06-03T01:31:01 UTC (BTC/USD exit, max-hold) |
+| Last Coinbase exit | 2026-06-03T01:31:01 UTC (BTC/USD, max-hold, -0.93%) |
+| Trades today | 2 (live PLACED) |
+| Current regime | dead_chop / range (0 proposals/scan; bot correctly sitting out) |
+| Live track record | 48 completed exits, 1 win / 47 loss (2.1% win rate), profit factor 0.003, net ≈ -$1.09 |
+| Capital-add gates | 1/5 passing (only Gate 1 trade-count met) |
 
 ---
 
@@ -2023,6 +2045,17 @@ Do not recommend or execute anything until all four commands have been run and r
 - 2026-05-31 03:38 UTC | head=0b2a629 | P2-011D-alt complete; Added Coinbase fills payload discovery with fixtures/tests. Finding: no fills/history wrapper exists; historical fills path is required for per-fill fee/liquidity/stable fill IDs, and order/status alone is insufficient. Logger hook remains blocked. No live behavior/config/risk/runtime/strategy changes.
 - 2026-05-31 03:44 UTC | head=af1eb87 | P2-011E complete; Added minimal inert BrokerCoinbase.get_historical_fills wrapper proof with tests/docs. Wrapper is not called by live paths. Logger hook remains blocked pending end-to-end order + fills capture/reconciliation for entry and exit legs. No live behavior/config/risk/runtime/strategy changes.
 
+---
+### 2026-06-03 Auto-check
+- Coinbase equity: $51.42
+- Open positions: 0 (SOL/USD on broker = external/staked, not bot-tracked)
+- Regime: dead_chop / range (0 proposals/scan)
+- Trades today: 2 (live PLACED; both legs of one BTC/USD round trip)
+- Last trade: 2026-06-03T01:31:01 UTC (BTC/USD exit, max-hold, -0.93%)
+- Errors today: 0
+- Capital gate status: 1/5 gates passing
+- Notes: Live track record net-negative — 48 exits, 1 win / 47 loss (2.1% win rate), profit factor 0.003, net ≈ -$1.09; current consecutive loss streak 18, all of last 10 exits losing. Exits dominated by max-hold (90min) time stops, not strategy targets. Equity sits at $51.42 only because of deposited capital + external staked SOL, NOT trading gains. Gate 2 (win rate ≥50%), Gate 3 (PF ≥1.3), Gate 4 (≥14 days live; 8d), and Gate 5 (≤2 losses in last 10) all FAIL. Do not add capital. Alpaca bot idle (market closed, $10, 0 trades). All systems running, no errors. RED FLAG: time-stop-driven losses persist — backtester/strategy fix still the gating priority before any size or capital increase.
+
 ## P2-011F complete — Coinbase Order/Fills Reconciliation Proof
 
 Last updated: 2026-05-31 18:24 UTC
@@ -2064,3 +2097,5 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 | head=c9d8f05 | P2-015B complete; Fixed Coinbase live probe BrokerCoinbase adapter compatibility and unknown-state semantics. Default mode remains zero broker/API calls. When no successful broker read occurs, sol_on_broker and eth_on_broker are null/unknown, not false. No runtime/config/order/risk/strategy changes, no order/close/cancel/modify calls, no file mutations, no fill logger writes, no leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
 - 2026-05-31 | head=061fabc | P2-016A complete; Added Grok Controlled Autonomy execution protocol and external signal context plan. External syndicated crypto/news/trend layer preserved for later as advisory-only after broker truth/direct P&L truth. Docs-only; no runtime/config/order/risk/strategy changes; no broker API calls; no fill logger writes; no leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
 - 2026-05-31 | head=d67c37c | P2-016B complete; Added safe zero-network Coinbase live-readiness diagnostic (redacted credential presence, adapter/import status, text/JSON). Default mode zero broker/network calls. Current verdict BLOCKED due to missing COINBASE_API_KEY/SECRET. No runtime/config/order/risk/strategy changes, no secrets printed, no fill logger writes, no leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
+- 2026-06-03 13:14 | equity=$51.42 | positions=0 | regime=no_proposals | errors=0 | head=e93c286
+- 2026-06-03 UTC | head=e93c286 base | P2-025E committed on review/p2-025e-harden-offline-backtest-harness; hardened intra-bar TP/SL (SL precedence), taker/taker default + maker opt, pluggable policy scaffold (live_atr placeholder), journal-driven multi replay, new report fields/aggregates/fixtures/tests, docs; all safety flags, no live actions, no merge, unrelated untracked untouched. Review push only.

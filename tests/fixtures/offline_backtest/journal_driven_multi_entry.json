@@ -1,0 +1,1 @@
+[{"symbol": "BTC/USD", "strategy_name": "journal_test", "entry_time": "2026-01-01T00:00:00Z", "entry_price": "100.0", "notional": "5.0"}, {"symbol": "BTC/USD", "strategy_name": "journal_test", "entry_time": "2026-01-01T00:10:00Z", "entry_price": "100.5", "notional": "5.0"}]
