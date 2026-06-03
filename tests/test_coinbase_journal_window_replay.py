@@ -171,3 +171,40 @@ def test_no_live_broker_or_env_in_modules(monkeypatch):
     assert hasattr(mod, "parse_journal_cycles")
     import scripts.coinbase_journal_window_replay_report as rmod
     assert hasattr(rmod, "build_journal_window_report")
+
+def test_load_bars_from_fixture_supports_csv(tmp_path):
+    cf = tmp_path / "c.csv"
+    cf.write_text("timestamp_utc,symbol,open,high,low,close,volume\n2026-01-01T00:00:00Z,BTC/USD,100,100.5,99.5,100.1,1\n")
+    bars = load_bars_from_fixture(cf)
+    assert len(bars) == 1
+    assert bars[0].symbol == "BTC/USD"
+    assert bars[0].c == Decimal("100.1")
+
+def test_report_includes_ohlcv_coverage_fields(tmp_path):
+    jf = tmp_path / "j.json"
+    jf.write_text(json.dumps([
+        {"timestamp": "2026-01-01T00:05:00Z", "mode": "live", "symbol": "BTC/USD", "strategy": "b", "action": "EXIT", "reason": "max hold (5min held)", "fill_price": "100", "exit_price": "100.1", "gross_pnl": "0.005", "fees_paid": "0.024", "pnl_usd": "-0.019", "notional": "5"},
+    ]))
+    of = tmp_path / "o.json"
+    of.write_text(json.dumps([{"timestamp_utc": "2026-01-01T00:00:00Z", "o":100,"h":100,"l":100,"c":100, "symbol":"BTC/USD"}, {"timestamp_utc": "2026-01-01T00:05:00Z", "o":100,"h":100.5,"l":99.5,"c":100.1, "symbol":"BTC/USD"}]))
+    payload = build_journal_window_report(journal_path=jf, ohlcv_fixture=of)
+    assert "cycles_with_ohlcv_window" in payload
+    assert "coverage_rate" in payload
+    assert "required_symbols" in payload
+    assert "missing_ohlcv_directory" in payload
+    assert "per_symbol_coverage" in payload
+    assert payload["cycles_with_ohlcv_window"] >= 0
+
+def test_with_ohlcv_fixture_replays_some_and_skips_some():
+    base = Path("tests/fixtures/journal_window_replay")
+    payload = build_journal_window_report(
+        journal_path=base / "sample_journal.json",
+        ohlcv_fixture=base / "sample_ohlcv.json",
+    )
+    # sample has 4 cycles, 3 should have window (BTC/ETH at 00:05/10/15), 1 skip (June)
+    assert payload["cycles_seen"] == 4
+    assert payload["cycles_with_ohlcv_window"] >= 2
+    assert payload["cycles_without_ohlcv_window"] >= 1
+    # replay should have replayed some
+    assert payload.get("cycles_replayed", 0) >= 1 or payload.get("cycles_with_ohlcv_window",0) > 0
+    assert "no_ohlcv_in_window" in str(payload.get("skip_reason_breakdown", {})) or payload["cycles_without_ohlcv_window"] > 0

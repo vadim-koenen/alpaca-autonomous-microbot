@@ -20,6 +20,7 @@ Hardenings for P2-025E (per Claude review): fee drag ~94% of observed loss in jo
 
 from __future__ import annotations
 
+import csv
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -39,6 +40,19 @@ DEFAULT_MAX_HOLD_MINUTES = 90
 DEFAULT_MAX_HOLD_BARS = 18  # 5min bars
 
 SCHEMA_VERSION = "p2-025e.coinbase_offline_backtest.v1"
+
+
+def _normalize_symbol(s: str) -> str:
+    if not s:
+        return ""
+    s = str(s).strip().upper()
+    # normalize common separators BTC-USD -> BTC/USD , BTC_USD -> BTC/USD
+    for sep in ("-", "_", " "):
+        s = s.replace(sep, "/")
+    # collapse multiple /
+    while "//" in s:
+        s = s.replace("//", "/")
+    return s
 
 
 def _to_decimal(v: Any, default: Decimal = Decimal("0")) -> Decimal:
@@ -69,6 +83,7 @@ class Bar:
     l: Decimal
     c: Decimal
     v: Decimal = field(default=Decimal("0"))
+    symbol: str = ""
 
 
 @dataclass
@@ -117,36 +132,86 @@ class BacktestResult:
     percent_trades_clearing_fee_hurdle: float = 0.0
 
 
-def load_bars_from_fixture(path) -> List[Bar]:
-    """Load bars from JSON (list of dicts with o,h,l,c, timestamp_utc or t) or JSONL."""
+def load_bars_from_fixture(path, symbol: Optional[str] = None, start: Optional[datetime] = None, end: Optional[datetime] = None) -> List[Bar]:
+    """Load bars from JSON (list of dicts with o,h,l,c, timestamp_utc or t) / JSONL or CSV.
+    Supports optional symbol filter, time window [start, end].
+    CSV columns: timestamp (or t, timestamp_utc), open/o, high/h, low/l, close/c, volume/v optional, symbol/asset optional.
+    Normalizes symbols ( - _ -> / ).
+    No network. Skips malformed.
+    """
     p = Path(path) if not isinstance(path, Path) else path
     if not p.exists():
         return []
-    text = p.read_text(encoding="utf-8").strip()
-    if not text:
-        return []
+    suffix = p.suffix.lower()
     bars: List[Bar] = []
     try:
-        if p.suffix.lower() == ".jsonl" or "\n" in text and text.startswith("{"):
-            for line in text.splitlines():
-                if not line.strip():
-                    continue
-                obj = json.loads(line)
-                bars.append(_obj_to_bar(obj))
+        if suffix == ".csv":
+            with p.open("r", encoding="utf-8", newline="") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    obj = {k.strip().lower(): v for k, v in row.items() if k}
+                    # map common csv names
+                    ts = obj.get("timestamp") or obj.get("t") or obj.get("timestamp_utc") or obj.get("time")
+                    if ts:
+                        obj["timestamp_utc"] = ts
+                    o = obj.get("open") or obj.get("o")
+                    h = obj.get("high") or obj.get("h")
+                    l = obj.get("low") or obj.get("l")
+                    c = obj.get("close") or obj.get("c")
+                    v = obj.get("volume") or obj.get("v")
+                    sym = obj.get("symbol") or obj.get("asset") or obj.get("pair")
+                    if o is not None:
+                        obj["o"] = o
+                    if h is not None:
+                        obj["h"] = h
+                    if l is not None:
+                        obj["l"] = l
+                    if c is not None:
+                        obj["c"] = c
+                    if v is not None:
+                        obj["v"] = v
+                    if sym:
+                        obj["symbol"] = sym
+                    bar = _obj_to_bar(obj)
+                    if bar and bar.c > 0:
+                        bars.append(bar)
         else:
-            data = json.loads(text)
-            if isinstance(data, list):
-                for obj in data:
+            text = p.read_text(encoding="utf-8").strip()
+            if not text:
+                return []
+            if suffix == ".jsonl" or "\n" in text and text.startswith("{"):
+                for line in text.splitlines():
+                    if not line.strip():
+                        continue
+                    obj = json.loads(line)
                     bars.append(_obj_to_bar(obj))
-            elif isinstance(data, dict) and "bars" in data:
-                for obj in data["bars"]:
-                    bars.append(_obj_to_bar(obj))
+            else:
+                data = json.loads(text)
+                if isinstance(data, list):
+                    for obj in data:
+                        bars.append(_obj_to_bar(obj))
+                elif isinstance(data, dict) and "bars" in data:
+                    for obj in data["bars"]:
+                        bars.append(_obj_to_bar(obj))
     except Exception:
         return []
+    # filter
+    if symbol:
+        norm_sym = _normalize_symbol(symbol)
+        bars = [b for b in bars if _normalize_symbol(b.symbol or "") == norm_sym]
+    if start:
+        bars = [b for b in bars if b.t >= start]
+    if end:
+        bars = [b for b in bars if b.t <= end]
+    # sort by time
+    bars.sort(key=lambda b: b.t)
+    # dedup? keep unique ts
+    seen = set()
     safe = []
     for b in bars:
-        if not b:
+        if b.t in seen:
             continue
+        seen.add(b.t)
         try:
             if b.c > 0:
                 safe.append(b)
@@ -174,6 +239,8 @@ def _obj_to_bar(obj: Dict[str, Any]) -> Bar:
             return d
         except Exception:
             return Decimal("0")
+    sym = obj.get("symbol") or obj.get("asset") or ""
+    sym = _normalize_symbol(sym) if sym else ""
     return Bar(
         t=t,
         o=_safe_d(obj.get("o") or obj.get("open")),
@@ -181,6 +248,7 @@ def _obj_to_bar(obj: Dict[str, Any]) -> Bar:
         l=_safe_d(obj.get("l") or obj.get("low")),
         c=_safe_d(obj.get("c") or obj.get("close")),
         v=_safe_d(obj.get("v") or obj.get("volume")),
+        symbol=sym,
     )
 
 

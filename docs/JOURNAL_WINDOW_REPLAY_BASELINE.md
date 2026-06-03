@@ -69,3 +69,30 @@ The harness (via this report) must show on available data:
 - either cycles_replayed > 0 with net_pnl_sum directionally negative (or fee drag visible), or clear structured skips when OHLCV coverage is missing.
 - All safety invariants and output fields present.
 - Full test suite green.
+
+## P2-025G: Offline OHLCV Ingestion and Journal-Window Coverage
+
+This patch adds support for loading OHLCV from local JSON and CSV fixtures (with symbol, timestamp, o/h/l/c, v optional), symbol normalization (BTC-USD <-> BTC/USD), header-based parsing, time/symbol filtering, and structured skip for malformed.
+
+The replay report now emits coverage metrics:
+
+- cycles_with_ohlcv_window / cycles_without_ohlcv_window / coverage_rate
+- required_symbols, earliest/latest needed timestamp
+- per_symbol_coverage (seen/with/without/coverage)
+- missing_ohlcv_directory (true if data/offline_ohlcv/coinbase/ not present)
+
+Optional real data convention (not required, no network in this patch):
+
+data/offline_ohlcv/coinbase/BTC-USD_5m_2026-05-25_2026-06-02.csv
+
+If the dir is absent, report flags it; replay will skip windows without bars.
+
+Fixtures added/updated under tests/fixtures/journal_window_replay/ include sample_ohlcv.csv (with symbols) so that with --ohlcv-fixture some cycles replay (replayed>0) and some skip (structured reasons).
+
+Why coverage required before trusting "fixes": without matching OHLCV for a journal cycle's [entry,exit] window, the replay cannot simulate the actual path the live trade saw; skipped cycles mean the baseline is incomplete. Real journal often shows 48 seen / 0 replayed until local OHLCV provided.
+
+This remains fully offline; no network calls (load only from provided fixture path or returns []).
+
+Next after this: P2-025H offline-only import tool for exported OHLCV, or maker economics study on the now-replayable windows.
+
+Update 2026-06: loader supports CSV/JSON, coverage report in smokes, full tests pass, real journal smoke now reports exact coverage (typically low until real local OHLCV added to data/ dir).

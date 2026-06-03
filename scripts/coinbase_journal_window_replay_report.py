@@ -27,6 +27,7 @@ if str(ROOT) not in sys.path:
 from coinbase_offline_backtest import (
     DEFAULT_ENTRY_FEE_RATE,
     DEFAULT_EXIT_FEE_RATE,
+    _normalize_symbol,
     load_bars_from_fixture,
     parse_journal_cycles,
     run_journal_window_replay,
@@ -34,6 +35,7 @@ from coinbase_offline_backtest import (
 
 SCHEMA_VERSION = "p2-025f.coinbase_journal_window_replay_report.v1"
 DEFAULT_JOURNAL = ROOT / "journal_coinbase_crypto.csv"
+DATA_DIR = ROOT / "data" / "offline_ohlcv" / "coinbase"
 
 
 def _to_float(d: Any) -> float:
@@ -96,12 +98,78 @@ def build_journal_window_report(
     rec_win_rate = round(rec_wins / rec_total, 6) if rec_total > 0 else 0.0
     rec_dominant = max(rec_reasons.items(), key=lambda x: x[1])[0] if rec_reasons else None
 
+    # compute needed window/symbols for coverage
+    needed_syms = set()
+    earliest = None
+    latest = None
+    for c in cycles:
+        sym = _normalize_symbol(c.get("symbol", ""))
+        if sym:
+            needed_syms.add(sym)
+        et = c.get("entry_time")
+        xt = c.get("exit_time")
+        if et and (earliest is None or et < earliest):
+            earliest = et
+        if xt and (latest is None or xt > latest):
+            latest = xt
+    missing_ohlcv_dir = not DATA_DIR.exists()
+
+    # load bars (supports json/csv, with filter)
+    bars = []
+    if ohlcv_fixture:
+        try:
+            bars = load_bars_from_fixture(ohlcv_fixture, symbol=symbol, start=earliest, end=latest)
+        except Exception:
+            bars = []
+
+    # compute coverage using loaded bars (or empty)
+    cycles_with = 0
+    cycles_without = 0
+    cov_skip = defaultdict(int)
+    per_sym_cov = defaultdict(lambda: {"seen": 0, "with": 0, "without": 0})
+    for c in cycles:
+        sym = _normalize_symbol(c.get("symbol", ""))
+        et = c.get("entry_time")
+        xt = c.get("exit_time")
+        per_sym_cov[sym]["seen"] += 1
+        has = False
+        if bars and et and xt:
+            for b in bars:
+                bsym = _normalize_symbol(b.symbol or "")
+                if (not sym or bsym == sym) and et <= b.t <= xt:
+                    has = True
+                    break
+        if has:
+            cycles_with += 1
+            per_sym_cov[sym]["with"] += 1
+        else:
+            cycles_without += 1
+            per_sym_cov[sym]["without"] += 1
+            cov_skip["no_ohlcv_in_window"] += 1
+    coverage_rate = round(cycles_with / rec_total, 6) if rec_total > 0 else 0.0
+
     payload: Dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "replay_class": "journal_window_offline_replay",
         "journal_path": str(jpath),
         "ohlcv_fixture": str(ohlcv_fixture) if ohlcv_fixture else None,
         "cycles_seen": rec_total,
+        "cycles_with_ohlcv_window": cycles_with,
+        "cycles_without_ohlcv_window": cycles_without,
+        "coverage_rate": coverage_rate,
+        "required_symbols": sorted(list(needed_syms)),
+        "earliest_needed_timestamp": str(earliest) if earliest else None,
+        "latest_needed_timestamp": str(latest) if latest else None,
+        "missing_ohlcv_directory": missing_ohlcv_dir,
+        "per_symbol_coverage": {
+            k: {
+                "seen": v["seen"],
+                "with": v["with"],
+                "without": v["without"],
+                "coverage": round(v["with"] / v["seen"], 6) if v["seen"] > 0 else 0.0,
+            }
+            for k, v in sorted(per_sym_cov.items())
+        },
         "trade_permission": "none",
         "risk_increase": "not_approved",
         "scaling_allowed": False,
@@ -127,13 +195,6 @@ def build_journal_window_report(
         "per_strategy": {k: {"count": v["count"], "net_pnl_sum": str(v["net"])} for k, v in sorted(rec_by_strat.items())},
         "per_symbol": {k: {"count": v["count"], "net_pnl_sum": str(v["net"])} for k, v in sorted(rec_by_sym.items())},
     }
-
-    bars = []
-    if ohlcv_fixture:
-        try:
-            bars = load_bars_from_fixture(ohlcv_fixture)
-        except Exception:
-            bars = []
 
     replayed = run_journal_window_replay(
         bars,
@@ -178,7 +239,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="Journal-window OHLCV replay baseline report (offline only)")
     ap.add_argument("--json", action="store_true", help="Emit JSON")
     ap.add_argument("--journal", type=Path, default=None, help="Path to journal csv (default journal_coinbase_crypto.csv)")
-    ap.add_argument("--ohlcv-fixture", type=Path, default=None, help="Path to OHLCV json/jsonl fixture covering journal times")
+    ap.add_argument("--ohlcv-fixture", type=Path, default=None, help="Path to OHLCV json/csv fixture covering journal times (local only, no network)")
     ap.add_argument("--symbol", default=None)
     ap.add_argument("--max-cycles", type=int, default=None)
     ap.add_argument("--entry-fee-rate", type=float, default=float(DEFAULT_ENTRY_FEE_RATE))

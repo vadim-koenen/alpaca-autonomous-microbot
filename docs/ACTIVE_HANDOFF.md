@@ -24,6 +24,23 @@ Next likely:
 
 ---
 
+## P2-025G — Offline OHLCV ingestion for journal-window replay (review/p2-025g-offline-ohlcv-journal-window-coverage)
+P2-025F at 0a28beb on main. Review only. No live mutation/restart/trading authority/config changes.
+
+Added:
+- Enhanced OHLCV loader in coinbase_offline_backtest.py: load_bars_from_fixture now supports .csv + .json, symbol column, header mapping (open/o etc), _normalize_symbol ( -_/ to / ), time/symbol filter, sort, skip malformed. Bar has optional symbol.
+- Coverage analysis in journal_window_replay_report: computes cycles_with/without, coverage_rate, required_symbols, earliest/latest ts, per_symbol_coverage, missing_ohlcv_directory flag for data/offline_ohlcv/coinbase/ .
+- sample_ohlcv.csv + updated json fixtures with symbols so replay can succeed for matching windows.
+- Tests for csv load, coverage fields, replayed>0 + skipped with fixture.
+- Doc updates in JOURNAL_WINDOW_REPLAY_BASELINE.md and ACTIVE_HANDOFF.
+
+Current: real journal smoke will still show low/0 coverage unless local OHLCV files placed (no network fetch added; loader is fixture-only). With fixture, smokes show replayed>0 and coverage >0 for subset.
+
+Next likely: P2-025H offline-only real OHLCV import/export tool (for user-exported csv from exchange), or maker/post-only study using now-replayable windows.
+
+All invariants: offline, no broker/order/env/launchctl/restart/live.
+
+
 ## P2-025E — Harden offline Coinbase backtest harness (review/p2-025e-harden-offline-backtest-harness)
 P2-025D at e93c286 on main. Review branch for hardening only. No merge, no restart, no live actions of any kind.
 All changes offline/fixture-only; no config/risk/sizing/symbol/strategy/LaunchAgent/.env/launchctl/order changes.
@@ -2124,3 +2141,5 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-06-03 13:14 | equity=$51.42 | positions=0 | regime=no_proposals | errors=0 | head=e93c286
 - 2026-06-03 UTC | head=e93c286 base | P2-025E committed on review/p2-025e-harden-offline-backtest-harness; hardened intra-bar TP/SL (SL precedence), taker/taker default + maker opt, pluggable policy scaffold (live_atr placeholder), journal-driven multi replay, new report fields/aggregates/fixtures/tests, docs; all safety flags, no live actions, no merge, unrelated untracked untouched. Review push only.
 - 2026-06-03 UTC | head=0dd1105 | P2-025F committed on review/p2-025f-journal-window-replay-baseline; added journal-window replay adapter + report + fixtures + tests + docs. Offline baseline for reproducing known live loss (fee drag) before exit experiments. No live state, no restart, no trading authority. Review push only.
+
+- 2026-06-03 UTC | head=0a28beb | P2-025G: OHLCV loader (csv/json), coverage report in replay, fixtures with symbols, doc. Real coverage may be 0 without local data/ dir. No live changes.
