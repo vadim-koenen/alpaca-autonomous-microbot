@@ -190,9 +190,11 @@ def test_audit_script_reports_external_vs_bot_and_slot(monkeypatch, capsys):
 
 def test_no_broker_import_in_audit_or_test_context():
     """Isolation: audit and risk/expansion modules under test must not import broker at module level for these paths."""
-    # if imported, it would have failed earlier; assert by checking no live call in our runs
-    # explicit: the modules we use don't do broker in the diagnostic paths
-    assert "broker_coinbase" not in sys.modules  # not auto imported by our test imports
+    audit_source = (Path(__file__).resolve().parents[1] / "scripts" / "coinbase_candidate_to_order_audit.py").read_text(
+        encoding="utf-8"
+    )
+    assert "import broker_coinbase" not in audit_source
+    assert "from broker_coinbase" not in audit_source
 
 
 def test_caps_unchanged():

@@ -1,5 +1,50 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025A — Coinbase execution-quality registry foundation (review/p2-025a-coinbase-execution-quality-registry)
+
+P2-025A adds an offline, fixture-backed Coinbase execution-quality registry and
+report script for the already-approved controlled spot basket:
+
+- BTC/USD
+- ETH/USD
+- ADA/USD
+- AVAX/USD
+- DOGE/USD
+- LINK/USD
+- LTC/USD
+
+Purpose:
+
+- rank symbols by bid/ask spread, maker/taker fee assumptions, slippage buffer,
+  target notional, and required break-even gross move
+- keep Coinbase preview PNL advisory-only because it excludes fees and slippage
+- preserve SOL/USD as external/staked/non-bot inventory, excluded from ranking
+  and bot-tradable inventory
+- provide the foundation for future product metadata, preview/cost, maker-first,
+  and fill-reconciliation gates
+
+Preserved truth:
+
+- no live broker calls
+- no `--live-read-only`
+- no `.env` or secrets reads
+- no order/cancel/close/modify
+- no runtime state/log mutation
+- no restart and no `launchctl`
+- no sizing/risk/cap/symbol/strategy-threshold changes
+- no derivatives/perps/prediction markets/margin/leverage/options/stocks/ETFs
+- `profit_readout=unsafe_to_aggregate`
+- `aggregation_allowed=false`
+- `scaling_allowed=false`
+- `risk_increase=not_approved`
+
+Next likely patches:
+
+- P2-025B Coinbase product metadata fixture/adapter
+- P2-025C mandatory pre-trade preview/cost gate
+- P2-025D maker-first/post-only execution feasibility
+- P2-025E broker-backed fill reconciliation improvement
+
 ## P2-024F — external/staked SOL no longer consumes bot max_open_positions slot (review/p2-024f-external-inventory-max-open-slot-fix)
 P2-024D merged/restarted at main 41447eb. Expanded basket (BTC/ETH/ADA/AVAX/DOGE/LINK/LTC) live under shared pilot caps.
 Post-P2-024D observation: expanded basket scanning, candidates (ADA/LTC) in dashboard, but no post-restart trades.

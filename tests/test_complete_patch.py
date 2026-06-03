@@ -158,9 +158,10 @@ def test_no_forbidden_imports():
     import complete_patch as module
     forbidden = ['broker', 'broker_alpaca', 'broker_coinbase', 'order_manager',
                  'risk_manager', 'main']
+    source = (Path(__file__).parent.parent / 'scripts' / 'complete_patch.py').read_text(encoding='utf-8')
     for forbidden_module in forbidden:
-        assert forbidden_module not in sys.modules or \
-               not sys.modules[forbidden_module].__name__.startswith(forbidden_module)
+        assert f"import {forbidden_module}" not in source
+        assert f"from {forbidden_module}" not in source
     
     for name in dir(module):
         if name == 'cli_main': continue

@@ -196,7 +196,7 @@ def test_active_handoff_has_p2_023b_note():
 
 
 def test_current_config_keeps_multi_asset_disabled_for_p2_023b_capped_pilot():
-    """P2-023B: config keeps expansion disabled while BTC/ETH use the capped pilot."""
+    """Current config keeps legacy multi-asset disabled while P2-024D expanded basket uses shared caps."""
     import yaml
     cfg_path = Path("config_coinbase_crypto.yaml")
     cfg = yaml.safe_load(cfg_path.read_text()) if cfg_path.exists() else {}
@@ -206,8 +206,11 @@ def test_current_config_keeps_multi_asset_disabled_for_p2_023b_capped_pilot():
     assert multi.get("enabled") is False
 
     base_live = crypto.get("live_symbols", [])
-    assert base_live == ["BTC/USD", "ETH/USD"]
+    assert base_live == ["BTC/USD", "ETH/USD", "ADA/USD", "AVAX/USD", "DOGE/USD", "LINK/USD", "LTC/USD"]
     assert "SOL/USD" not in base_live
+    expansion = crypto.get("controlled_live_symbol_expansion", {})
+    assert expansion.get("enabled") is True
+    assert expansion.get("shared_caps") is True
 
     assert crypto.get("pilot_trade_percent_of_balance") == 0.10
     assert crypto.get("max_trade_notional_usd", 0) <= 10.0

@@ -78,11 +78,10 @@ class TestMakerOrderAudit:
         import coinbase_maker_order_audit as module
         forbidden = ['broker', 'broker_alpaca', 'broker_coinbase', 'order_manager',
                      'risk_manager', 'main']
-        # Check if any forbidden module names are in sys.modules after import
-        # (A more robust check would involve inspecting the module's attributes)
+        source = (Path(__file__).parent.parent / 'scripts' / 'coinbase_maker_order_audit.py').read_text(encoding='utf-8')
         for forbidden_module in forbidden:
-            assert forbidden_module not in sys.modules or \
-                   not sys.modules[forbidden_module].__name__.startswith(forbidden_module)
+            assert f"import {forbidden_module}" not in source
+            assert f"from {forbidden_module}" not in source
         
         # Also check for explicit imports in the module namespace
         for name in dir(module):

@@ -1,0 +1,93 @@
+{
+  "schema_version": "p2-025a.execution_quality.fixture.v1",
+  "live_symbols": ["BTC/USD", "ETH/USD", "ADA/USD", "AVAX/USD", "DOGE/USD", "LINK/USD", "LTC/USD"],
+  "excluded_symbols": ["SOL/USD"],
+  "defaults": {
+    "notional_target": "5.00",
+    "maker_fee_rate": "0.0060",
+    "taker_fee_rate": "0.0120",
+    "slippage_buffer_rate": "0.0010",
+    "assumed_entry_liquidity_type": "maker",
+    "assumed_exit_liquidity_type": "maker"
+  },
+  "symbols": [
+    {
+      "product_id": "BTC-USD",
+      "symbol": "BTC/USD",
+      "bid": "100000.00",
+      "ask": "100020.00",
+      "max_allowed_spread_pct": "0.10",
+      "expected_gross_move_rate": "0.0250",
+      "preview_pnl": "25.00"
+    },
+    {
+      "product_id": "ETH-USD",
+      "symbol": "ETH/USD",
+      "bid": "3800.00",
+      "ask": "3802.00",
+      "max_allowed_spread_pct": "0.15",
+      "expected_gross_move_rate": "0.0230"
+    },
+    {
+      "product_id": "ADA-USD",
+      "symbol": "ADA/USD",
+      "bid": "0.4500",
+      "ask": "0.4503",
+      "max_allowed_spread_pct": "0.20",
+      "assumed_entry_liquidity_type": "taker",
+      "assumed_exit_liquidity_type": "taker",
+      "expected_gross_move_rate": "0.0200",
+      "preview_pnl": "10.00"
+    },
+    {
+      "product_id": "AVAX-USD",
+      "symbol": "AVAX/USD",
+      "bid": "36.00",
+      "ask": "36.20",
+      "max_allowed_spread_pct": "0.20",
+      "expected_gross_move_rate": "0.0400"
+    },
+    {
+      "product_id": "DOGE-USD",
+      "symbol": "DOGE/USD",
+      "bid": "0.1600",
+      "ask": "0.1602",
+      "max_allowed_spread_pct": "0.20",
+      "assumed_entry_liquidity_type": "taker",
+      "assumed_exit_liquidity_type": "taker",
+      "expected_gross_move_rate": "0.0100"
+    },
+    {
+      "product_id": "LINK-USD",
+      "symbol": "LINK/USD",
+      "bid": "18.00",
+      "ask": "18.02",
+      "max_allowed_spread_pct": "0.20"
+    },
+    {
+      "product_id": "LTC-USD",
+      "symbol": "LTC/USD",
+      "bid": "85.00",
+      "ask": "85.08",
+      "max_allowed_spread_pct": "0.20",
+      "expected_gross_move_rate": "0.0200"
+    },
+    {
+      "product_id": "SOL-USD",
+      "symbol": "SOL/USD",
+      "bid": "150.00",
+      "ask": "150.12",
+      "max_allowed_spread_pct": "0.20",
+      "expected_gross_move_rate": "0.0500"
+    },
+    {
+      "product_id": "BTC-PERP",
+      "symbol": "BTC-PERP",
+      "product_type": "perp",
+      "bid": "100000.00",
+      "ask": "100010.00",
+      "max_allowed_spread_pct": "0.10",
+      "expected_gross_move_rate": "0.0500"
+    }
+  ]
+}
