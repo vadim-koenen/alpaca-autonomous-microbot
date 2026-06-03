@@ -3,6 +3,32 @@
 
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025I — Public/manual OHLCV acquisition workflow (review/p2-025i-public-manual-ohlcv-acquisition-workflow)
+P2-025H merged at 9956488. Review branch only. No merge, no restart, no live actions, no config/risk/sizing/symbol/strategy/LaunchAgent changes, no .env, no launchctl, no orders.
+
+Current blocker: journal-window replay still reports 0 coverage (48/48 skipped, "no_ohlcv_in_window") because no local OHLCV files exist for the 48 real EXIT cycles (ALGO/BTC/ETH/SOL, ~2026-05-25..06-03).
+
+Added:
+- scripts/coinbase_ohlcv_acquisition_plan.py: reads journal, derives required_symbols + exact [earliest_entry, latest_exit], recommends canonical filenames, detects missing in data/offline_ohlcv/coinbase/, emits exact import/validate --write commands for each symbol, full JSON report with network_enabled=false, acquisition_mode=manual_by_default, trade_permission=none etc.
+- scripts/coinbase_public_ohlcv_fetch.py (opt-in): public unauthenticated market-data-only fetcher (legacy exchange /products/.../candles, no auth ever, no Advanced Trade endpoints, no .env). Default dry-run/no-net; --fetch to call, --write to normalize+persist same schema as validator. All tests mock HTTP; never real net in CI/tests.
+- docs/OHLCV_ACQUISITION_WORKFLOW.md: current required symbols/dates, target dir, expected names, manual steps, public fetcher usage, exact replay cmd, strong warnings (no live, do not commit data, etc).
+- tests/test_coinbase_ohlcv_acquisition_plan.py: required symbols/start/end/filenames/missing from fixture, safety flags, no-forbidden, isolation (no env), CLI, and mocked-HTTP tests for fetcher (url is public, no secret headers, dry-run never calls net, report has permissions).
+- Updated ACTIVE_HANDOFF + cross-refs.
+
+All outputs force trade_permission=none / risk_increase=not_approved / scaling_allowed=false.
+Acquisition plan never performs network. Fetcher is strictly opt-in + mocked in tests.
+Safety grep clean. No unrelated untracked touched. Review push only.
+
+Current state: planner tells you exactly which 4 files + commands are needed. Manual export + validate --write (or opt-in public fetch) will populate data/ dir. Replay will then be able to use real windows instead of always skipping.
+
+Next likely:
+- P2-025J: run journal-window replay after OHLCV coverage exists (reproduce known loss directionally on real price paths from the journal windows).
+- or P2-025J: maker/post-only economics study (lower fee scenario) only after replay coverage improves and baseline loss reproduction is confirmed on real data.
+
+All invariants preserved: offline, no broker/order/env/launchctl/restart/live/config mutation.
+
+---
+
 ## P2-025F — Journal-window OHLCV replay baseline (review/p2-025f-journal-window-replay-baseline)
 P2-025E merged at 0dd1105. All work on review branch only. No merge, no restart, no live actions, no config/risk/sizing/symbol/strategy/LaunchAgent changes.
 
