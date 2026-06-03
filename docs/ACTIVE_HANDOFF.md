@@ -1,5 +1,43 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025C — journal-truth P/L and probe shutoff (review/p2-025c-journal-truth-pnl-and-probe-shutoff)
+
+P2-025C pivots from additional read-only scaffolding to direct loss control.
+It adds an offline Coinbase journal-truth P/L report and defensively disables
+the structurally uneconomic legacy `coinbase_probe_enabled` path.
+
+Purpose:
+
+- compute live closed-cycle P/L from the local Coinbase journal by CSV header
+  name, not fixed index
+- classify that readout as `journal_recorded_broker_backed`
+- keep the stricter numeric-safe direct-capture gate intact for future scaling
+- make clear that `unsafe_to_aggregate` is not the same as "no evidence"
+- stop the 0.50 USD probe path pending backtest/replay evidence
+
+Preserved truth:
+
+- `coinbase_probe_enabled=false`
+- `coinbase_probe_notional_usd` unchanged
+- trade caps, notional caps, max-open, max-trades/day, eligible symbols, SOL
+  exclusion, stop-loss, take-profit, hold time, and strategy thresholds unchanged
+- no live broker calls
+- no `--live-read-only`
+- no `.env` or secrets reads
+- no order/cancel/close/modify
+- no runtime restart and no `launchctl`
+- `trade_permission=none`
+- `profit_readout=unsafe_to_aggregate`
+- `aggregation_allowed=false`
+- `scaling_allowed=false`
+- `risk_increase=not_approved`
+
+Next likely patches:
+
+- P2-025D offline backtest/replay harness
+- P2-025E exit-logic overhaul validated through the backtester
+- P2-025F maker-first/post-only execution feasibility
+
 ## P2-025B — read-only market/trend context registry (review/p2-025b-read-only-market-context-registry)
 
 P2-025B adds an offline, fixture-backed Coinbase market/trend context registry

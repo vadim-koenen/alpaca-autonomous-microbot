@@ -162,7 +162,8 @@ crypto:
 
   # ── Legacy micro probe mode ─────────────────────────────────
   # legacy probe is disabled when controlled exploration is enabled
-  coinbase_probe_enabled: true
+  # P2-025C: defensive shutdown of structurally uneconomic $0.50 probe path pending backtest.
+  coinbase_probe_enabled: false
   coinbase_probe_symbols:
     - BTC/USD
   coinbase_probe_regimes:
