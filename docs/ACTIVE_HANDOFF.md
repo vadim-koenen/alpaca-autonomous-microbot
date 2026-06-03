@@ -1,5 +1,22 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025D — Offline backtest / replay harness (review/p2-025d-offline-backtest-replay-harness)
+P2-025C merged at 30d0763; controlled restart complete; coinbase_probe_enabled=false now live.
+No further restarts for this patch. All work offline/fixture-only.
+- Added coinbase_offline_backtest.py (replay with TP/SL/hold/fees/slippage)
+- Added scripts/coinbase_offline_backtest_report.py (--json, configurable policy)
+- Added tests/test_coinbase_offline_backtest.py (TP, SL, hold, fee-drag net-negative, determinism, isolation, permission fields)
+- Added 4+ fixtures under tests/fixtures/offline_backtest/
+- Added docs/OFFLINE_BACKTEST_REPLAY_HARNESS.md
+- Updated this file
+- trade_permission=none, risk_increase=not_approved, scaling_allowed=false enforced in output
+- Zero live broker, zero orders, zero runtime mutation, zero config/risk/sizing/symbol changes
+- Review branch only; no merge
+
+Next likely: P2-025E exit-logic overhaul (offline/simulated only, using this harness + journal-truth to prove net-of-fee improvement before any live proposal).
+
+# ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
+
 ## P2-025C — journal-truth P/L and probe shutoff (review/p2-025c-journal-truth-pnl-and-probe-shutoff)
 
 P2-025C pivots from additional read-only scaffolding to direct loss control.
