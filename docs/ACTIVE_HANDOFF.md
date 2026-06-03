@@ -1,5 +1,29 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+
+# ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
+
+## P2-025F — Journal-window OHLCV replay baseline (review/p2-025f-journal-window-replay-baseline)
+P2-025E merged at 0dd1105. All work on review branch only. No merge, no restart, no live actions, no config/risk/sizing/symbol/strategy/LaunchAgent changes.
+
+Purpose: add offline journal-window replay so the hardened harness can be validated against the known live loss (fee-drag dominated, ~2% win rate, net ~-1.09, dominant max-hold exits) **before** any exit/strategy "fix" experiments are run through it.
+
+- Added journal-window replay adapter (parse_journal_cycles + run_journal_window_replay) to coinbase_offline_backtest.py (reuses _simulate_one_trade + existing journal entry support).
+- Added scripts/coinbase_journal_window_replay_report.py (CLI --json --journal --ohlcv-fixture --fee-scenario etc; emits full required schema with cycles_seen/replayed/skipped, skip_reason_breakdown, recorded vs replayed nets, direction_match, per-strat/sym, dominant exit, safety flags).
+- Added tests/fixtures/journal_window_replay/ (sample journal + ohlcv covering timeout/stop/fee-drag + skip case).
+- Added tests/test_coinbase_journal_window_replay.py (parses by header, skips malformed, multi-cycle replay, fee-drag negative repro, skip breakdown, summaries, direction match, JSON+permissions, isolation proofs).
+- Added docs/JOURNAL_WINDOW_REPLAY_BASELINE.md (why, reproduction requirement, journal_recorded vs replay, taker default, limitations, next).
+- Updated this file + OFFLINE_BACKTEST_REPLAY_HARNESS.md (cross-ref).
+- All outputs still force trade_permission=none / risk_increase=not_approved / scaling_allowed=false.
+- Safety: no forbidden strings, no live calls, no mutation.
+- Review push only.
+
+Next likely:
+- P2-025G maker/post-only economics study (using the window replay) or real OHLCV ingestion expansion for the actual journal dates (whichever gives better coverage first).
+- Only after directional loss reproduction on real windows should exit-logic changes be proposed.
+
+---
+
 ## P2-025E — Harden offline Coinbase backtest harness (review/p2-025e-harden-offline-backtest-harness)
 P2-025D at e93c286 on main. Review branch for hardening only. No merge, no restart, no live actions of any kind.
 All changes offline/fixture-only; no config/risk/sizing/symbol/strategy/LaunchAgent/.env/launchctl/order changes.
@@ -2099,3 +2123,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-05-31 | head=d67c37c | P2-016B complete; Added safe zero-network Coinbase live-readiness diagnostic (redacted credential presence, adapter/import status, text/JSON). Default mode zero broker/network calls. Current verdict BLOCKED due to missing COINBASE_API_KEY/SECRET. No runtime/config/order/risk/strategy changes, no secrets printed, no fill logger writes, no leverage/margin/futures/perps/options/commodities/GOLD/SILVER/XAU/XAG enabled.
 - 2026-06-03 13:14 | equity=$51.42 | positions=0 | regime=no_proposals | errors=0 | head=e93c286
 - 2026-06-03 UTC | head=e93c286 base | P2-025E committed on review/p2-025e-harden-offline-backtest-harness; hardened intra-bar TP/SL (SL precedence), taker/taker default + maker opt, pluggable policy scaffold (live_atr placeholder), journal-driven multi replay, new report fields/aggregates/fixtures/tests, docs; all safety flags, no live actions, no merge, unrelated untracked untouched. Review push only.
+- 2026-06-03 UTC | head=0dd1105 | P2-025F committed on review/p2-025f-journal-window-replay-baseline; added journal-window replay adapter + report + fixtures + tests + docs. Offline baseline for reproducing known live loss (fee drag) before exit experiments. No live state, no restart, no trading authority. Review push only.

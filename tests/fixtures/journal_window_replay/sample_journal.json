@@ -1,0 +1,58 @@
+[
+  {
+    "timestamp": "2026-01-01T00:05:00Z",
+    "mode": "live",
+    "symbol": "BTC/USD",
+    "strategy": "baseline",
+    "action": "EXIT",
+    "reason": "max hold time 90min exceeded (5min held)",
+    "fill_price": "100.0",
+    "exit_price": "100.1",
+    "gross_pnl": "0.005",
+    "fees_paid": "0.024",
+    "pnl_usd": "-0.019",
+    "notional": "5.0"
+  },
+  {
+    "timestamp": "2026-01-01T00:10:00Z",
+    "mode": "live",
+    "symbol": "BTC/USD",
+    "strategy": "baseline",
+    "action": "EXIT",
+    "reason": "stop-loss hit (3min held)",
+    "fill_price": "100.0",
+    "exit_price": "98.4",
+    "gross_pnl": "-0.08",
+    "fees_paid": "0.012",
+    "pnl_usd": "-0.092",
+    "notional": "5.0"
+  },
+  {
+    "timestamp": "2026-01-01T00:15:00Z",
+    "mode": "live",
+    "symbol": "ETH/USD",
+    "strategy": "baseline",
+    "action": "EXIT",
+    "reason": "max hold time 90min exceeded (5min held)",
+    "fill_price": "2000.0",
+    "exit_price": "2001.0",
+    "gross_pnl": "0.0025",
+    "fees_paid": "0.048",
+    "pnl_usd": "-0.0455",
+    "notional": "5.0"
+  },
+  {
+    "timestamp": "2026-06-01T00:00:00Z",
+    "mode": "live",
+    "symbol": "SOL/USD",
+    "strategy": "baseline",
+    "action": "EXIT",
+    "reason": "max hold time 90min exceeded (10min held)",
+    "fill_price": "150.0",
+    "exit_price": "149.0",
+    "gross_pnl": "-0.033",
+    "fees_paid": "0.012",
+    "pnl_usd": "-0.045",
+    "notional": "5.0"
+  }
+]

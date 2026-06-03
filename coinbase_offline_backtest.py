@@ -580,3 +580,370 @@ def run_backtest_with_journal_entries(
     if res.total_trades == 0:
         res.notes.append("No trades generated from journal entries")
     return res
+
+
+# =============================================================================
+# P2-025F: Journal-window OHLCV replay baseline support
+# =============================================================================
+
+import csv
+import re
+from collections import defaultdict
+
+
+def normalize_exit_reason(reason: str) -> str:
+    """Normalize exit reasons for comparison (copied for self-contained module)."""
+    text = (reason or "").strip()
+    lower = text.lower()
+    if not text:
+        return "unspecified"
+    if "max hold time" in lower:
+        return "max hold time 90min exceeded"
+    if "stop-loss" in lower or "stop loss" in lower:
+        return "stop-loss hit"
+    if "take-profit" in lower or "take profit" in lower:
+        return "take-profit hit"
+    return text.split("(", 1)[0].strip() or "unspecified"
+
+
+def _parse_hold_minutes_from_reason(reason: str, default: float = 90.0) -> float:
+    """Extract e.g. 90.6 from 'max hold time 90min exceeded (90.6min held)'."""
+    if not reason:
+        return default
+    m = re.search(r"\(([0-9.]+)\s*min\s*held\)", reason, re.IGNORECASE)
+    if m:
+        try:
+            return float(m.group(1))
+        except Exception:
+            pass
+    m2 = re.search(r"([0-9.]+)\s*min", reason, re.IGNORECASE)
+    if m2:
+        try:
+            return float(m2.group(1))
+        except Exception:
+            pass
+    return default
+
+
+def parse_journal_cycles(journal_path: Any) -> List[Dict[str, Any]]:
+    """
+    Parse journal (csv path or json list of dicts) for live EXIT cycles.
+    Returns list of cycle dicts with:
+      symbol, strategy, entry_time (computed), exit_time, entry_price (from fill_price),
+      exit_price, notional, gross_pnl_recorded, fees_recorded, net_pnl_recorded,
+      exit_reason, hold_minutes, raw_timestamp
+    Skips non-live, non-EXIT, warn/error, blank, bad numeric.
+    Pure offline.
+    """
+    p = Path(journal_path) if not isinstance(journal_path, (list, tuple)) else None
+    cycles: List[Dict[str, Any]] = []
+    rows: List[Dict[str, Any]] = []
+
+    if isinstance(journal_path, (list, tuple)):
+        rows = journal_path
+    else:
+        if not p or not p.exists():
+            return cycles
+        try:
+            if p.suffix.lower() == ".json":
+                data = json.loads(p.read_text(encoding="utf-8"))
+                if isinstance(data, list):
+                    rows = data
+                elif isinstance(data, dict) and "cycles" in data:
+                    rows = data["cycles"]
+            else:
+                with p.open("r", encoding="utf-8", newline="") as handle:
+                    reader = csv.DictReader(handle)
+                    for row in reader:
+                        rows.append(row)
+        except Exception:
+            return cycles
+
+    for raw in rows:
+        if not raw:
+            continue
+        row = { (k or "").strip(): (v or "").strip() for k, v in raw.items() if k is not None }
+
+        if not any(row.values()):
+            continue
+
+        # support both csv keys and fixture keys
+        mode = (row.get("mode") or row.get("Mode") or "").lower()
+        action = (row.get("action") or row.get("Action") or "").upper()
+        decision = (row.get("decision") or row.get("Decision") or "").upper()
+        if mode and mode != "live":
+            continue
+        if action in {"WARN", "ERROR"} or decision in {"WARN", "ERROR"}:
+            continue
+        if action and action != "EXIT":
+            continue
+
+        try:
+            exit_ts_str = row.get("timestamp") or row.get("exit_time") or row.get("t")
+            if not exit_ts_str:
+                continue
+            exit_ts = datetime.fromisoformat(exit_ts_str.replace("Z", "+00:00"))
+            if exit_ts.tzinfo is None:
+                exit_ts = exit_ts.replace(tzinfo=timezone.utc)
+        except Exception:
+            continue
+
+        reason_raw = row.get("reason") or row.get("exit_reason") or ""
+        exit_reason = normalize_exit_reason(reason_raw)
+        hold_min = _parse_hold_minutes_from_reason(reason_raw)
+        entry_ts = exit_ts - timedelta(minutes=hold_min)
+
+        try:
+            entry_p = Decimal(str(row.get("fill_price") or row.get("price") or row.get("entry_price") or "0"))
+            exit_p = Decimal(str(row.get("exit_price") or "0"))
+            gross = Decimal(str(row.get("gross_pnl") or "0"))
+            fees = Decimal(str(row.get("fees_paid") or row.get("fees") or "0"))
+            net = Decimal(str(row.get("pnl_usd") or row.get("net_pnl") or "0"))
+            notional = Decimal(str(row.get("notional") or row.get("entry_notional") or "0"))
+            if entry_p <= 0 and exit_p <= 0:
+                # bad or zero prices in bad row
+                raise ValueError("zero or bad prices")
+        except Exception:
+            continue
+
+        if notional == 0:
+            # try derive
+            try:
+                if entry_p > 0:
+                    notional = _to_decimal(row.get("qty", 0)) * entry_p
+            except Exception:
+                notional = Decimal("5.0")
+
+        sym = row.get("symbol") or row.get("asset") or "UNKNOWN"
+        strat = row.get("strategy") or "unknown"
+
+        cycles.append({
+            "symbol": sym,
+            "strategy": strat,
+            "entry_time": entry_ts,
+            "exit_time": exit_ts,
+            "entry_price": entry_p,
+            "exit_price": exit_p,
+            "notional": notional if notional > 0 else Decimal("5.0"),
+            "gross_pnl_recorded": gross,
+            "fees_recorded": fees,
+            "net_pnl_recorded": net,
+            "exit_reason": exit_reason,
+            "hold_minutes": hold_min,
+            "raw_timestamp": exit_ts_str,
+        })
+
+    return cycles
+
+
+def run_journal_window_replay(
+    bars: Sequence[Bar],
+    cycles: List[Dict[str, Any]],
+    *,
+    entry_fee_rate: Any = DEFAULT_ENTRY_FEE_RATE,
+    exit_fee_rate: Any = DEFAULT_EXIT_FEE_RATE,
+    slippage_buffer_rate: Any = DEFAULT_SPREAD_SLIPPAGE_BUFFER_RATE,
+    fee_scenario: str = "taker/taker",
+) -> Dict[str, Any]:
+    """
+    For each journal cycle, find the sub-window of bars [entry_time, exit_time],
+    replay the trade using journal entry_price / notional on that sub-sequence.
+    The sub-bars limit causes exit at window end (reproducing the actual hold path).
+    Returns aggregate report dict + per_cycle results + skips.
+    """
+    entry_fee_rate = _to_decimal(entry_fee_rate, default=DEFAULT_ENTRY_FEE_RATE)
+    exit_fee_rate = _to_decimal(exit_fee_rate, default=DEFAULT_EXIT_FEE_RATE)
+    slippage_buffer_rate = _to_decimal(slippage_buffer_rate, default=DEFAULT_SPREAD_SLIPPAGE_BUFFER_RATE)
+
+    result: Dict[str, Any] = {
+        "schema_version": "p2-025f.journal_window_replay.v1",
+        "replay_class": "journal_window_offline_replay",
+        "fee_scenario": fee_scenario,
+        "cycles_seen": len(cycles),
+        "cycles_replayed": 0,
+        "cycles_skipped": 0,
+        "skip_reason_breakdown": defaultdict(int),
+        "wins": 0,
+        "losses": 0,
+        "breakeven": 0,
+        "win_rate": 0.0,
+        "gross_pnl_sum": "0",
+        "fees_sum": "0",
+        "net_pnl_sum": "0",
+        "journal_recorded_net_pnl_sum": "0",
+        "replay_vs_journal_direction_match": None,
+        "dominant_exit_reason": None,
+        "exit_reason_breakdown": {},
+        "per_strategy": {},
+        "per_symbol": {},
+        "per_cycle": [],
+        "trade_permission": "none",
+        "risk_increase": "not_approved",
+        "scaling_allowed": False,
+        "notes": [
+            "Offline journal-window replay baseline. Uses actual journal entry/exit windows against provided OHLCV bars.",
+            "Replayed exit uses the price path in the window (end-of-window for max-hold reproduction).",
+            "trade_permission=none; risk_increase=not_approved; scaling_allowed=false",
+        ],
+    }
+
+    if not cycles:
+        result["notes"].append("No cycles for replay")
+        return result
+
+    closed_replays = []
+    gross_r = fees_r = net_r = Decimal("0")
+    gross_j = fees_j = net_j = Decimal("0")
+    wins = losses = breakeven = 0
+    reasons: Dict[str, int] = defaultdict(int)
+    by_strat: Dict[str, Dict] = defaultdict(lambda: {"replayed_net": Decimal("0"), "recorded_net": Decimal("0"), "count": 0})
+    by_sym: Dict[str, Dict] = defaultdict(lambda: {"replayed_net": Decimal("0"), "recorded_net": Decimal("0"), "count": 0})
+    matches = []
+
+    for c in cycles:
+        et = c.get("entry_time")
+        xt = c.get("exit_time")
+        eprice = c.get("entry_price", Decimal("0"))
+        enot = c.get("notional", Decimal("5.0"))
+        sym = c.get("symbol", "UNKNOWN")
+        strat = c.get("strategy", "unknown")
+        rec_net = c.get("net_pnl_recorded", Decimal("0"))
+        rec_g = c.get("gross_pnl_recorded", Decimal("0"))
+        rec_f = c.get("fees_recorded", Decimal("0"))
+        rec_reason = c.get("exit_reason", "unknown")
+
+        if not et or not xt or eprice <= 0:
+            result["cycles_skipped"] += 1
+            result["skip_reason_breakdown"]["missing_cycle_fields"] += 1
+            continue
+
+        # find bars in window
+        start_idx = -1
+        end_idx = -1
+        for ii, b in enumerate(bars):
+            if start_idx < 0 and b.t >= et:
+                start_idx = ii
+            if b.t <= xt:
+                end_idx = ii
+            elif b.t > xt and end_idx >= 0:
+                break
+        if start_idx < 0 or end_idx < 0 or end_idx <= start_idx:
+            result["cycles_skipped"] += 1
+            result["skip_reason_breakdown"]["no_ohlcv_in_window"] += 1
+            result["per_cycle"].append({
+                "symbol": sym, "strategy": strat,
+                "entry_time": str(et), "exit_time": str(xt),
+                "replayed": False, "skip_reason": "no_ohlcv_in_window",
+                "recorded_net": str(rec_net),
+            })
+            continue
+
+        sub_bars = bars[start_idx : end_idx + 1]
+        if len(sub_bars) < 2:
+            result["cycles_skipped"] += 1
+            result["skip_reason_breakdown"]["insufficient_bars_in_window"] += 1
+            continue
+
+        # replay using the window as the bar sequence; simulate will exit at end of sub (journal window)
+        # use the actual hold for max_hold to match window
+        hold_min = float(c.get("hold_minutes", 90.0))
+        trade = _simulate_one_trade(
+            sub_bars, 0, eprice, et, enot,
+            entry_fee_rate=entry_fee_rate,
+            exit_fee_rate=exit_fee_rate,
+            slippage_buffer_rate=slippage_buffer_rate,
+            tp_rate=Decimal("0.03"),  # not relevant if window ends first
+            sl_rate=Decimal("0.015"),
+            max_hold=timedelta(minutes=hold_min),
+            exit_policy="static",
+        )
+        if not trade:
+            result["cycles_skipped"] += 1
+            result["skip_reason_breakdown"]["simulate_failed"] += 1
+            continue
+
+        # override symbol/strat
+        trade.symbol = sym
+        trade.strategy_name = strat
+
+        # replayed values
+        r_g = _to_decimal(trade.gross_pnl)
+        r_f = _to_decimal(trade.fees)
+        r_n = _to_decimal(trade.net_pnl)
+        r_reason = trade.exit_reason
+
+        gross_r += r_g
+        fees_r += r_f
+        net_r += r_n
+        gross_j += rec_g
+        fees_j += rec_f
+        net_j += rec_net
+
+        if r_n > 0:
+            wins += 1
+        elif r_n < 0:
+            losses += 1
+        else:
+            breakeven += 1
+        reasons[r_reason] += 1
+
+        by_strat[strat]["replayed_net"] += r_n
+        by_strat[strat]["recorded_net"] += rec_net
+        by_strat[strat]["count"] += 1
+        by_sym[sym]["replayed_net"] += r_n
+        by_sym[sym]["recorded_net"] += rec_net
+        by_sym[sym]["count"] += 1
+
+        match = None
+        if rec_net != 0 or r_n != 0:
+            match = (r_n > 0) == (rec_net > 0) or (r_n < 0) == (rec_net < 0)
+        matches.append(match)
+
+        result["per_cycle"].append({
+            "symbol": sym,
+            "strategy": strat,
+            "entry_time": trade.entry_time,
+            "exit_time": trade.exit_time,
+            "replayed_net": str(r_n),
+            "replayed_gross": str(r_g),
+            "replayed_fees": str(r_f),
+            "replayed_exit_reason": r_reason,
+            "recorded_net": str(rec_net),
+            "recorded_gross": str(rec_g),
+            "recorded_fees": str(rec_f),
+            "recorded_exit_reason": rec_reason,
+            "direction_match": match,
+        })
+
+        result["cycles_replayed"] += 1
+
+    result["wins"] = wins
+    result["losses"] = losses
+    result["breakeven"] = breakeven
+    result["win_rate"] = round(wins / result["cycles_replayed"], 6) if result["cycles_replayed"] > 0 else 0.0
+    result["gross_pnl_sum"] = _fmt_money(gross_r)
+    result["fees_sum"] = _fmt_money(fees_r)
+    result["net_pnl_sum"] = _fmt_money(net_r)
+    result["journal_recorded_net_pnl_sum"] = _fmt_money(net_j)
+    if matches:
+        true_matches = sum(1 for m in matches if m is True)
+        result["replay_vs_journal_direction_match"] = round(true_matches / len([m for m in matches if m is not None]), 6) if any(m is not None for m in matches) else None
+    result["exit_reason_breakdown"] = dict(reasons)
+    if reasons:
+        result["dominant_exit_reason"] = max(reasons.items(), key=lambda x: x[1])[0]
+
+    # summaries
+    def _fmt_bucket(d):
+        return {
+            "count": d["count"],
+            "replayed_net_sum": _fmt_money(d["replayed_net"]),
+            "recorded_net_sum": _fmt_money(d["recorded_net"]),
+        }
+    result["per_strategy"] = {k: _fmt_bucket(v) for k, v in sorted(by_strat.items())}
+    result["per_symbol"] = {k: _fmt_bucket(v) for k, v in sorted(by_sym.items())}
+
+    if result["cycles_replayed"] == 0:
+        result["notes"].append("No cycles could be replayed (check OHLCV coverage for journal times)")
+    result["skip_reason_breakdown"] = dict(result["skip_reason_breakdown"])
+
+    return result
