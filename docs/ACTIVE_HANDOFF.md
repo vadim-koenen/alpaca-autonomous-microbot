@@ -1,5 +1,50 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025B — read-only market/trend context registry (review/p2-025b-read-only-market-context-registry)
+
+P2-025B adds an offline, fixture-backed Coinbase market/trend context registry
+and report script. It is standalone for this patch and does not feed live
+runtime decisions.
+
+Purpose:
+
+- model Coinbase market data and product metadata as future execution-quality
+  inputs, not trading authority
+- model Coinbase level2 order book and order preview as future/disabled research
+  paths
+- model CoinGecko and future news/sentiment sources as advisory-only
+- provide per-symbol context for BTC/USD, ETH/USD, ADA/USD, AVAX/USD, DOGE/USD,
+  LINK/USD, and LTC/USD
+- keep SOL/USD external/staked/non-bot inventory and non-tradable by the bot
+
+Preserved truth:
+
+- `trading_authority=none`
+- `trade_permission=none`
+- trend/news/sentiment context cannot trigger trades
+- external context cannot change sizing, risk, strategy gates, or execution
+  quality gates
+- no live broker calls
+- no `--live-read-only`
+- no `.env` or secrets reads
+- no order/cancel/close/modify
+- no runtime state/log mutation
+- no restart and no `launchctl`
+- no live risk, sizing, symbol, strategy-threshold, runtime config, or
+  LaunchAgent changes
+- no derivatives/perps/prediction markets/stocks/ETFs/margin/leverage/options
+  enabled
+- `profit_readout=unsafe_to_aggregate`
+- `risk_increase=not_approved`
+
+Next likely patches:
+
+- P2-025C Coinbase product metadata fixture/adapter
+- P2-025D mandatory pre-trade preview/cost gate
+- P2-025E maker-first/post-only feasibility
+- P2-025F WebSocket level2 design/offline simulator
+- P2-026 all-asset opportunity registry read-only
+
 ## P2-025A — Coinbase execution-quality registry foundation (review/p2-025a-coinbase-execution-quality-registry)
 
 P2-025A adds an offline, fixture-backed Coinbase execution-quality registry and

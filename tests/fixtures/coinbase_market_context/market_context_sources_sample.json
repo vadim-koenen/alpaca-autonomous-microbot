@@ -1,0 +1,74 @@
+{
+  "schema_version": "p2-025b.market_context.fixture.v1",
+  "live_symbols": ["BTC/USD", "ETH/USD", "ADA/USD", "AVAX/USD", "DOGE/USD", "LINK/USD", "LTC/USD"],
+  "sources": {
+    "coinbase_market_data": {
+      "status": "fixture_available",
+      "freshness": "offline_quote_and_candle_fixture",
+      "update_cadence": "manual_fixture_refresh"
+    },
+    "coinbase_product_metadata": {
+      "status": "fixture_available",
+      "freshness": "offline_product_fixture",
+      "update_cadence": "manual_fixture_refresh"
+    },
+    "coingecko_trending": {
+      "status": "fixture_available",
+      "freshness": "offline_trending_fixture",
+      "update_cadence": "manual_fixture_refresh"
+    },
+    "coingecko_markets": {
+      "status": "fixture_available",
+      "freshness": "offline_external_market_fixture",
+      "update_cadence": "manual_fixture_refresh"
+    }
+  },
+  "symbol_context": {
+    "BTC/USD": {
+      "advisory_label": "confirm_only",
+      "sources_used": ["coinbase_market_data", "coinbase_product_metadata", "coingecko_markets"],
+      "context_notes": "Best execution-quality fixture rank from P2-025A; still no trading authority.",
+      "reasons": ["execution_quality_rank_1", "external_context_advisory_only"]
+    },
+    "ETH/USD": {
+      "advisory_label": "confirm_only",
+      "sources_used": ["coinbase_market_data", "coinbase_product_metadata", "coingecko_markets"],
+      "context_notes": "Execution quality passes in fixture; advisory context only.",
+      "reasons": ["execution_quality_rank_2", "external_context_advisory_only"]
+    },
+    "ADA/USD": {
+      "advisory_label": "trend_attention",
+      "sources_used": ["coinbase_market_data", "coingecko_trending"],
+      "context_notes": "External trend attention does not override fee/execution gates.",
+      "reasons": ["coingecko_trending_attention", "taker_taker_fee_drag_attention"]
+    },
+    "AVAX/USD": {
+      "advisory_label": "watch",
+      "sources_used": ["coinbase_market_data", "coingecko_markets"],
+      "context_notes": "Watch only due to fixture spread concern.",
+      "reasons": ["spread_attention", "external_context_advisory_only"]
+    },
+    "DOGE/USD": {
+      "advisory_label": "avoid",
+      "sources_used": ["coinbase_market_data", "coingecko_trending"],
+      "context_notes": "Avoid until expected move clears fee/spread/slippage model.",
+      "reasons": ["fee_drag_attention", "external_context_advisory_only"]
+    },
+    "LINK/USD": {
+      "advisory_label": "insufficient_data",
+      "sources_used": ["coinbase_market_data"],
+      "context_notes": "Missing expected gross move in execution-quality fixture.",
+      "reasons": ["expected_gross_move_missing"]
+    },
+    "LTC/USD": {
+      "advisory_label": "confirm_only",
+      "sources_used": ["coinbase_market_data", "coinbase_product_metadata"],
+      "context_notes": "Execution-quality fixture passes; still no trading authority.",
+      "reasons": ["execution_quality_rank_3", "external_context_advisory_only"]
+    },
+    "SOL/USD": {
+      "status": "external_staked_position",
+      "external_inventory_classification": "external_staked_position"
+    }
+  }
+}
