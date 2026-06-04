@@ -1,5 +1,29 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025S — Gross-Edge Failure Decomposition, Offline Only (review/p2-025s-gross-edge-failure-decomposition)
+P2-025R is merged on main at 8cc9214. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no maker/post-only implementation, no exit tuning, no config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
+
+Added `scripts/coinbase_gross_edge_decomposition_report.py`, `tests/test_coinbase_gross_edge_decomposition_report.py`, and `docs/GROSS_EDGE_DECOMPOSITION.md`.
+
+The report decomposes the negative predictive gross edge by symbol, strategy, exit reason, hold duration, and spread. It isolates why the current strategy loses before any fee considerations.
+
+Headline findings:
+- predictive_gross_total=-0.26885977
+- gross_edge_positive=false
+- win_rate=0.40
+- dominant_loss_driver=exit_reason_timeout (49/50 cycles, -0.16357491 gross loss)
+- worst_symbol=ETH/USD (-0.16344878 gross loss)
+- worst_strategy=coinbase_exploration (-0.17444174 gross loss)
+- concentration: worst 10 cycles account for -0.30111453 in loss.
+
+Candidate filters for future backtest:
+- exclude_stop_loss (Delta: +0.10528486)
+- exclude_symbol_ETH/USD (Delta: +0.16344878)
+- exclude_strategy_mean_reversion (Delta: +0.01838984)
+- exclude_symbol_ADA/USD (Delta: +0.06435415)
+
+Preserved truth: implementation_authorized=false, paper_probe_authorized=false, live_probe_authorized=false, scaling_authorized=false, trade_permission=none, scaling_allowed=false, risk_increase=not_approved. No live config/risk/runtime change. `data/offline_ohlcv/` remains untracked and unrelated untracked docs/scripts remain untouched. Next recommended action is offline backtest validation of these candidate filters on a larger dataset.
+
 ## P2-025R — Maker/Post-Only Feasibility Model, Offline Only (review/p2-025r-maker-post-only-feasibility-model)
 P2-025Q is merged on main at 3a35f1b. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no maker/post-only implementation, no exit tuning, no config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
 
