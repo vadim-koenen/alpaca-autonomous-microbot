@@ -1,5 +1,24 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025T — Offline Candidate Filter Backtest Validation (review/p2-025t-offline-candidate-filter-backtest-validation)
+P2-025S is merged on main at 35100b2. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no filter implementation, no maker/post-only implementation, no exit tuning, no config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
+
+Added `scripts/coinbase_candidate_filter_backtest_validation.py`, `tests/test_coinbase_candidate_filter_backtest_validation.py`, and `docs/CANDIDATE_FILTER_BACKTEST_VALIDATION.md`.
+
+The report evaluates P2-025S candidate filters against the historical window (currently 50 cycles). It applies strict validation gates (sample size, positive gross, win rate, concentration).
+
+Headline findings:
+- validated_filters: []
+- any_filter_validated: false
+- Result: None of the candidate filters (ETH exclusion, stop-loss exclusion, etc.) resulted in a positive predictive gross edge on the current 50-cycle window. The strategy remains gross-negative before fees.
+- Status: All results are labeled "provisional" or "weak" due to small sample size (n=50) and limited window (10 days).
+
+Next data needed:
+- OHLCV data for period BEFORE 2026-05-25 to increase sample size and test robustness.
+- Safe command provided in report using public fetcher (no auth/secrets).
+
+Preserved truth: implementation_authorized=false, paper_probe_authorized=false, live_probe_authorized=false, scaling_authorized=false, trade_permission=none, scaling_allowed=false, risk_increase=not_approved. No live config/risk/runtime change. `data/offline_ohlcv/` remains untracked.
+
 ## P2-025S — Gross-Edge Failure Decomposition, Offline Only (review/p2-025s-gross-edge-failure-decomposition)
 P2-025R is merged on main at 8cc9214. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no maker/post-only implementation, no exit tuning, no config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
 
