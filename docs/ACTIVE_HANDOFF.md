@@ -3,6 +3,27 @@
 
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025P — Predictive Live Exit-Policy Parity Report (review/p2-025p-predictive-live-exit-policy-parity)
+P2-025O is merged on main at 1e372da. Review branch commit is final branch HEAD in the verification packet. Review branch only. No merge, no restart, no launchctl, no live actions, no `--live-read-only`, no broker calls, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no maker/post-only implementation, no exit tuning, no config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
+
+Added an offline report that compares three modes:
+- `original_simulated_tp_sl_high_low`: existing replay harness, unchanged.
+- `journal_exit_aligned_control`: P2-025O reconciliation control only; uses journal exits and is not predictive evidence.
+- `predictive_live_exit_policy`: offline predictive approximation using journal entry facts, candle-close scan decisions, TP/SL thresholds, and max-hold timeout. It does not use journal exit price or journal exit timestamp for prediction.
+
+Predictive trust gates are intentionally strict: direction_match >= 0.90, exit_reason_match_rate >= 0.90, timeout_exit_match_rate >= 0.95, abs signed gross residual <= 0.10, timeout residual <= 0.05, median exit timestamp delta <= one scan/bar interval, forward_looking_fields_used=false, aligned_mode_used_for_prediction=false. If any gate fails, predictive_replay_trustworthy=false and the next action remains parity/gap closure, not maker/post-only or exit tuning.
+
+Headline current offline result on covered cycles:
+- cycles_seen=50, cycles_analyzed=48, cycles_skipped=2 (ADA/USD full gap + ETH/USD partial gap remain)
+- original_simulated_tp_sl_high_low: direction_match=0.5, gross_residual=1.33933688, exit_reason_match_rate=0.0
+- journal_exit_aligned_control: direction_match=1.0, gross_residual=0E-8, control_only=true
+- predictive_live_exit_policy: direction_match=1.0, gross_residual=-0.03819130, timeout_residual=-0.04006767, median_abs_residual=0.00075784, p90_abs_residual=0.00325986, exit_reason_match_rate=0.979167, timeout_exit_match_rate=1.0, exit_timestamp_delta_median=3.622217, exit_timestamp_delta_p90=4.663262
+- predictive_replay_trustworthy=true on covered 48/50 cycles, failed gates=[]
+- forward_looking_fields_used=false, aligned_mode_used_for_prediction=false, original_replay_behavior_modified=false
+- top mismatch is one ETH/USD stop-loss journal cycle modeled as max-hold by predictive close-scan approximation; residual small enough for gates.
+
+Preserved truth: journal-exit-aligned replay is a reconciliation control, not predictive backtest evidence. Because ADA/ETH gaps remain, next action is close offline OHLCV gaps and rerun 50/50 before scoping maker/post-only feasibility. `trade_permission=none`, `scaling_allowed=false`, `risk_increase=not_approved`. Unrelated untracked offline data/docs/scripts remain untouched.
+
 ## P2-025O — Live Exit-Policy Fidelity / Journal-Exit-Aligned Replay Mode (review/p2-025o-live-exit-policy-fidelity)
 P2-025N merged at 8316f4b (main confirmed at start of work). Review branch only. No merge, no restart, no live actions, no config/risk/sizing/symbol/strategy/LaunchAgent changes, no .env, no launchctl, no orders, no maker logic, no exit changes, no probes, no paper-trading. data/offline_ohlcv/ + 4 unrelated untracked untouched.
 
