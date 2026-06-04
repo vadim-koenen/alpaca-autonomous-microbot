@@ -1,5 +1,24 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025V — Offline Strategy Runner Adapter, Offline Only (review/p2-025v-offline-strategy-runner-adapter)
+P2-025U is merged on main at 40cb7a7. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no filter implementation, no maker/post-only implementation, no strategy changes.
+
+Added `scripts/coinbase_offline_strategy_runner_adapter.py`, `tests/test_coinbase_offline_strategy_runner_adapter.py`, and `docs/OFFLINE_STRATEGY_RUNNER_ADAPTER.md`.
+
+The adapter enables existing strategy logic to be exercised against historical OHLCV data offline.
+
+Headline findings:
+- strategy_logic_importable: true
+- offline_strategy_runner_ready: true
+- historical_signal_generation_ready: true
+- Reusable Functions: `classify_regime`, `_momentum_breakout`, `_mean_reversion`, `_ema_crossover`, `add_indicators`.
+- Blocked/Mocked: `_coinbase_exploration` is currently state-heavy and bypassed.
+
+Next recommended action:
+- Build the **Historical Signal Generator** that iterates over historical bars and applies this adapter to produce a synthetic trade journal for expanded backtesting.
+
+Preserved truth: implementation_authorized=false, paper_probe_authorized=false, live_probe_authorized=false, scaling_authorized=false, trade_permission=none, scaling_allowed=false, risk_increase=not_approved. No live config/risk/runtime change. `data/offline_ohlcv/` remains untracked.
+
 ## P2-025U — Larger-History Offline Signal/Cycle Generation Scaffold (review/p2-025u-larger-history-signal-cycle-generation-scaffold)
 P2-025T is merged on main at 0af96e3. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no filter implementation, no maker/post-only implementation, no exit tuning, no config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
 
