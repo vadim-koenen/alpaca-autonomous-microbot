@@ -1,5 +1,24 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025U — Larger-History Offline Signal/Cycle Generation Scaffold (review/p2-025u-larger-history-signal-cycle-generation-scaffold)
+P2-025T is merged on main at 0af96e3. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no filter implementation, no maker/post-only implementation, no exit tuning, no config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
+
+Added `scripts/coinbase_offline_signal_cycle_generation_scaffold.py`, `tests/test_coinbase_offline_signal_cycle_generation_scaffold.py`, and `docs/OFFLINE_SIGNAL_CYCLE_GENERATION_SCAFFOLD.md`.
+
+The scaffold evaluates repository readiness for larger-history backtesting.
+
+Headline findings:
+- signal_generation_ready: false
+- cycle_generation_ready: false
+- historical_backtest_ready: false
+- Gaps: Bid/ask/spread modeling, position/cooldown state simulation, and an offline-safe adapter for `strategy_crypto.py` logic are currently missing.
+- Note: Older OHLCV data is insufficient for backtesting without the ability to reconstruct signals offline.
+
+Next recommended action:
+- Build an **Offline Strategy Runner** adapter that can process historical bars using existing strategy logic without requiring live broker components.
+
+Preserved truth: implementation_authorized=false, paper_probe_authorized=false, live_probe_authorized=false, scaling_authorized=false, trade_permission=none, scaling_allowed=false, risk_increase=not_approved. No live config/risk/runtime change. `data/offline_ohlcv/` remains untracked.
+
 ## P2-025T — Offline Candidate Filter Backtest Validation (review/p2-025t-offline-candidate-filter-backtest-validation)
 P2-025S is merged on main at 35100b2. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no filter implementation, no maker/post-only implementation, no exit tuning, no config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
 
