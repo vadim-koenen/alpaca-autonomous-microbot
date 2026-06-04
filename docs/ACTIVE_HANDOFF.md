@@ -1,5 +1,36 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025R — Maker/Post-Only Feasibility Model, Offline Only (review/p2-025r-maker-post-only-feasibility-model)
+P2-025Q is merged on main at 3a35f1b. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no maker/post-only implementation, no exit tuning, no config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
+
+Added `scripts/coinbase_maker_post_only_feasibility_report.py`, `tests/test_coinbase_maker_post_only_feasibility_report.py`, and `docs/MAKER_POST_ONLY_FEASIBILITY.md`.
+
+The report uses P2-025Q's predictive live-exit-policy replay as the basis and compares journal-recorded fees, taker/taker, maker/maker, maker-entry/taker-exit, taker-entry/maker-exit, and zero-fee theoretical economics. It also models conservative non-fill and adverse-selection haircuts, per-symbol/per-strategy/per-exit-reason results, and notional sensitivity at $0.50, $1, $5, and $10. It does not write by default and does not implement maker/post-only execution.
+
+Baseline parity preserved:
+- cycles_seen=50, cycles_analyzed=50, cycles_skipped=0, coverage_rate=1.0
+- predictive_replay_trustworthy=true, failed_predictive_gates=[]
+- signed_gross_residual=-0.04524015, timeout_residual=-0.04006767
+- forward_looking_fields_used=false, aligned_mode_used_for_prediction=false
+
+Current maker feasibility headline:
+- journal_recorded_on_analyzed_cycles.net_pnl_sum=-1.37856949
+- predictive_gross_pnl_sum=-0.26885977
+- taker/taker.net_pnl_sum=-2.57821663
+- maker/maker.net_pnl_sum=-1.03864539
+- maker_entry_taker_exit.net_pnl_sum=-1.80735557
+- zero_fee_theoretical.net_pnl_sum=-0.26885977
+- 30% adverse-selection + 30% non-fill maker/maker.net_pnl_sum=-1.07039283
+- 50% adverse-selection + 50% non-fill maker/maker.net_pnl_sum=-1.08942061
+- maker/maker.win_rate=0.02
+- fee_break_even_threshold=null
+- fee_fix_verdict=fees_alone_cannot_fix_negative_predictive_gross
+- maker_feasible_offline=false
+
+Failed feasibility gates: maker/maker net is not positive, maker/maker net after 30% non-fill/adverse-selection haircut is not positive, and maker/maker net win rate is below 0.45. The key conclusion is that fees alone cannot fix this because predictive gross is already negative before fees.
+
+Preserved truth: implementation_authorized=false, paper_probe_authorized=false, live_probe_authorized=false, scaling_authorized=false, trade_permission=none, scaling_allowed=false, risk_increase=not_approved. `data/offline_ohlcv/` remains untracked and unrelated untracked docs/scripts remain untouched. Next recommended action is offline investigation of why predictive gross is negative before fees, without tuning exits, changing strategy thresholds, probing, restarting, or scaling.
+
 
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
