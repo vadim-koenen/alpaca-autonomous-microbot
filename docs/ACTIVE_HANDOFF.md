@@ -23,7 +23,7 @@ P2-025J at 3109bb2 (review only, no merge). Merged P2-025K at ae11960.
 Current state: public unauthenticated Exchange candles now works with chunking for the journal window. 4 data files present but untracked. Replay now covers 48/49 cycles.
 
 Next likely:
-- P2-025L: replay economics / fee scenario report (taker/taker vs maker/maker on the now-covered real paths).  [IN PROGRESS on review/p2-025l-replay-economics-fee-scenarios]
+- P2-025L: replay economics / fee scenario report (taker/taker vs maker/maker on the now-covered real paths). Complete at e2d3ab5 on review/p2-025l-replay-economics-fee-scenarios.
 - Investigate the 1 remaining skipped cycle (ADA no_ohlcv_in_window in current local data; ALGO now full coverage).
 
 All invariants: offline/public-only, no broker/order/env/launchctl/restart/live/config mutation. Data kept untracked.
