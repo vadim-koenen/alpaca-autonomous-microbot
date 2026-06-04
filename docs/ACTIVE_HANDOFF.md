@@ -3,6 +3,33 @@
 
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025K — Exchange public candles fallback + chunked acquisition (review/p2-025k-exchange-public-candles-fallback)
+P2-025J at 3109bb2 (review only, no merge). Merged P2-025K at ae11960.
+
+- Added Exchange public candles fallback with chunked acquisition (299-bar safe chunks to respect 300-bar limit) in scripts/coinbase_public_ohlcv_fetch.py.
+- Chunked walk from start to end, dedup timestamps, sort ascending, throttle between requests.
+- Preserves exact CSV schema for import_validate and replay_report.
+- Dry-run default, explicit --fetch opt-in for network; no auth, no .env, no broker/trading endpoints ever.
+- Updated docs/OHLCV_ACQUISITION_WORKFLOW.md explaining preference for Exchange public over Advanced Trade when no auth (historical candles without keys).
+- Added tests with mocked HTTP for chunking, dedup, no-auth headers.
+- Local OHLCV data (4 CSV files for ALGO/BTC/ETH/SOL 2026-05-25..06-03 5m) created under data/offline_ohlcv/coinbase/ but intentionally left untracked (per constraints; git status shows ?? data/offline_ohlcv/).
+- Post-merge + data: replay coverage 48/49 cycles (coverage_rate 0.979592), cycles_replayed 48, 1 skipped (no_ohlcv_in_window, likely ALGO partial gaps at start).
+- journal_recorded_net_pnl_sum: -1.2282313482561078935
+- replay_vs_journal_direction_match: 0.5
+- All validation (py_compile x4, pytest specific+full 1028 passed), safety scan clean (no actionable matches, only explanatory in docs/tests).
+- No live trading, no restart, no launchctl, no orders, no .env/secrets, no config/risk/sizing/symbol/strategy/LaunchAgent changes.
+- Review push only for code; handoff update committed to main after merge.
+
+Current state: public unauthenticated Exchange candles now works with chunking for the journal window. 4 data files present but untracked. Replay now covers 48/49 cycles.
+
+Next likely:
+- P2-025L: replay economics / fee scenario report (taker/taker vs maker/maker on the now-covered real paths).
+- Investigate the 1 remaining ALGO skipped cycle (gaps at window start).
+
+All invariants: offline/public-only, no broker/order/env/launchctl/restart/live/config mutation. Data kept untracked.
+
+---
+
 ## P2-025I — Public/manual OHLCV acquisition workflow (review/p2-025i-public-manual-ohlcv-acquisition-workflow)
 P2-025H merged at 9956488. Review branch only. No merge, no restart, no live actions, no config/risk/sizing/symbol/strategy/LaunchAgent changes, no .env, no launchctl, no orders.
 
