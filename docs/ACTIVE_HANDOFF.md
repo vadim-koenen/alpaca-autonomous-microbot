@@ -3,6 +3,54 @@
 
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025O — Live Exit-Policy Fidelity / Journal-Exit-Aligned Replay Mode (review/p2-025o-live-exit-policy-fidelity)
+P2-025N merged at 8316f4b (main confirmed at start of work). Review branch only. No merge, no restart, no live actions, no config/risk/sizing/symbol/strategy/LaunchAgent changes, no .env, no launchctl, no orders, no maker logic, no exit changes, no probes, no paper-trading. data/offline_ohlcv/ + 4 unrelated untracked untouched.
+
+P2-025N finding (exit-driven): replay divergence (dir_match 0.50, signed gross res +1.33933688) is almost entirely from exit-basis (timeout_exit_basis_issue). Entry res ~0 by design. Replay simulates TP/SL (bar h/l + adverse) inside 47/48 journal "max hold"/timeout windows. Journal records actual timeout fill prices (43/48 within nearest candle h/l). This report adds a diagnostic journal-exit-aligned mode (no mutation of simulator) to test reconciliation when replay exit follows live journal exit ts/reason/price.
+
+Added:
+- `scripts/coinbase_live_exit_policy_fidelity.py`: new offline report. Reuses parse_journal_cycles, run_journal_window_replay (zero-fee for the *simulated* mode only), _load_bars_for_journal + _compute_coverage_and_covered from economics, load_bars_from_fixture, _find_nearest_bar/_price_within_candle/_is_timeout_exit from price-basis, _compute_replay_exit_price from fidelity (no dup parsing, *no change* to existing replay or live exit logic).
+- Dual-mode per analyzed cycle (only cycles with OHLCV coverage; skipped accounting preserved): symbol/strategy, journal_exit_reason, simulated_replay_exit_reason (often take_profit even for journal timeout), journal_entry/exit_price, simulated_replay_exit_price (derived), journal-exit-aligned_replay_exit_price, journal/sim/aligned gross, simulated/aligned gross_residual, simulated/aligned direction_match, aligned_used_journal_exit_price (bool), aligned_fallback_note (None or "candle_close_fallback"), journal_exit_within_candle_hl, is_timeout, notional, residual_improved ("improved"/"worsened"/"unchanged").
+- Aggregates: cycles_seen/analyzed/skipped (50/48/2), simulated/aligned direction_match + delta, simulated/aligned signed_gross_residual + residual_reduction_abs/pct, med/p90 abs before/after, sim/ali replay_trustworthy + failed_gates, timeout_only (count 47, before/after res + dir_match), by_symbol before/after (dir + res), by_exit_reason before/after, improvement flags, conclusion exit_policy_alignment_fixes_residual + remaining_blockers list.
+- Skipped details for ADA (full) + ETH (partial) with exact ts + suggested offline gap-close cmds (unchanged from 025N).
+- --json / default human / --top-n N / --output (no default write) / --journal / --ohlcv-fixture / --max-cycles. Always trade_permission=none / risk_increase=not_approved / scaling_allowed=false.
+- `tests/test_coinbase_live_exit_policy_fidelity.py`: 12 tests covering the 10 required (aligned uses journal exit for timeout → res=0, residual improves, candle fallback when missing, dir match before/after + delta, trust gate logic + med_pct, skipped accounting, JSON schema + safety, no-net/auth/live, no mutation of run_journal_window_replay, deterministic fixture-based + in-memory).
+- `docs/LIVE_EXIT_POLICY_FIDELITY.md`: why (025N exit diagnosis), recap of exit-driven residual, def of simulated vs journal-exit-aligned modes, when exact vs fallback, before/after gates + results, whether resolves, remaining blockers to maker, invariants, baselines.
+- Updated ACTIVE_HANDOFF (this section) with branch + exact 025O headlines + "no live/risk/runtime impact".
+
+Exact headline results on real untracked data (50/48/2, matches 025N coverage):
+- cycles_seen: 50, cycles_analyzed: 48, cycles_skipped: 2 (ADA/USD full + ETH/USD partial), coverage_rate: 0.96
+- simulated_direction_match: 0.5, aligned_direction_match: 1.0, direction_match_delta: 0.5
+- simulated_signed_gross_residual: +1.33933688, aligned_signed_gross_residual: 0E-8
+- residual_reduction_abs: 1.33933688, residual_reduction_pct: 1.0
+- simulated_median_abs_gross_residual: 0.02601312, aligned: 0E-8
+- simulated_p90_abs_gross_residual: 0.12189486, aligned: 0E-8
+- simulated_replay_trustworthy: false, aligned_replay_trustworthy: true
+- simulated failed gates: ['direction_match < 0.85 (got 0.5)', 'abs(signed total net residual using journal fees) > 0.10 (got 1.33933688)']
+- aligned failed gates: []
+- timeout-only (47/48=0.979167): sim_signed_gross_res +1.26723778 / dir_match 0.510638 ; aligned 0E-8 / 1.0
+- by-symbol (examples): ALGO/USD sim_dir 0.0→1.0 res +0.40356051→0 ; ETH/USD 0.071429→1.0 res +1.10718981→0 ; BTC/USD 1.0→1.0 res -0.33740232→0 ; SOL 0.2→1.0
+- by-exit-reason: all "max hold..." categories show sim positive res collapsing to 0 under alignment; non-timeout (stop-loss) already near-zero.
+- exit_policy_alignment_fixes_residual: true
+- remaining_blockers: ["Gaps (ADA/ETH) still present for full coverage.", "Even with alignment, the *simulated* harness (current TP/SL) remains untrustworthy (dir 0.5). Alignment proves the *cause* was exit policy mismatch, but does not change harness behavior.", "Live policy is timeout-heavy; fee_drag on long holds is still the economic reality.", "Next gated step requires gap close + re-run of simulated fidelity/price-basis before any maker consideration."]
+- P2-025N price-basis baseline (recap): dir_match 0.5, signed gross res +1.33933688, entry contrib ~0, exit contrib +1.33933688, dominant timeout_exit_basis_issue, journal within hl entry 0.916667/exit 0.895833, replay entry "journal exact" 48/48, replay exit 25 high-tp + 23 low-sl, replay_trustworthy false.
+- All validation: py_compile (6 incl. backtest), pytest targeted (journal 13 + econ 11 + fid 10 + price 11 + live 12), full tests 1072 passed.
+- Safety: clean on impl (no actionable matches in 5 scripts + 3 docs + tests; ~400 hits are all explanatory "no .env / no launchctl" strings in docs/handoff + "no .env" docstrings + forbidden-guard asserts in tests. Zero executable net/auth/broker/launchctl/order code in the new script or modified paths).
+- No live trading, no restart, no launchctl, no orders, no .env/secrets, no config/risk/sizing/symbol/strategy/LaunchAgent/maker/exit/probe/paper changes, no network.
+- data/offline_ohlcv/ + 4 unrelated (PROFIT_TURNAROUND_PLAN.md, SENIOR_CONSULTANT_REVIEW_2026-06-02.md, SPOT_CHECK_PROTOCOL.md, scripts/audit_snapshot.sh) untouched (git status shows only ?? for them + data/).
+- Review push only. Do not merge.
+
+Current state (post-025O on review): journal-exit-aligned diagnostic complete. Alignment *does* reconcile residual (to 0) and direction (to 1.0) and makes "aligned" mode pass gates (trustworthy true). This confirms P2-025N: the problem was live exit policy (timeout fills) vs replay's simulated TP/SL inside those windows. Simulated mode (current harness) still fails gates (as expected; no change to it). 2 gaps remain (ADA/ETH details unchanged). No path to maker/post-only until gaps closed + simulated fidelity re-run passes on 50/50. No live/risk/runtime impact whatsoever.
+
+Next likely (after 025O):
+- Close ADA/ETH gaps via suggested offline/manual public fetch + coinbase_ohlcv_import_validate.py --write (no network in commands here; see skipped details in --json output of price-basis or this report).
+- Re-run replay_price_basis + this live_exit_policy_fidelity on full 50/50 coverage. Only if the *simulated* mode then shows replay_trustworthy=true (dir>=0.85, abs net res<=0.10, med pct<=0.10) would a gated maker/post-only feasibility (future P2) be considered on a *fresh* review branch.
+- Any live/probe/sizing/strategy still requires full evidence chain + explicit approval. Do not merge.
+
+All invariants preserved: pure offline, no broker/order/env/launchctl/restart/live/config/maker/exit/probe mutation. Untracked data + 4 unrelated untouched.
+
+---
+
 ## P2-025N — Replay Price-Basis / Fill-Basis Reconciliation (review/p2-025n-replay-price-fill-basis-reconciliation)
 P2-025M merged at 3c7aa96. Review branch only. No merge, no restart, no live actions, no config/risk/sizing/symbol/strategy/LaunchAgent changes, no .env, no launchctl, no orders, no maker logic, no exit changes, no probes. data/offline_ohlcv/ + 4 unrelated untracked untouched.
 
