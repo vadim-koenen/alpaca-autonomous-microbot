@@ -77,11 +77,59 @@ Exact headline results on real untracked data (48/49):
 Current state (post-025L on review): the economics report now decomposes the 48 covered windows. Clear evidence that replay gross on the actual paths was +1.278 while zero-fee net +1.278 (52% wr) vs taker net -0.796; journal recorded for same 48 was -1.09. Fee drag is the dominant driver (verdict fee_drag_dominant). Break-even ~0.74% per side. Notional scaling shows larger magnitude losses at $5+ uniform sizing because many actual trades used <5. Direction match only 0.5 and timeout 97.9% still visible. This does not authorize any live change or tuning; it is the required evidence gate.
 
 Next likely (after 025L):
-- Close the 1 remaining ADA gap (or accept 48/49 as "good enough" for diagnostics).
-- If coverage solid + gross positive + high direction match + break-even comfortably above real fees, a gated maker/post-only economics study (P2-025M?) or exit-policy experiment on the harness would be the next review-only step.
-- Any sizing/risk/strategy change still requires the full chain (reproduce loss directionally on real paths, economics decomposition, new offline proof that change improves the metric without increasing risk).
+- P2-025M: replay fidelity reconciliation (per-cycle residual vs journal gross/net, direction_match, conservative replay_trustworthy gates). Do not proceed to maker/post-only or exit tuning until fidelity passes.
+- Close the current gaps (ADA full + 1 ETH partial; ALGO now full in local data) if more OHLCV can be acquired for the exact windows.
+- Only after fidelity passes (direction >=0.85, med residual <=10% notional, net res within $0.10) would a gated maker study be considered on review branch.
 
 All invariants preserved: pure offline, no broker/order/env/launchctl/restart/live/config mutation. Untracked data policy followed.
+
+---
+
+## P2-025M — Replay Fidelity Reconciliation (review/p2-025m-replay-fidelity-reconciliation)
+P2-025L merged at 483a76a. Review branch only. No merge, no restart, no live actions, no config/risk/sizing/symbol/strategy/LaunchAgent changes, no .env, no launchctl, no orders, no maker logic, no exit changes, no probes.
+
+Current blocker (post-025L, per senior consultant): direction_match only 0.50 and replay-with-journal-fees net (+0.249) does not reconcile to realized analyzed journal net (-1.090). ~$1.34 gap across 48 cycles; replay may be manufacturing the apparent gross edge (+1.278). P2-025L fee scenarios not actionable until fidelity quantified and gates passed.
+
+Added:
+- `scripts/coinbase_replay_fidelity_reconciliation.py`: new offline report. Reuses parse_journal_cycles, load_bars_from_fixture, run_journal_window_replay (zero-fee for pure gross), coverage helpers from economics. Only analyzes covered cycles; preserves skipped accounting + details.
+- Per-cycle: symbol/strat/exit, entry/exit ts, journal vs replay entry/exit prices + bases (journal exact for entry; high/low/close + adverse slip for replay exit), journal gross, replay gross, gross residual, journal fees, replay net with journal fees, net residual, sign match, residual % notional, direction_match, is_timeout.
+- Distributions: signed/abs total gross res, mean/med/p75/p90/max abs, med % notional.
+- Direction: overall match, mismatch count, timeout-specific, limited mismatch list.
+- By-sym (analyzed/skipped, dir match, signed/med abs/net res), by-strat, by-exit.
+- Skipped details (for current 2: ADA full + ETH partial): symbol, entry/exit ts, reason, fixable-by-re-fetch flag. Clarifies P2-025K "ALGO" vs P2-025L "ADA" vs current (ADA+ETH; ALGO full now).
+- Conservative replay_trustworthy true/false + failed_gates + suspected drivers.
+- Top-level safety flags always.
+- `tests/test_coinbase_replay_fidelity_reconciliation.py`: 10 tests (gross/net residual math, direction/sign match, trustworthy false on poor dir or large res or missing fields, skipped accounting/details, JSON schema + safety, no-forbidden, deterministic fixture + in-memory).
+- `docs/REPLAY_FIDELITY_RECONCILIATION.md`: why exists (consultant gap on 025L), definitions, trust gates, current verdict (false), skipped clarification, what must pass before 025N maker feasibility, invariants.
+- Updated ACTIVE_HANDOFF (this section) with branch/commit + exact headlines.
+
+Exact headline results (current untracked data, 50/48/2):
+- cycles_seen: 50, cycles_analyzed: 48, cycles_skipped: 2, coverage_rate: 0.96
+- skipped: ADA/USD (1/1, full gap), ETH/USD (1/15, partial); ALGO 7/7 full. Details include exact ts for the 2 gaps.
+- journal_analyzed_gross: -0.06102946
+- replay_gross: 1.27830742
+- signed gross residual: +1.33933688 (matches consultant ~$1.34 gap)
+- abs gross residual total: 2.25793123
+- med abs gross: 0.02601312, p90: 0.12189486
+- dir_match: 0.50 (24 mismatches), timeout_dir_match: ~0.51
+- by-sym examples: BTC match 1.0 (negative res), ALGO match 0.0, ETH match 0.07 (large positive res)
+- replay_trustworthy: false
+- failed_gates: ['direction_match < 0.85 (got 0.5)', 'abs(signed total net residual using journal fees) > 0.10 (got 1.33933688)']
+- suspected_drivers: low dir match (bias in exit/entry vs journal fills); timeout dominance amplifies discrepancy.
+- All validation: py_compile (3), pytest targeted (journal 13 + economics 11 + fidelity 10 passed), full tests 1049 passed.
+- Safety clean on impl (no actionable; explanatory in handoff + test guard lists only).
+- No live trading, no restart, no launchctl, no orders, no .env/secrets, no config/risk/sizing/symbol/strategy/LaunchAgent changes, no maker/exit/probe code.
+- data/offline_ohlcv/ + 4 unrelated untracked untouched.
+- Review push only.
+
+Current state (post-025M on review): fidelity report now quantifies the gap. replay_trustworthy=false on real paths. Direction 0.50, signed gross res +1.339 (replay manufactures edge), net res using journal fees also +1.339. 2 skipped (ADA+ETH) detailed with ts; ALGO now full. This blocks using P2-025L fee scenarios for decisions.
+
+Next likely (after 025M):
+- Close the 2 gaps with targeted public fetch + import_validate for the exact ADA/ETH windows if possible.
+- Re-run fidelity after any data improvement. Only if trustworthy=true (dir>=0.85, med res<=10% notional, net res within $0.10) would a gated maker/post-only feasibility (P2-025N?) or exit experiment be considered on review branch.
+- Any live/probe/sizing/strategy work still requires the full evidence chain + explicit approval. Stop after reporting; do not start next patch without new task.
+
+All invariants preserved: pure offline, no broker/order/env/launchctl/restart/live/config/maker/exit/probe mutation. Untracked data + 4 unrelated untouched.
 
 ---
 
