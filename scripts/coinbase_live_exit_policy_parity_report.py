@@ -110,6 +110,13 @@ class ModeCycle:
         delta = abs((self.mode_exit_time - self.journal_exit_time).total_seconds()) / 60.0
         return Decimal(str(delta))
 
+    @property
+    def hold_duration_minutes(self) -> Optional[Decimal]:
+        if not self.mode_exit_time or not self.journal_entry_time:
+            return None
+        delta = (self.mode_exit_time - self.journal_entry_time).total_seconds() / 60.0
+        return Decimal(str(delta))
+
 
 def _fmt_decimal(value: Decimal) -> str:
     return str(value.quantize(MONEY_QUANT, rounding=ROUND_HALF_UP))

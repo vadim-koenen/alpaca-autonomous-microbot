@@ -22,7 +22,8 @@ The report analyzes losses across:
 - **Symbol:** ETH/USD and ADA/USD are significant negative contributors.
 - **Strategy:** `coinbase_exploration` accounts for the majority of the negative edge.
 - **Exit Reason:** Timeout (90min) is the primary exit mode, showing a persistent negative drift.
-- **Hold Duration:** Most losses occur in the 0-15min bucket, suggesting immediate adverse move after entry or poor entry timing.
+- **Hold Duration:** Corrected to show true hold time from entry to predictive exit. Most timeout exits correctly bucket around the 90-minute mark.
+- **Parity Delta:** Measures the gap between predictive exit time and journal exit time. Most predictions match the journal within 15 minutes.
 - **Spread & Confidence:** Currently limited by available journal data in the baseline sample, but structured for future high-resolution analysis.
 
 ## Counterfactual Hypotheses

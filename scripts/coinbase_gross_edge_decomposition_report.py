@@ -261,7 +261,8 @@ def build_gross_edge_decomposition_report(
             "strategy": c.strategy,
             "exit_reason": c.mode_exit_reason,
             "gross": _fmt_money(c.mode_gross),
-            "duration_min": str(c.exit_timestamp_delta_minutes) if c.exit_timestamp_delta_minutes is not None else "0",
+            "hold_duration_min": str(c.hold_duration_minutes) if c.hold_duration_minutes is not None else "0",
+            "parity_delta_min": str(c.exit_timestamp_delta_minutes) if c.exit_timestamp_delta_minutes is not None else "0",
             "spread_pct": _fmt_money(getattr(c, "spread_pct", Decimal("0"))),
             "confidence": _fmt_money(getattr(c, "confidence", Decimal("0"))),
         }
@@ -270,7 +271,8 @@ def build_gross_edge_decomposition_report(
     per_symbol = _decompose(predictive_cycles, lambda c: c.symbol)
     per_strategy = _decompose(predictive_cycles, lambda c: c.strategy)
     per_exit_reason = _decompose(predictive_cycles, lambda c: _reason_bucket(c.mode_exit_reason))
-    per_duration = _decompose(predictive_cycles, lambda c: _bucket_duration(c.exit_timestamp_delta_minutes))
+    per_hold_duration = _decompose(predictive_cycles, lambda c: _bucket_duration(c.hold_duration_minutes))
+    per_parity_delta = _decompose(predictive_cycles, lambda c: _bucket_duration(c.exit_timestamp_delta_minutes))
     per_spread = _decompose(predictive_cycles, lambda c: _bucket_spread(getattr(c, "spread_pct", Decimal("0"))))
     per_notional = _decompose(predictive_cycles, lambda c: _bucket_notional(c.notional))
     per_confidence = _decompose(predictive_cycles, lambda c: _bucket_confidence(getattr(c, "confidence", Decimal("0"))))
@@ -317,7 +319,8 @@ def build_gross_edge_decomposition_report(
             "per_symbol": per_symbol,
             "per_strategy": per_strategy,
             "per_exit_reason": per_exit_reason,
-            "per_duration": per_duration,
+            "per_hold_duration": per_hold_duration,
+            "per_parity_delta": per_parity_delta,
             "per_spread": per_spread,
             "per_notional": per_notional,
             "per_confidence": per_confidence,
@@ -368,10 +371,18 @@ def _human_summary(payload: Dict[str, Any]) -> str:
         "Top Losers:",
     ]
     for c in payload["top_10_losers"]:
-        lines.append(f"  {c['symbol']} {c['strategy']} {c['exit_reason']} gross={c['gross']} dur={c['duration_min']}m spread={c['spread_pct']}%")
+        lines.append(f"  {c['symbol']} {c['strategy']} {c['exit_reason']} gross={c['gross']} hold={c['hold_duration_min']}m delta={c['parity_delta_min']}m")
     
     lines.extend(["", "Decomposition by Exit Reason:"])
     for k, v in payload["decomposition"]["per_exit_reason"].items():
+        lines.append(f"  {k}: count={v['count']} gross={v['gross_pnl_sum']} wr={v['win_rate']}")
+
+    lines.extend(["", "Decomposition by Hold Duration:"])
+    for k, v in sorted(payload["decomposition"]["per_hold_duration"].items()):
+        lines.append(f"  {k}: count={v['count']} gross={v['gross_pnl_sum']} wr={v['win_rate']}")
+
+    lines.extend(["", "Decomposition by Parity Delta:"])
+    for k, v in sorted(payload["decomposition"]["per_parity_delta"].items()):
         lines.append(f"  {k}: count={v['count']} gross={v['gross_pnl_sum']} wr={v['win_rate']}")
 
     lines.extend(["", "Counterfactual Filters (Hypothetical):"])

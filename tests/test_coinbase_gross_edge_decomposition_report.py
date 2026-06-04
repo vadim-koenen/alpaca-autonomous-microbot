@@ -68,13 +68,17 @@ def test_gross_decomposition_math(tmp_path):
     )
     
     assert payload["cycles_analyzed"] == 50
-    assert Decimal(payload["predictive_gross_total"]) == Decimal("0") # (1*25) + (-1*25) = 0? 
-    # gross = (102-100) * 0.05 = 0.1, (98-100) * 0.05 = -0.1. Sum = 0.
+    assert Decimal(payload["predictive_gross_total"]) == Decimal("0") 
     
     assert "BTC/USD" in payload["decomposition"]["per_symbol"]
     assert "ETH/USD" in payload["decomposition"]["per_symbol"]
     assert payload["decomposition"]["per_symbol"]["BTC/USD"]["win_rate"] == 1.0
     assert payload["decomposition"]["per_symbol"]["ETH/USD"]["win_rate"] == 0.0
+    
+    # 10 min hold should be in 0-15min bucket
+    assert "0-15min" in payload["decomposition"]["per_hold_duration"]
+    # 0 min delta should be in 0-15min bucket
+    assert "0-15min" in payload["decomposition"]["per_parity_delta"]
 
 def test_concentration_analysis(tmp_path):
     # one big loser
@@ -128,4 +132,11 @@ def test_json_schema(tmp_path):
     
     for key in ["decomposition", "counterfactual_filters", "dominant_loss_driver", "candidate_filters_for_future_backtest", "verdict"]:
         assert key in payload
+    
+    # Check new fields
+    assert "per_hold_duration" in payload["decomposition"]
+    assert "per_parity_delta" in payload["decomposition"]
+    assert "hold_duration_min" in payload["top_10_winners"][0]
+    assert "parity_delta_min" in payload["top_10_winners"][0]
+    
     assert payload["verdict"]["implementation_authorized"] is False
