@@ -202,3 +202,46 @@ def test_fetcher_mocked_report_contains_safety_and_written_path(tmp_path, capsys
         m2.return_value = mock2
         bars = fetch_public_candles("ALGO/USD", datetime(2024,1,1,tzinfo=timezone.utc), datetime(2024,1,1,0,5,tzinfo=timezone.utc))
         assert bars and bars[0]["symbol"] == "ALGO/USD"
+
+
+def test_fetcher_chunks_large_range_and_dedups(monkeypatch):
+    """For ranges >299 bars, multiple urlopen calls; dedup + sort works; no auth headers."""
+    call_count = [0]
+    responses = [
+        # chunk1: 2 bars
+        json.dumps([
+            [1704068100, 99, 100, 99.5, 100, 1],
+            [1704068400, 100, 101, 100, 100.5, 2],
+        ]).encode(),
+        # chunk2: overlapping ts to test dedup + new
+        json.dumps([
+            [1704068400, 100, 101, 100, 100.5, 2],  # dup
+            [1704068700, 100.5, 101.5, 100.5, 101, 3],
+        ]).encode(),
+    ]
+    def fake_urlopen(req, **k):
+        call_count[0] += 1
+        # assert no auth in headers
+        hdrs = getattr(req, "headers", {}) or {}
+        hstr = str(hdrs).lower()
+        for bad in ["authorization", "cb-access", "api-key", "bearer", "secret"]:
+            assert bad not in hstr
+        u = getattr(req, "full_url", None) or str(req)
+        assert "api.exchange.coinbase.com" in u
+        # also check granularity param was in the built url (even if str(req) doesn't expose, check via other means or accept for this test)
+        # the url is built inside _fetch... before req= ; we can skip strict here or patch at lower
+        mock = MagicMock()
+        mock.read.return_value = responses[min(call_count[0]-1, len(responses)-1)]
+        mock.__enter__.return_value = mock
+        return mock
+    with patch("scripts.coinbase_public_ohlcv_fetch.urllib.request.urlopen", side_effect=fake_urlopen) as m:
+        start = datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc)
+        # ~2 days of 5m bars = ~576 bars >299 => >=2 chunks
+        end = datetime(2024, 1, 3, 0, 0, tzinfo=timezone.utc)
+        bars = fetch_public_candles("BTC/USD", start, end, "5m")
+        assert call_count[0] >= 2
+        assert len(bars) == 3  # deduped
+        # ts from mocked data (fixed unix in responses); main is call count + dedup len + no-auth
+        assert any(b["timestamp_utc"].startswith("2024-01-01T00:00:00") for b in bars) or any("00:15" in b["timestamp_utc"] for b in bars)
+        # url called with granularity=300
+        # granularity check covered in other tests; here focus on multi-call + dedup + no-auth for chunked path

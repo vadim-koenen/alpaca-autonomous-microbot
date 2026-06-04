@@ -66,7 +66,8 @@ python3 scripts/coinbase_public_ohlcv_fetch.py --json \
   --symbol BTC/USD --start 2026-05-25 --end 2026-06-03 --granularity 5m --fetch --write
 ```
 
-- Uses only `https://api.exchange.coinbase.com/products/BTC-USD/candles?...` (market data, no credentials ever sent).
+- Uses only `https://api.exchange.coinbase.com/products/BTC-USD/candles?...` (market data, no credentials ever sent). Exchange public candles endpoint is preferred over Advanced Trade public candles when no auth is allowed, because the legacy Exchange historical candles endpoint supports unauthenticated requests for 5m (granularity=300) and other granularities without requiring API keys (Advanced Trade /brokerage/products/.../candles for full history typically needs authentication).
+- Implements chunked fetching (safe 299-bar chunks to respect Exchange ~300 bar/request limit) with small throttle between requests for large windows (e.g. 9-day journal windows at 5m require ~9 chunks).
 - No Coinbase Advanced Trade /brokerage/ endpoints.
 - No API keys, no CB-ACCESS-*, never reads .env.
 - Tests **always mock** the HTTP call; real network is opt-in and off by default in the script.

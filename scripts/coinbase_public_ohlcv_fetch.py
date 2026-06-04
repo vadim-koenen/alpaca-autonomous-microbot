@@ -6,8 +6,16 @@ for manual acquisition workflow (P2-025I).
 Uses ONLY public market-data endpoint (https://api.exchange.coinbase.com/products/.../candles).
 No authentication, no API keys, no .env, no secrets, no broker/trading clients, no Advanced Trade endpoints.
 
+Exchange public candles is preferred over Advanced Trade public candles when no auth is allowed
+because the legacy Exchange /products/{id}/candles endpoint provides historical 5m (and other) candles
+without requiring API keys or authenticated requests (Advanced Trade historical often needs auth or has
+different access rules for full history).
+
 Default: dry-run (no network, no write). Explicit --fetch to perform public request.
 Explicit --write to persist normalized CSV to data/offline_ohlcv/coinbase/.
+
+Supports chunked requests (299 bars/chunk max to respect Exchange 300-bar limit) with small throttle
+between chunks for large windows (e.g. multi-day journal replay windows).
 
 Intended for populating local files so journal-window replay can achieve coverage.
 After fetch+write, re-run the journal replay report.
@@ -23,7 +31,8 @@ import json
 import sys
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -75,20 +84,15 @@ def _to_iso_z(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def fetch_public_candles(
-    symbol: str,
+def _fetch_exchange_candles_single(
+    prod: str,
     start: datetime,
     end: datetime,
-    granularity: str = "5m",
+    gsec: int,
 ) -> List[Dict[str, Any]]:
-    """Public unauth only. Returns list of normalized bar dicts (ascending time). No auth ever sent."""
-    norm = _normalize_symbol(symbol)
-    prod = norm.replace("/", "-")
-    gsec = GRAN_MAP.get(granularity, 300)
-
+    """Low-level single request to Exchange public candles. No auth ever."""
     siso = _to_iso_z(start)
     eiso = _to_iso_z(end)
-
     url = f"{PUBLIC_BASE}/products/{prod}/candles?granularity={gsec}&start={siso}&end={eiso}"
     # deliberately no Authorization / CB-ACCESS-KEY / any secret headers
     req = urllib.request.Request(
@@ -100,16 +104,14 @@ def fetch_public_candles(
             raw = resp.read().decode("utf-8")
             data = json.loads(raw)
     except urllib.error.HTTPError as e:
-        # surface status for caller; do not retry with keys
         raise RuntimeError(f"public fetch HTTP {e.code}: {e.reason}") from e
     except Exception as e:
         raise RuntimeError(f"public fetch error: {e}") from e
 
-    if not isinstance(data, list):
-        return []
-
     bars: List[Dict[str, Any]] = []
-    # public response: list of [unix_time, low, high, open, close, volume]  (newest first)
+    if not isinstance(data, list):
+        return bars
+    # Exchange response: list of [unix_time, low, high, open, close, volume] newest first
     for row in reversed(data):
         if not isinstance(row, (list, tuple)) or len(row) < 6:
             continue
@@ -117,7 +119,6 @@ def fetch_public_candles(
             ts = datetime.fromtimestamp(int(row[0]), tz=timezone.utc)
             bars.append({
                 "timestamp_utc": ts.isoformat(),
-                "symbol": norm,
                 "open": str(row[3]),
                 "high": str(row[2]),
                 "low": str(row[1]),
@@ -127,6 +128,50 @@ def fetch_public_candles(
         except Exception:
             continue
     return bars
+
+
+def fetch_public_candles(
+    symbol: str,
+    start: datetime,
+    end: datetime,
+    granularity: str = "5m",
+) -> List[Dict[str, Any]]:
+    """Public unauth only. Chunked to respect Exchange max ~300 bars/request.
+    Returns deduped, sorted list of normalized bar dicts. No auth ever sent.
+    Uses 299-bar safe chunks + throttle between requests.
+    """
+    norm = _normalize_symbol(symbol)
+    prod = norm.replace("/", "-")
+    gsec = GRAN_MAP.get(granularity, 300)
+    gran_td = timedelta(seconds=gsec)
+
+    # Safe chunk: 299 bars max per request (Exchange limit is 300)
+    max_bars_per_chunk = 299
+    chunk_td = timedelta(seconds=gsec * max_bars_per_chunk)
+
+    all_bars: List[Dict[str, Any]] = []
+    seen: set = set()
+    cur = start
+    first = True
+    while cur < end:
+        ch_end = min(cur + chunk_td, end)
+        try:
+            chunk = _fetch_exchange_candles_single(prod, cur, ch_end, gsec)
+            for b in chunk:
+                ts = b["timestamp_utc"]
+                if ts not in seen:
+                    seen.add(ts)
+                    b["symbol"] = norm  # ensure
+                    all_bars.append(b)
+        except Exception as e:
+            # surface but continue? for robustness on partial windows; re-raise for now to match prior behavior
+            raise
+        cur = ch_end
+        if cur < end:
+            # small throttle to be polite to public API (no auth so rate limited)
+            time.sleep(0.25)
+    all_bars.sort(key=lambda b: b["timestamp_utc"])
+    return all_bars
 
 
 def _write_normalized_csv(bars: List[Dict[str, Any]], outp: Path) -> None:
