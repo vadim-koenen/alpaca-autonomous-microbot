@@ -3,6 +3,57 @@
 
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025N — Replay Price-Basis / Fill-Basis Reconciliation (review/p2-025n-replay-price-fill-basis-reconciliation)
+P2-025M merged at 3c7aa96. Review branch only. No merge, no restart, no live actions, no config/risk/sizing/symbol/strategy/LaunchAgent changes, no .env, no launchctl, no orders, no maker logic, no exit changes, no probes. data/offline_ohlcv/ + 4 unrelated untracked untouched.
+
+Current blocker (post-025M): replay_trustworthy=false. direction_match=0.50 (24 mismatches), signed gross residual +1.33933688 (replay_gross +1.278 vs journal_analyzed_gross -0.061), abs net res using journal fees +1.339 > $0.10. P2-025L economics (fee_drag_dominant etc.) not actionable until fidelity gates pass. Price-basis needed to localize whether residual is entry-driven, exit-driven (esp. timeout close-vs-fill), or unknown.
+
+Added:
+- `scripts/coinbase_replay_price_basis_reconciliation.py`: new offline report. Reuses parse_journal_cycles, run_journal_window_replay (zero-fee), _load_bars_for_journal + _compute_coverage_and_covered from economics, load_bars_from_fixture, and small _compute_replay_exit_price / _infer... from fidelity (no dup parsing, no exit logic mods).
+- Per analyzed cycle: cycle_index, symbol/strat/exit_reason, entry/exit ts + journal fill ts fields, journal vs replay entry/exit prices, nearest OHLCV candle ts for entry+exit + full ohlcv (o/h/l/c/v), entry/exit/gross residuals, residual_driver (entry_price_bias / exit_price_bias / both / missing_journal_price / missing_ohlcv / timestamp_alignment / candle_close_vs_fill / timeout_exit_basis_issue / unknown), journal_*_within_candle_hl bools, replay_entry_basis ("journal exact..."), replay_exit_basis (inferred close/hl from reason), is_timeout, is_large_residual, direction_match, notional.
+- Mismatch cycles first in output.
+- Aggregates: cycles_seen/analyzed/skipped, dir_match, mismatch_count, signed gross residual, attributed_to_entry_price (~0), attributed_to_exit_price (==gross), unattributed, residual_appears_mostly, by-symbol (with entry/exit contribs), by-exit-reason (with contribs), timeout-specific (47/48, contribs, dir), top-N worst residual cycles, top-N direction mismatches, driver counts + dominant, candle_containment rates (entry/exit within hl ~0.92/0.90), replay_basis_summary counts, large_flags count.
+- Skipped details for ADA (full) + ETH (partial) with exact ts + suggested offline gap-close commands (import_validate --write after manual place; no network executed).
+- --json / default human / --top-n N / --output (no default write) / --journal / --ohlcv-fixture / --max-cycles.
+- Always trade_permission=none / risk_increase=not_approved / scaling_allowed=false + safety notes.
+- `tests/test_coinbase_replay_price_basis_reconciliation.py`: 11 tests (entry res math==0 by design, exit/gross res attribution, direction mismatch class, candle hl containment, timeout basis class, missing journal price handling, skipped accounting, JSON schema + safety flags, no-forbidden, deterministic in-memory fixture cases).
+- `docs/REPLAY_PRICE_BASIS_RECONCILIATION.md`: why (025M gates + consultant gap), definitions of entry/exit/gross res + attribution, candle containment interp, how timeout amplifies close-vs-fill, current dominant (exit-driven timeout), what must be true before maker, invariants, gap details + offline cmds, baseline cmds.
+- Updated ACTIVE_HANDOFF (this section + 025M "next" note) with branch/commit + exact price-basis headlines.
+
+Exact headline results on real untracked data (50/48/2, matches 025M):
+- cycles_seen: 50, cycles_analyzed: 48, cycles_skipped: 2 (ADA full + ETH partial), coverage_rate: 0.96
+- direction_match: 0.50, mismatch_count: 24
+- signed_gross_residual: +1.33933688
+- attributed_to_entry_price: ~0E-8
+- attributed_to_exit_price: +1.33933688
+- unattributed_or_unknown: ~0
+- residual_appears_mostly: exit-driven (primarily timeout close-vs-fill vs journal exit fills)
+- timeout count/share: 47 / 0.979167 , timeout gross_res ~1.267
+- by-symbol examples: ETH largest positive exit contrib (+1.107), BTC negative (-0.337), ALGO dir_match 0.0
+- dominant_driver: timeout_exit_basis_issue (close-vs-fill on max-hold exits)
+- large_residual_flags: 48
+- candle_containment: journal_entry_within_hl rate 0.916667, exit 0.895833 (most fills inside nearest candle hl)
+- replay_entry_basis: always journal exact (48/48)
+- replay_exit_basis_counts: bar high+slip (TP) 25, bar low+slip (SL) 23
+- replay_trustworthy: false (per 025M gates; remains false)
+- skipped: ADA/USD (1/1 full gap ~2026-06-03 21:38-23:08), ETH/USD (1/15 partial ~2026-06-04 00:21-01:51); ALGO/BTC/SOL full. Suggested offline cmds noted in doc/script output.
+- All validation: py_compile (4), pytest targeted (journal 13 + econ 11 + fid 10 + price 11), full tests 1060 passed.
+- Safety: clean on impl (no actionable matches; only "no .env" docstring + test forbidden guard list). Pre-existing explanatory in handoff/docs.
+- No live trading, no restart, no launchctl, no orders, no .env/secrets, no config/risk/sizing/symbol/strategy/LaunchAgent/maker/exit/probe changes.
+- data/offline_ohlcv/ + 4 unrelated (PROFIT_TURNAROUND_PLAN.md, SENIOR..., SPOT_CHECK..., audit_snapshot.sh) untouched (git status shows ?? only).
+- Review push only.
+
+Current state (post-025N on review): price-basis drilldown complete. Residual +1.339 is exit-driven (timeout close-vs-fill), entry res ~0 by harness design, most journal fills inside candle ranges, dominant timeout. replay_trustworthy remains false. 2 gaps (ADA/ETH) detailed with offline closure suggestions. No path to maker/post-only until gates pass after gap close + re-run. Stop after reporting; do not start next patch.
+
+Next likely (after 025N):
+- Close ADA/ETH gaps via suggested offline/manual fetch+import_validate --write (no network in this patch).
+- Re-run fidelity + price-basis on improved coverage. Only if replay_trustworthy=true (dir>=0.85, med res pct<=0.10, net res <=$0.10) on real data would a gated maker/post-only feasibility (future P2) or exit experiment be considered on a fresh review branch.
+- Any live/probe/sizing/strategy still requires full evidence chain + explicit approval. Do not merge.
+
+All invariants preserved: pure offline, no broker/order/env/launchctl/restart/live/config/maker/exit/probe mutation. Untracked data + 4 unrelated untouched.
+
+---
+
 ## P2-025K — Exchange public candles fallback + chunked acquisition (review/p2-025k-exchange-public-candles-fallback)
 P2-025J at 3109bb2 (review only, no merge). Merged P2-025K at ae11960.
 
@@ -124,9 +175,9 @@ Exact headline results (current untracked data, 50/48/2):
 
 Current state (post-025M on review): fidelity report now quantifies the gap. replay_trustworthy=false on real paths. Direction 0.50, signed gross res +1.339 (replay manufactures edge), net res using journal fees also +1.339. 2 skipped (ADA+ETH) detailed with ts; ALGO now full. This blocks using P2-025L fee scenarios for decisions.
 
-Next likely (after 025M):
-- Close the 2 gaps with targeted public fetch + import_validate for the exact ADA/ETH windows if possible.
-- Re-run fidelity after any data improvement. Only if trustworthy=true (dir>=0.85, med res<=10% notional, net res within $0.10) would a gated maker/post-only feasibility (P2-025N?) or exit experiment be considered on review branch.
+Next likely (after 025M, now post-025N):
+- Close the 2 gaps (ADA full + ETH partial) with targeted manual/public fetch + import_validate --write for the exact windows (offline cmds only; see REPLAY_PRICE_BASIS doc and script --json output for precise suggested commands).
+- Re-run fidelity + price-basis after gap closure. Only if trustworthy=true (dir>=0.85, med abs res pct notional <=0.10, abs signed net res using journal fees <=$0.10) on real data would a gated maker/post-only feasibility or exit experiment be considered on a fresh review branch.
 - Any live/probe/sizing/strategy work still requires the full evidence chain + explicit approval. Stop after reporting; do not start next patch without new task.
 
 All invariants preserved: pure offline, no broker/order/env/launchctl/restart/live/config/maker/exit/probe mutation. Untracked data + 4 unrelated untouched.
