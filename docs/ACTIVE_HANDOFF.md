@@ -3,6 +3,26 @@
 
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025Q — Close ADA/ETH OHLCV Gaps And Rerun Predictive Parity (review/p2-025q-close-ohlcv-gaps-and-rerun-parity)
+P2-025P is merged on main at dbd95cf. Review branch only. No merge, no restart, no launchctl, no live actions, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no maker/post-only implementation, no exit tuning, no config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
+
+Used explicit opt-in public unauthenticated Coinbase Exchange market-data fetch only (`scripts/coinbase_public_ohlcv_fetch.py --fetch --write`) for the two missing 5m OHLCV windows:
+- ADA/USD: 2026-06-03T21:30:00Z to 2026-06-03T23:15:00Z, 22 bars, gap_count=0, untracked file `data/offline_ohlcv/coinbase/ADA-USD_5m_2026-06-03_2026-06-03.csv`
+- ETH/USD: 2026-06-04T00:15:00Z to 2026-06-04T02:00:00Z, 22 bars, gap_count=0, untracked file `data/offline_ohlcv/coinbase/ETH-USD_5m_2026-06-04_2026-06-04.csv`
+
+Coverage after gap close:
+- `coinbase_journal_window_replay_report.py --json`: cycles_seen=50, cycles_with_ohlcv_window=50, cycles_without_ohlcv_window=0, coverage_rate=1.0
+- `coinbase_live_exit_policy_parity_report.py --json`: cycles_seen=50, cycles_analyzed=50, cycles_skipped=0
+
+Parity after full coverage:
+- original_simulated_tp_sl_high_low: direction_match=0.52, gross_residual=1.33327563, exit_reason_match_rate=0.04, timeout_residual=1.26723778
+- journal_exit_aligned_control: direction_match=1.0, gross_residual=0E-8, control_only=true
+- predictive_live_exit_policy: direction_match=1.0, gross_residual=-0.04524015, timeout_residual=-0.04006767, median_abs_residual=0.00081072, p90_abs_residual=0.00647429, exit_reason_match_rate=0.96, timeout_exit_match_rate=1.0, exit_timestamp_delta_median=3.597180, exit_timestamp_delta_p90=4.663262, predictive_replay_trustworthy=true, failed_gates=[]
+- forward_looking_fields_used=false, aligned_mode_used_for_prediction=false, original_replay_behavior_modified=false
+- top mismatch cycles: ETH/USD mean_reversion stop-loss journal vs predictive max-hold; ADA/USD coinbase_exploration stop-loss journal vs predictive max-hold. Both remain within gates.
+
+Preserved truth: journal-exit-aligned replay remains a reconciliation control, not predictive backtest evidence. P2-025Q only closes offline OHLCV coverage and reruns diagnostics. `trade_permission=none`, `scaling_allowed=false`, `risk_increase=not_approved`. Data files remain untracked and unrelated untracked docs/scripts remain untouched. Next possible review may scope maker/post-only feasibility without live implementation, but do not implement maker/post-only, tune exits, run probes, restart, or scale in this patch.
+
 ## P2-025P — Predictive Live Exit-Policy Parity Report (review/p2-025p-predictive-live-exit-policy-parity)
 P2-025O is merged on main at 1e372da. Review branch commit is final branch HEAD in the verification packet. Review branch only. No merge, no restart, no launchctl, no live actions, no `--live-read-only`, no broker calls, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no maker/post-only implementation, no exit tuning, no config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
 
