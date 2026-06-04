@@ -23,10 +23,65 @@ P2-025J at 3109bb2 (review only, no merge). Merged P2-025K at ae11960.
 Current state: public unauthenticated Exchange candles now works with chunking for the journal window. 4 data files present but untracked. Replay now covers 48/49 cycles.
 
 Next likely:
-- P2-025L: replay economics / fee scenario report (taker/taker vs maker/maker on the now-covered real paths).
-- Investigate the 1 remaining ALGO skipped cycle (gaps at window start).
+- P2-025L: replay economics / fee scenario report (taker/taker vs maker/maker on the now-covered real paths).  [IN PROGRESS on review/p2-025l-replay-economics-fee-scenarios]
+- Investigate the 1 remaining skipped cycle (ADA no_ohlcv_in_window in current local data; ALGO now full coverage).
 
 All invariants: offline/public-only, no broker/order/env/launchctl/restart/live/config mutation. Data kept untracked.
+
+---
+
+## P2-025L — Replay economics and fee scenario report (review/p2-025l-replay-economics-fee-scenarios)
+P2-025K merged at ae11960 (bb1298c main at start of work). Review branch only. No merge, no restart, no live actions, no config/risk/sizing/symbol/strategy/LaunchAgent changes, no .env, no launchctl, no orders.
+
+Current blocker (pre-025L): we had 48/49 coverage and directional reproduction (match 0.5) plus the known fee-dominated loss, but no decomposition of *why* the losses (fee drag vs. path/exit gross vs. sizing) on the real windows.
+
+Added:
+- `scripts/coinbase_replay_economics_report.py`: new offline report. Reuses `parse_journal_cycles`, `load_bars_from_fixture`, `run_journal_window_replay` (and the auto data/offline_ohlcv scan glue). Only analyzes cycles with OHLCV coverage; preserves full seen/skipped accounting.
+- Loads the 48 covered cycles, runs zero-fee replay once for pure gross, then computes fee/net under 5 scenarios (journal_recorded_fees, taker/taker default, maker/maker, zero_fee, mixed_maker_taker) using the harness simulate math.
+- Distributions (count/wins/losses/win_rate/gross/fee/net sums + avg/median/best/worst), per-sym/per-strat/per-exit, timeout count/share.
+- Break-even fee rate (symmetric r where replay gross → zero net) or "not calculable".
+- Notional sensitivity ($0.50/$1/$5/$10) via offline linear scaling of per-cycle gross/fees (no live config touched).
+- Plain-English verdict + evidence: "fee_drag_dominant" | "directionally_negative" | "exit_logic_negative" | "inconclusive".
+- --json (full machine schema), default human summary, optional --output, --max-cycles, --journal/--ohlcv-fixture.
+- Always emits trade_permission=none / risk_increase=not_approved / scaling_allowed=false + safety notes.
+- `tests/test_coinbase_replay_economics_report.py`: 11 tests (fee math, zero-fee net==gross, maker < taker drag ordering, skipped accounting, JSON schema + safety flags, no-forbidden, deterministic fixture economics with sample, in-memory positive/negative gross cases).
+- `docs/REPLAY_ECONOMICS_REPORT.md`: what it measures/does not, 48/49 limitation, offline-only rationale, fee scenario interpretation, break-even/notional, what evidence would gate later tuning, invariants.
+- Updated ACTIVE_HANDOFF (this section) with branch + exact headline numbers.
+
+Exact headline results on real untracked data (48/49):
+- cycles_seen: 49, cycles_analyzed: 48, cycles_skipped: 1 (ADA no_ohlcv_in_window), coverage_rate: 0.979592
+- journal_recorded_net_pnl_sum (full): -1.2282313482561078935
+- journal_recorded_net for analyzed 48: -1.09034762
+- replay_gross (on 48): 1.27830742
+- direction_match (replay net sign vs journal recorded): 0.5
+- timeout exits: 47 (share 0.979167)
+- break_even_fee_rate: 0.007394 (0.7394% symmetric)
+- verdict: fee_drag_dominant
+- Fee scenarios (net / wr on 48):
+  - zero_fee: 1.27830742 / 0.520833
+  - maker/maker: 0.58673796 / 0.520833
+  - journal_recorded_fees (replay_gross - journal fees): 0.24898926 / 0.520833
+  - mixed_maker_taker: -0.10994472 / 0.520833
+  - taker/taker: -0.79640095 / 0.520833
+- Notional sensitivity (taker baseline, offline scale):
+  - $0.50: -0.39984209
+  - $1: -0.79968418
+  - $5: -3.99842088
+  - $10: -7.99684176
+- All validation: py_compile (2), pytest targeted (journal_window + economics 24 passed), full tests 1039 passed.
+- Safety scan: clean on impl (no actionable matches); only explanatory "no .env / no launchctl / no orders" text in docs + forbidden-list asserts in tests.
+- No live trading, no restart, no launchctl, no orders, no .env/secrets, no config/risk/sizing/symbol/strategy/LaunchAgent changes.
+- data/offline_ohlcv/ and the 4 unrelated untracked files untouched (never added).
+- Review push only.
+
+Current state (post-025L on review): the economics report now decomposes the 48 covered windows. Clear evidence that replay gross on the actual paths was +1.278 while zero-fee net +1.278 (52% wr) vs taker net -0.796; journal recorded for same 48 was -1.09. Fee drag is the dominant driver (verdict fee_drag_dominant). Break-even ~0.74% per side. Notional scaling shows larger magnitude losses at $5+ uniform sizing because many actual trades used <5. Direction match only 0.5 and timeout 97.9% still visible. This does not authorize any live change or tuning; it is the required evidence gate.
+
+Next likely (after 025L):
+- Close the 1 remaining ADA gap (or accept 48/49 as "good enough" for diagnostics).
+- If coverage solid + gross positive + high direction match + break-even comfortably above real fees, a gated maker/post-only economics study (P2-025M?) or exit-policy experiment on the harness would be the next review-only step.
+- Any sizing/risk/strategy change still requires the full chain (reproduce loss directionally on real paths, economics decomposition, new offline proof that change improves the metric without increasing risk).
+
+All invariants preserved: pure offline, no broker/order/env/launchctl/restart/live/config mutation. Untracked data policy followed.
 
 ---
 
