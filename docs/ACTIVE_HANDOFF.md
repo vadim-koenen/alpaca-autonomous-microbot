@@ -1,5 +1,48 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-026C — Pre-Entry Candidate Holdout Validation (review/p2-026c-pre-entry-candidate-holdout-validation)
+P2-026B is merged on main at 296cdca. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no P2-026B candidate implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
+
+Added `scripts/coinbase_pre_entry_candidate_holdout_validation.py`, `tests/test_coinbase_pre_entry_candidate_holdout_validation.py`, and `docs/PRE_ENTRY_CANDIDATE_HOLDOUT_VALIDATION.md`.
+
+P2-026C validates the fixed P2-026B candidate `exclude_pre_entry_return_3_above_p80_0.011338` without re-optimizing the threshold:
+- input_field=`pre_entry_return_3`
+- operator=`>`
+- threshold=0.011338
+- action=`exclude_trade`
+- pre_entry_only=true
+- leakage_risk=false
+
+Current smoke summary:
+- bars_scanned=43333
+- synthetic_cycles_count=91
+- baseline_gross=0.16536982
+- baseline_win_rate=0.505495
+- baseline_stop_loss_count=25
+- full_sample_gross_delta=0.07863535
+- full_sample_passes_gate=true
+- chronological_holdout_sample_before=27
+- chronological_holdout_sample_after=17
+- chronological_holdout_gross_delta=0.07341380
+- chronological_holdout_passes_gate=false
+- positive_fold_count=2
+- stable_across_folds=true
+- depends_on_algo_usd=false
+- depends_on_one_strategy=true
+- threshold_robust=true
+
+Holdout failed gates:
+- `sample_size_after < 20`
+- `avg_gross_after <= 0`
+- `win_rate_after < 0.50`
+- `sample_size_after < 30 preferred`
+- `data_quality_warning`
+
+Verdict: `verdict=unstable_or_overfit`, `holdout_validated=false`, `provisionally_stable=false`, `likely_overfit=true`, `implementation_proposal_authorized=false`, `implementation_authorized=false`, `paper_probe_authorized=false`, `live_probe_authorized=false`, `scaling_authorized=false`. No filters were implemented. No stop-loss exclusion, strategy threshold, live strategy, config, risk, runtime, price-path logger, or LaunchAgent state changed. `data/offline_ohlcv/` remains untracked.
+
+Next recommended action:
+- Continue offline stability work with larger or independent slices before any implementation proposal. Do not implement the filter, tune exits, run paper/live probes, restart, or scale.
+
 ## P2-026B — Enriched Pre-Entry Hypothesis Testing (review/p2-026b-enriched-pre-entry-hypothesis-testing)
 P2-026A is merged on main at a5b4c91. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
 
