@@ -1,5 +1,61 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-028 — Redesigned Entry Validation Harness (review/p2-028-redesigned-entry-validation-harness)
+P2-027 is merged on main at e94b9d9. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no P2-026B/P2-026D falsified candidate implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes, no price-path logger changes.
+
+Added `scripts/coinbase_redesigned_entry_validation_harness.py`, `tests/test_coinbase_redesigned_entry_validation_harness.py`, and `docs/REDESIGNED_ENTRY_VALIDATION_HARNESS.md`.
+
+P2-028 creates an offline validation harness for redesigned-entry concepts after P2-026D falsified the prior filter and P2-027 identified signal-quality weakness clusters. It evaluates pre-entry-only candidate families and labels each row as `diagnostic_only`, `rejected`, `promising_needs_holdout`, or `validation_ready`.
+
+Current smoke summary:
+- bars_scanned=84627
+- synthetic_cycles_count=205
+- baseline_gross=-0.05366106
+- baseline_avg_gross=-0.00026176
+- baseline_median_gross=-0.00465279
+- baseline_win_rate=0.424390
+- baseline_timeout_rate=0.439024
+- baseline_stop_loss_rate=0.360976
+- baseline_stop_loss_gross=-1.65123301
+- candidate_count=12
+- validation_ready_count=1
+- promising_needs_holdout_count=0
+- diagnostic_only_count=2
+- rejected_count=9
+
+Candidate families evaluated:
+- `momentum_confirmation_redesign`
+- `mean_reversion_redesign`
+- `symbol_strategy_retirement_gating_diagnostics`
+- `regime_specific_entry_gating`
+- `volatility_aware_entry_gating`
+- `liquidity_aware_entry_gating`
+- `session_time_of_day_entry_gating`
+- `confidence_threshold_diagnostics`
+- `timeout_risk_reduction_diagnostics`
+- `stop_loss_risk_reduction_diagnostics`
+
+Leading offline candidate:
+- `session_avoid_06_17_utc`
+- status=`validation_ready`
+- sample_size=90
+- trades_removed=115
+- gross_total=0.50626670
+- avg_gross=0.00562519
+- median_gross=0.00401496
+- win_rate=0.533333
+- timeout_rate=0.422222
+- stop_loss_rate=0.288889
+- gross_delta_vs_baseline=0.55992776
+- required_next_validation=`independent_holdout_validation_required_before_any_implementation_proposal`
+
+Important: `validation_ready` means ready for independent holdout validation only. It does not authorize live implementation, paper/live probes, scaling, threshold changes, or exit tuning.
+
+Verdict: `implementation_proposal_authorized=false`, `implementation_authorized=false`, `paper_probe_authorized=false`, `live_probe_authorized=false`, `scaling_authorized=false`. No filters were implemented. No stop-loss exclusion, strategy threshold, live strategy, config, risk, runtime, price-path logger, launchd, or LaunchAgent state changed. `data/offline_ohlcv/` remains untracked.
+
+Next recommended action:
+- P2-029 should run independent holdout validation for redesigned-entry candidates, starting with `session_avoid_06_17_utc`. Do not implement a live filter or strategy change.
+
 ## P2-027 — Strategy Signal Redesign Diagnostics (review/p2-027-strategy-signal-redesign-diagnostics)
 P2-026D is merged on main at d52ce2e. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no P2-026B/P2-026D falsified candidate implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes, no price-path logger changes.
 
