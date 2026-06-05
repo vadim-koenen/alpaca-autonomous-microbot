@@ -1,5 +1,29 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025W — Historical Signal Generator, Offline Only (review/p2-025w-historical-signal-generator)
+P2-025V is merged on main at 2dea51e. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
+
+Added `scripts/coinbase_historical_signal_generator.py`, `tests/test_coinbase_historical_signal_generator.py`, and `docs/HISTORICAL_SIGNAL_GENERATOR.md`.
+
+The generator reuses the P2-025V offline strategy runner adapter against local OHLCV bars and emits synthetic cycle records for expanded offline filter validation. It writes no cycle artifact unless `--output` is explicitly provided.
+
+Headline smoke result:
+- symbols_scanned: `ADA/USD`, `ALGO/USD`, `BTC/USD`, `ETH/USD`, `SOL/USD`
+- bars_scanned: 9782
+- signal_candidates_count: 32
+- synthetic_cycles_count: 32
+- gross_total: -0.05962834
+- win_rate: 0.4375
+- leakage guards: `no_future_bars_for_signal=true`, `exit_after_entry_only=true`, `no_journal_exit_leakage=true`
+- readiness: `historical_signal_generator_ready=true`, `synthetic_cycle_journal_ready=true`, `expanded_filter_validation_ready=true`
+
+Adapter path used: `OfflineMarketDataAdapter`, `_model_quote_from_bar`, `classify_regime`, `CryptoStrategy._momentum_breakout`, `CryptoStrategy._mean_reversion`, `CryptoStrategy._ema_crossover`, and `add_indicators`.
+
+Preserved truth: implementation_authorized=false, paper_probe_authorized=false, live_probe_authorized=false, scaling_authorized=false, trade_permission=none, scaling_allowed=false, risk_increase=not_approved. Synthetic cycles are not realized P/L and are not predictive approval until separately validated. No live config/risk/runtime change. `data/offline_ohlcv/` remains untracked.
+
+Next recommended action:
+- Run expanded offline filter validation on generated synthetic cycles.
+
 ## P2-025V — Offline Strategy Runner Adapter, Offline Only (review/p2-025v-offline-strategy-runner-adapter)
 P2-025U is merged on main at 40cb7a7. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no filter implementation, no maker/post-only implementation, no strategy changes.
 
