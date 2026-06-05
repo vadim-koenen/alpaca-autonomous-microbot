@@ -1,5 +1,37 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-026A — Richer Offline Pre-Entry Feature Capture (review/p2-026a-rich-pre-entry-feature-capture)
+P2-025Z is merged on main at 41c450b. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
+
+P2-026A enriches offline synthetic cycle records with pre-entry-only features:
+- returns over 1/3/6/12 bars
+- volatility over 6/12 bars
+- ATR proxy over 14 bars
+- range over 1/3 bars
+- volume, 12-bar volume SMA, and volume ratio
+- liquidity, volatility, momentum, and ATR buckets
+- UTC hour, day, and session bucket
+- pre-entry regime, confidence, and symbol/strategy key
+- explicit OHLCV-only order-book unavailability fields
+
+Leakage guard status:
+- `pre_entry_features_use_only_past_bars=true`
+- `no_exit_reason_in_pre_entry_features=true`
+- `no_future_path_in_pre_entry_features=true`
+- existing guards remain `no_future_bars_for_signal=true`, `exit_after_entry_only=true`, `no_journal_exit_leakage=true`
+
+Current smoke remains: bars_scanned=43333, synthetic_cycles_count=91, baseline_gross=0.16536982, baseline_win_rate=0.505495, stop_loss_count=25, stop_loss_gross_total=-0.56473020, non_stop_loss_gross_total=0.73010002.
+
+Best enriched diagnostic rows:
+- `avoid_pre_entry_hour_utc_bucket_12-17`: N=57, stop_loss_cycles_removed=11, percent_stop_loss_removed=0.440000, gross_after_filter=0.29469968, implementation_candidate=false
+- `avoid_pre_entry_session_bucket_12-17`: N=57, stop_loss_cycles_removed=11, percent_stop_loss_removed=0.440000, gross_after_filter=0.29469968, implementation_candidate=false
+- `avoid_pre_entry_day_of_week_utc_Sat`: N=80, stop_loss_cycles_removed=6, percent_stop_loss_removed=0.240000, gross_after_filter=0.27985822, implementation_candidate=false
+
+Verdict: `any_enriched_pre_entry_candidate_found=false`, `best_enriched_pre_entry_candidate=null`, `implementation_authorized=false`, `paper_probe_authorized=false`, `live_probe_authorized=false`, `scaling_authorized=false`. No filters were implemented. No stop-loss exclusion, strategy threshold, live strategy, config, risk, runtime, price-path logger, or LaunchAgent state changed. `data/offline_ohlcv/` remains untracked.
+
+Next recommended action:
+- P2-026B should use the enriched fields for offline hypothesis testing only. Do not implement stop-loss exclusion yet, tune exits, run paper/live probes, restart, or scale.
+
 ## P2-025Z — Offline Stop-Loss Diagnostics And Pre-Entry Leakage Check (review/p2-025z-stop-loss-diagnostics)
 P2-025Y is merged on main at 33c1ce2. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
 

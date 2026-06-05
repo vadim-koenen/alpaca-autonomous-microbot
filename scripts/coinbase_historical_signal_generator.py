@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from collections import Counter, defaultdict
 from dataclasses import asdict
@@ -46,12 +47,51 @@ from scripts.coinbase_offline_strategy_runner_adapter import (  # noqa: E402
     classify_regime,
 )
 
-SCHEMA_VERSION = "p2-025w.coinbase_historical_signal_generator.v1"
+SCHEMA_VERSION = "p2-026a.coinbase_historical_signal_generator.v1"
 DATA_DIR = ROOT / "data" / "offline_ohlcv" / "coinbase"
 MONEY_QUANT = Decimal("0.00000001")
 RATE_QUANT = Decimal("0.000001")
 DEFAULT_NOTIONAL = Decimal("5")
 DEFAULT_SPREAD_PCT = Decimal("0.10")
+
+PRE_ENTRY_FEATURE_SCHEMA = {
+    "numeric_fields": [
+        "pre_entry_return_1",
+        "pre_entry_return_3",
+        "pre_entry_return_6",
+        "pre_entry_return_12",
+        "pre_entry_volatility_6",
+        "pre_entry_volatility_12",
+        "pre_entry_atr_14",
+        "pre_entry_range_pct_1",
+        "pre_entry_range_pct_3",
+        "pre_entry_volume",
+        "pre_entry_volume_sma_12",
+        "pre_entry_volume_ratio_12",
+        "pre_entry_hour_utc",
+    ],
+    "categorical_fields": [
+        "pre_entry_liquidity_bucket",
+        "pre_entry_volatility_bucket",
+        "pre_entry_momentum_bucket",
+        "pre_entry_atr_bucket",
+        "pre_entry_day_of_week_utc",
+        "pre_entry_session_bucket",
+        "pre_entry_regime",
+        "pre_entry_confidence",
+        "pre_entry_symbol_strategy_key",
+    ],
+    "order_book_fields": [
+        "order_book_spread_available",
+        "bid_ask_depth_available",
+        "order_book_features_missing_reason",
+    ],
+    "leakage_contract": {
+        "uses_bars_through_entry_only": True,
+        "uses_exit_reason": False,
+        "uses_future_path": False,
+    },
+}
 
 
 def _fmt_money(value: Decimal) -> str:
@@ -67,6 +107,174 @@ def _to_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
         return Decimal(str(value))
     except Exception:
         return default
+
+
+def _safe_ratio(numerator: Decimal, denominator: Decimal) -> Decimal:
+    if denominator == 0:
+        return Decimal("0")
+    return numerator / denominator
+
+
+def _return_over_bars(history_bars: Sequence[Bar], periods: int) -> Decimal:
+    if len(history_bars) <= periods:
+        return Decimal("0")
+    current = history_bars[-1].c
+    prior = history_bars[-1 - periods].c
+    return _safe_ratio(current - prior, prior)
+
+
+def _range_pct(bar: Bar) -> Decimal:
+    return _safe_ratio(bar.h - bar.l, bar.c)
+
+
+def _rolling_return_volatility(history_bars: Sequence[Bar], periods: int) -> Decimal:
+    if len(history_bars) <= periods:
+        return Decimal("0")
+    closes = [bar.c for bar in history_bars[-(periods + 1):]]
+    returns = [
+        float(_safe_ratio(closes[idx] - closes[idx - 1], closes[idx - 1]))
+        for idx in range(1, len(closes))
+    ]
+    if not returns:
+        return Decimal("0")
+    mean = sum(returns) / len(returns)
+    variance = sum((value - mean) ** 2 for value in returns) / len(returns)
+    return Decimal(str(math.sqrt(variance)))
+
+
+def _atr_proxy_pct(history_bars: Sequence[Bar], periods: int = 14) -> Decimal:
+    if not history_bars:
+        return Decimal("0")
+    window = list(history_bars[-periods:])
+    true_ranges: List[Decimal] = []
+    start_index = len(history_bars) - len(window)
+    for offset, bar in enumerate(window):
+        absolute_index = start_index + offset
+        prior_close = history_bars[absolute_index - 1].c if absolute_index > 0 else bar.c
+        true_range = max(
+            bar.h - bar.l,
+            abs(bar.h - prior_close),
+            abs(bar.l - prior_close),
+        )
+        true_ranges.append(true_range)
+    atr = _sum_decimal(true_ranges) / Decimal(len(true_ranges)) if true_ranges else Decimal("0")
+    return _safe_ratio(atr, history_bars[-1].c)
+
+
+def _sum_decimal(values: Iterable[Decimal]) -> Decimal:
+    total = Decimal("0")
+    for value in values:
+        total += value
+    return total
+
+
+def _bucket_signed_rate(value: Decimal) -> str:
+    if value <= Decimal("-0.01"):
+        return "<=-1%"
+    if value <= Decimal("-0.005"):
+        return "-1%--0.5%"
+    if value < Decimal("0"):
+        return "-0.5%-0"
+    if value == 0:
+        return "0"
+    if value < Decimal("0.005"):
+        return "0-0.5%"
+    if value < Decimal("0.01"):
+        return "0.5%-1%"
+    return ">=1%"
+
+
+def _bucket_positive_rate(value: Decimal) -> str:
+    if value == 0:
+        return "0"
+    if value < Decimal("0.0025"):
+        return "0-0.25%"
+    if value < Decimal("0.005"):
+        return "0.25%-0.5%"
+    if value < Decimal("0.01"):
+        return "0.5%-1%"
+    if value < Decimal("0.02"):
+        return "1%-2%"
+    return ">=2%"
+
+
+def _volume_bucket(ratio: Decimal) -> str:
+    if ratio == 0:
+        return "unknown"
+    if ratio < Decimal("0.50"):
+        return "thin_<0.5x"
+    if ratio < Decimal("0.90"):
+        return "below_avg_0.5x_0.9x"
+    if ratio <= Decimal("1.10"):
+        return "normal_0.9x_1.1x"
+    if ratio <= Decimal("1.50"):
+        return "elevated_1.1x_1.5x"
+    return "high_>1.5x"
+
+
+def _session_bucket(hour: int) -> str:
+    if hour < 6:
+        return "00-05"
+    if hour < 12:
+        return "06-11"
+    if hour < 18:
+        return "12-17"
+    return "18-23"
+
+
+def _pre_entry_features(
+    *,
+    symbol: str,
+    strategy: str,
+    history_bars: Sequence[Bar],
+    regime: Optional[str],
+    confidence: Any,
+) -> Dict[str, Any]:
+    entry_bar = history_bars[-1]
+    return_1 = _return_over_bars(history_bars, 1)
+    return_3 = _return_over_bars(history_bars, 3)
+    return_6 = _return_over_bars(history_bars, 6)
+    return_12 = _return_over_bars(history_bars, 12)
+    volatility_6 = _rolling_return_volatility(history_bars, 6)
+    volatility_12 = _rolling_return_volatility(history_bars, 12)
+    atr_14 = _atr_proxy_pct(history_bars, 14)
+    range_1 = _range_pct(entry_bar)
+    recent_ranges = [_range_pct(bar) for bar in history_bars[-3:]]
+    range_3 = _sum_decimal(recent_ranges) / Decimal(len(recent_ranges)) if recent_ranges else Decimal("0")
+    volume = entry_bar.v
+    volume_window = [bar.v for bar in history_bars[-12:]]
+    volume_sma_12 = _sum_decimal(volume_window) / Decimal(len(volume_window)) if volume_window else Decimal("0")
+    volume_ratio_12 = _safe_ratio(volume, volume_sma_12)
+    hour = entry_bar.t.hour
+    day_name = entry_bar.t.strftime("%a")
+    confidence_value = _to_decimal(confidence, Decimal("0"))
+    return {
+        "pre_entry_return_1": _fmt_rate(return_1),
+        "pre_entry_return_3": _fmt_rate(return_3),
+        "pre_entry_return_6": _fmt_rate(return_6),
+        "pre_entry_return_12": _fmt_rate(return_12),
+        "pre_entry_volatility_6": _fmt_rate(volatility_6),
+        "pre_entry_volatility_12": _fmt_rate(volatility_12),
+        "pre_entry_atr_14": _fmt_rate(atr_14),
+        "pre_entry_range_pct_1": _fmt_rate(range_1),
+        "pre_entry_range_pct_3": _fmt_rate(range_3),
+        "pre_entry_volume": _fmt_money(volume),
+        "pre_entry_volume_sma_12": _fmt_money(volume_sma_12),
+        "pre_entry_volume_ratio_12": _fmt_rate(volume_ratio_12),
+        "pre_entry_liquidity_bucket": _volume_bucket(volume_ratio_12),
+        "pre_entry_volatility_bucket": _bucket_positive_rate(volatility_12),
+        "pre_entry_momentum_bucket": _bucket_signed_rate(return_12),
+        "pre_entry_atr_bucket": _bucket_positive_rate(atr_14),
+        "pre_entry_hour_utc": hour,
+        "pre_entry_day_of_week_utc": day_name,
+        "pre_entry_session_bucket": _session_bucket(hour),
+        "pre_entry_regime": regime or "unknown",
+        "pre_entry_confidence": _fmt_rate(confidence_value),
+        "pre_entry_symbol_strategy_key": f"{symbol}|{strategy}",
+        "order_book_spread_available": False,
+        "bid_ask_depth_available": False,
+        "order_book_features_missing_reason": "OHLCV-only dataset",
+    }
 
 
 def _rate(wins: int, total: int) -> float:
@@ -296,6 +504,13 @@ def _cycle_from_signal(
     pnl_pct = (gross / notional) if notional > 0 else Decimal("0")
     hold_minutes = Decimal(str((exit_bar.t - entry_bar.t).total_seconds() / 60.0))
     meta = proposal.meta or {}
+    pre_entry_features = _pre_entry_features(
+        symbol=symbol,
+        strategy=proposal.strategy,
+        history_bars=bars[: entry_index + 1],
+        regime=regime or meta.get("regime"),
+        confidence=proposal.confidence,
+    )
     cycle = {
         "synthetic": True,
         "symbol": symbol,
@@ -318,6 +533,7 @@ def _cycle_from_signal(
         "entry_basis": entry_basis,
         "exit_basis": exit_basis,
         "source_ohlcv_file": source_file,
+        **pre_entry_features,
         "leakage_guard": {
             "signal_bar_time": entry_bar.t.isoformat(),
             "history_last_time": entry_bar.t.isoformat(),
@@ -325,6 +541,9 @@ def _cycle_from_signal(
             "no_future_bars_for_signal": True,
             "exit_after_entry_only": exit_index > entry_index,
             "no_journal_exit_leakage": True,
+            "pre_entry_features_use_only_past_bars": True,
+            "no_exit_reason_in_pre_entry_features": True,
+            "no_future_path_in_pre_entry_features": True,
         },
     }
     return cycle, exit_index
@@ -445,6 +664,15 @@ def build_historical_signal_generator_report(
     no_future = all(c["leakage_guard"]["no_future_bars_for_signal"] for c in cycles) if cycles else True
     exit_after = all(c["leakage_guard"]["exit_after_entry_only"] for c in cycles) if cycles else True
     no_journal = all(c["leakage_guard"]["no_journal_exit_leakage"] for c in cycles) if cycles else True
+    pre_entry_past = all(
+        c["leakage_guard"].get("pre_entry_features_use_only_past_bars") for c in cycles
+    ) if cycles else True
+    no_exit_reason_features = all(
+        c["leakage_guard"].get("no_exit_reason_in_pre_entry_features") for c in cycles
+    ) if cycles else True
+    no_future_path_features = all(
+        c["leakage_guard"].get("no_future_path_in_pre_entry_features") for c in cycles
+    ) if cycles else True
 
     synthetic_ready = len(cycles) > 0
     payload = {
@@ -463,12 +691,16 @@ def build_historical_signal_generator_report(
         "per_strategy_summary": per_strategy,
         "per_exit_reason_summary": per_exit,
         "gross_summary": gross_summary,
+        "pre_entry_feature_schema": PRE_ENTRY_FEATURE_SCHEMA,
         "synthetic_cycles": cycles,
         "generated_cycle_sample": cycles[:5],
         "leakage_guards": {
             "no_future_bars_for_signal": no_future,
             "exit_after_entry_only": exit_after,
             "no_journal_exit_leakage": no_journal,
+            "pre_entry_features_use_only_past_bars": pre_entry_past,
+            "no_exit_reason_in_pre_entry_features": no_exit_reason_features,
+            "no_future_path_in_pre_entry_features": no_future_path_features,
         },
         "readiness": {
             "historical_signal_generator_ready": STRATEGY_LOGIC_IMPORTABLE and bars_scanned > 0,

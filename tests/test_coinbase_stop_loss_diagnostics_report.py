@@ -34,10 +34,38 @@ def _cycle(
         "entry_spread_pct": spread,
         "entry_basis": "close",
         "source_ohlcv_file": "fixture.csv",
+        "pre_entry_return_1": "0.001000",
+        "pre_entry_return_3": "0.003000",
+        "pre_entry_return_6": "0.006000",
+        "pre_entry_return_12": "0.012000",
+        "pre_entry_volatility_6": "0.002000",
+        "pre_entry_volatility_12": "0.004000",
+        "pre_entry_atr_14": "0.006000",
+        "pre_entry_range_pct_1": "0.002000",
+        "pre_entry_range_pct_3": "0.003000",
+        "pre_entry_volume": "100.00000000",
+        "pre_entry_volume_sma_12": "100.00000000",
+        "pre_entry_volume_ratio_12": "1.000000",
+        "pre_entry_liquidity_bucket": "normal_0.9x_1.1x",
+        "pre_entry_volatility_bucket": "0.25%-0.5%",
+        "pre_entry_momentum_bucket": ">=1%",
+        "pre_entry_atr_bucket": "0.5%-1%",
+        "pre_entry_hour_utc": idx % 24,
+        "pre_entry_day_of_week_utc": "Thu",
+        "pre_entry_session_bucket": "00-05" if idx % 24 < 6 else "06-11" if idx % 24 < 12 else "12-17" if idx % 24 < 18 else "18-23",
+        "pre_entry_regime": regime,
+        "pre_entry_confidence": str(confidence),
+        "pre_entry_symbol_strategy_key": f"{symbol}|{strategy}",
+        "order_book_spread_available": False,
+        "bid_ask_depth_available": False,
+        "order_book_features_missing_reason": "OHLCV-only dataset",
         "leakage_guard": {
             "no_future_bars_for_signal": True,
             "exit_after_entry_only": True,
             "no_journal_exit_leakage": True,
+            "pre_entry_features_use_only_past_bars": True,
+            "no_exit_reason_in_pre_entry_features": True,
+            "no_future_path_in_pre_entry_features": True,
         },
     }
 
@@ -153,8 +181,12 @@ def test_json_schema_and_verdict_flags():
         "stop_loss_summary",
         "leakage_assessment",
         "pre_entry_feature_availability",
+        "enriched_pre_entry_feature_availability",
         "stop_loss_concentration",
         "pre_entry_hypothesis_results",
+        "enriched_pre_entry_hypothesis_results",
+        "best_enriched_pre_entry_candidate",
+        "any_enriched_pre_entry_candidate_found",
         "implementability_verdict",
         "next_step_recommendation",
     ]:
@@ -165,6 +197,7 @@ def test_json_schema_and_verdict_flags():
     assert verdict["paper_probe_authorized"] is False
     assert verdict["live_probe_authorized"] is False
     assert verdict["scaling_authorized"] is False
+    assert payload["enriched_pre_entry_feature_availability"]["enough_for_enriched_pre_entry_diagnostics"] is True
     json.dumps(payload)
 
 
@@ -178,6 +211,41 @@ def test_deterministic_fixture_synthetic_cycles():
     assert payload["source_synthetic_summary"]["synthetic_cycles_count"] == 3
     assert payload["stop_loss_summary"]["stop_loss_symbols"] == ["ETH/USD"]
     assert "confidence" in payload["pre_entry_feature_availability"]["available_features"]
+    assert "pre_entry_return_12" in payload["enriched_pre_entry_feature_availability"]["available"]
+
+
+def test_enriched_diagnostics_consume_pre_entry_features_without_leakage():
+    cycles = []
+    for idx in range(20):
+        row = _cycle("-0.02", exit_reason="stop-loss hit", idx=idx)
+        row["pre_entry_return_12"] = "-0.012000"
+        row["pre_entry_momentum_bucket"] = "<=-1%"
+        cycles.append(row)
+    for idx in range(55):
+        row = _cycle("0.03", exit_reason="take-profit hit", idx=idx)
+        row["pre_entry_return_12"] = "0.012000"
+        row["pre_entry_momentum_bucket"] = ">=1%"
+        cycles.append(row)
+    payload = _report(cycles, top_n=100)
+    enriched = payload["enriched_pre_entry_hypothesis_results"]
+    row = next(item for item in enriched if item["hypothesis"] == "avoid_pre_entry_return_12_bucket_<=-1%")
+    assert row["feature"] == "pre_entry_return_12_bucket"
+    assert row["leakage_risk"] is False
+    assert row["pre_entry_implementable"] is True
+    assert row["implementation_authorized"] is False
+    assert payload["implementability_verdict"]["implementation_authorized"] is False
+
+
+def test_enriched_output_keeps_exit_reason_as_leakage_only():
+    payload = _report([
+        _cycle("-0.10", exit_reason="stop-loss hit", idx=0),
+        _cycle("0.20", exit_reason="take-profit hit", idx=1),
+        _cycle("0.05", idx=2),
+    ])
+    post_row = next(item for item in payload["pre_entry_hypothesis_results"] if item["hypothesis"] == "exclude_stop_loss_post_outcome")
+    assert post_row["leakage_risk"] is True
+    assert all(row["feature"] != "exit_reason" for row in payload["enriched_pre_entry_hypothesis_results"])
+    assert all(row["leakage_risk"] is False for row in payload["enriched_pre_entry_hypothesis_results"])
 
 
 def test_no_network_auth_live_access_or_config_mutation(tmp_path, monkeypatch):

@@ -1,4 +1,4 @@
-# P2-025W Historical Signal Generator
+# P2-025W/P2-026A Historical Signal Generator
 
 `scripts/coinbase_historical_signal_generator.py` is an offline-only diagnostic
 that converts local OHLCV bars into synthetic cycle records by reusing the
@@ -58,9 +58,48 @@ Every synthetic cycle includes leakage metadata:
 - `no_future_bars_for_signal=true`
 - `exit_after_entry_only=true`
 - `no_journal_exit_leakage=true`
+- `pre_entry_features_use_only_past_bars=true`
+- `no_exit_reason_in_pre_entry_features=true`
+- `no_future_path_in_pre_entry_features=true`
 
 Signals are generated from bars available at the signal timestamp. Exit
 simulation scans only bars after entry.
+
+P2-026A adds pre-entry feature capture. These fields are computed from bars up
+to and including the entry candle only:
+
+```text
+pre_entry_return_1
+pre_entry_return_3
+pre_entry_return_6
+pre_entry_return_12
+pre_entry_volatility_6
+pre_entry_volatility_12
+pre_entry_atr_14
+pre_entry_range_pct_1
+pre_entry_range_pct_3
+pre_entry_volume
+pre_entry_volume_sma_12
+pre_entry_volume_ratio_12
+pre_entry_liquidity_bucket
+pre_entry_volatility_bucket
+pre_entry_momentum_bucket
+pre_entry_atr_bucket
+pre_entry_hour_utc
+pre_entry_day_of_week_utc
+pre_entry_session_bucket
+pre_entry_regime
+pre_entry_confidence
+pre_entry_symbol_strategy_key
+```
+
+Order-book fields remain unavailable in OHLCV-only data:
+
+```text
+order_book_spread_available=false
+bid_ask_depth_available=false
+order_book_features_missing_reason=OHLCV-only dataset
+```
 
 ## Output
 
@@ -78,6 +117,7 @@ The report includes:
 - `per_strategy_summary`
 - `per_exit_reason_summary`
 - `gross_summary`
+- `pre_entry_feature_schema`
 - `generated_cycle_sample`
 - `leakage_guards`
 - `readiness`
@@ -106,6 +146,7 @@ Synthetic cycle records include:
 - `hold_duration_minutes`
 - `entry_spread_pct`
 - `source_ohlcv_file`
+- P2-026A pre-entry fields listed above
 
 The script does not write cycle JSONL by default. Use `--output` only for an
 explicit offline artifact:
@@ -116,15 +157,15 @@ python3 scripts/coinbase_historical_signal_generator.py --output /tmp/p2_025w_sy
 
 ## Smoke Result
 
-Current local OHLCV smoke produced:
+Current expanded local OHLCV smoke produced:
 
 ```text
 symbols_scanned=['ADA/USD', 'ALGO/USD', 'BTC/USD', 'ETH/USD', 'SOL/USD']
-bars_scanned=9782
-signal_candidates_count=32
-synthetic_cycles_count=32
-gross_total=-0.05962834
-win_rate=0.4375
+bars_scanned=43333
+signal_candidates_count=91
+synthetic_cycles_count=91
+gross_total=0.16536982
+win_rate=0.505495
 historical_signal_generator_ready=true
 synthetic_cycle_journal_ready=true
 expanded_filter_validation_ready=true
@@ -132,6 +173,9 @@ implementation_authorized=false
 paper_probe_authorized=false
 live_probe_authorized=false
 scaling_authorized=false
+pre_entry_features_use_only_past_bars=true
+no_exit_reason_in_pre_entry_features=true
+no_future_path_in_pre_entry_features=true
 ```
 
 The next recommended action is expanded offline filter validation using the

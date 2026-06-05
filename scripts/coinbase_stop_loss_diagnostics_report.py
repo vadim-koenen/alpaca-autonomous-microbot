@@ -29,12 +29,40 @@ from scripts.coinbase_historical_signal_generator import (  # noqa: E402
     build_historical_signal_generator_report,
 )
 
-SCHEMA_VERSION = "p2-025z.coinbase_stop_loss_diagnostics.v1"
+SCHEMA_VERSION = "p2-026a.coinbase_stop_loss_diagnostics.v1"
 MONEY_QUANT = Decimal("0.00000001")
 RATE_QUANT = Decimal("0.000001")
 PREFERRED_SAMPLE_SIZE = 50
 MINIMUM_SAMPLE_SIZE = 30
 MEANINGFUL_STOP_LOSS_REMOVAL_RATE = Decimal("0.50")
+MAX_TRADE_REMOVAL_RATE = Decimal("0.50")
+
+BASE_PRE_ENTRY_FEATURES = [
+    "symbol",
+    "strategy",
+    "symbol_strategy",
+    "regime",
+    "confidence_bucket",
+    "spread_bucket",
+    "entry_hour_bucket",
+    "entry_day_bucket",
+    "notional_bucket",
+    "entry_basis",
+]
+
+ENRICHED_PRE_ENTRY_FEATURES = [
+    "pre_entry_return_3_bucket",
+    "pre_entry_return_6_bucket",
+    "pre_entry_return_12_bucket",
+    "pre_entry_volatility_12_bucket",
+    "pre_entry_atr_bucket",
+    "pre_entry_volume_ratio_12_bucket",
+    "pre_entry_liquidity_bucket",
+    "pre_entry_hour_utc_bucket",
+    "pre_entry_day_of_week_utc",
+    "pre_entry_session_bucket",
+    "pre_entry_symbol_strategy_key",
+]
 
 
 def _to_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
@@ -140,6 +168,52 @@ def _notional_bucket(value: Any) -> str:
     return ">$10"
 
 
+def _signed_rate_bucket(value: Any) -> str:
+    rate = _to_decimal(value, Decimal("0"))
+    if rate <= Decimal("-0.01"):
+        return "<=-1%"
+    if rate <= Decimal("-0.005"):
+        return "-1%--0.5%"
+    if rate < 0:
+        return "-0.5%-0"
+    if rate == 0:
+        return "0"
+    if rate < Decimal("0.005"):
+        return "0-0.5%"
+    if rate < Decimal("0.01"):
+        return "0.5%-1%"
+    return ">=1%"
+
+
+def _positive_rate_bucket(value: Any) -> str:
+    rate = _to_decimal(value, Decimal("0"))
+    if rate == 0:
+        return "0"
+    if rate < Decimal("0.0025"):
+        return "0-0.25%"
+    if rate < Decimal("0.005"):
+        return "0.25%-0.5%"
+    if rate < Decimal("0.01"):
+        return "0.5%-1%"
+    if rate < Decimal("0.02"):
+        return "1%-2%"
+    return ">=2%"
+
+
+def _hour_utc_bucket(value: Any) -> str:
+    try:
+        hour = int(value)
+    except Exception:
+        return "unknown"
+    if hour < 6:
+        return "00-05"
+    if hour < 12:
+        return "06-11"
+    if hour < 18:
+        return "12-17"
+    return "18-23"
+
+
 def _entry_hour_bucket(cycle: Dict[str, Any]) -> str:
     ts = _parse_timestamp(cycle.get("entry_time"))
     if ts is None:
@@ -184,6 +258,20 @@ def _feature_value(cycle: Dict[str, Any], feature: str) -> str:
         return str(cycle.get("entry_basis", "unknown"))
     if feature == "exit_reason":
         return _reason_bucket(cycle.get("exit_reason"))
+    if feature == "pre_entry_return_3_bucket":
+        return _signed_rate_bucket(cycle.get("pre_entry_return_3"))
+    if feature == "pre_entry_return_6_bucket":
+        return _signed_rate_bucket(cycle.get("pre_entry_return_6"))
+    if feature == "pre_entry_return_12_bucket":
+        return _signed_rate_bucket(cycle.get("pre_entry_return_12"))
+    if feature == "pre_entry_volatility_12_bucket":
+        return str(cycle.get("pre_entry_volatility_bucket") or _positive_rate_bucket(cycle.get("pre_entry_volatility_12")))
+    if feature == "pre_entry_atr_bucket":
+        return str(cycle.get("pre_entry_atr_bucket") or _positive_rate_bucket(cycle.get("pre_entry_atr_14")))
+    if feature == "pre_entry_volume_ratio_12_bucket":
+        return str(cycle.get("pre_entry_liquidity_bucket") or _positive_rate_bucket(cycle.get("pre_entry_volume_ratio_12")))
+    if feature == "pre_entry_hour_utc_bucket":
+        return _hour_utc_bucket(cycle.get("pre_entry_hour_utc"))
     return str(cycle.get(feature, "unknown"))
 
 
@@ -251,15 +339,37 @@ def _availability(cycles: List[Dict[str, Any]]) -> Dict[str, Any]:
         "notional",
         "entry_basis",
         "source_ohlcv_file",
+        "pre_entry_return_1",
+        "pre_entry_return_3",
+        "pre_entry_return_6",
+        "pre_entry_return_12",
+        "pre_entry_volatility_6",
+        "pre_entry_volatility_12",
+        "pre_entry_atr_14",
+        "pre_entry_range_pct_1",
+        "pre_entry_range_pct_3",
+        "pre_entry_volume",
+        "pre_entry_volume_sma_12",
+        "pre_entry_volume_ratio_12",
+        "pre_entry_liquidity_bucket",
+        "pre_entry_volatility_bucket",
+        "pre_entry_momentum_bucket",
+        "pre_entry_atr_bucket",
+        "pre_entry_hour_utc",
+        "pre_entry_day_of_week_utc",
+        "pre_entry_session_bucket",
+        "pre_entry_regime",
+        "pre_entry_confidence",
+        "pre_entry_symbol_strategy_key",
+        "order_book_spread_available",
+        "bid_ask_depth_available",
+        "order_book_features_missing_reason",
     ]
     missing_candidates = [
-        "pre_entry_atr",
-        "pre_entry_volatility",
-        "recent_return_window",
         "order_book_spread",
         "bid_ask_depth",
         "maker_taker_fee_estimate",
-        "volume_liquidity_bucket",
+        "order_book_liquidity_bucket",
     ]
     available = []
     for feature in candidate_features:
@@ -269,6 +379,45 @@ def _availability(cycles: List[Dict[str, Any]]) -> Dict[str, Any]:
         "available_features": available,
         "missing_features": missing_candidates,
         "enough_for_pre_entry_filter_design": {"symbol", "strategy", "entry_time"}.issubset(set(available)),
+    }
+
+
+def _enriched_availability(cycles: List[Dict[str, Any]]) -> Dict[str, Any]:
+    availability = _availability(cycles)
+    enriched_fields = [
+        feature for feature in availability["available_features"]
+        if feature.startswith("pre_entry_") or feature in {
+            "order_book_spread_available",
+            "bid_ask_depth_available",
+            "order_book_features_missing_reason",
+        }
+    ]
+    required = {
+        "pre_entry_return_1",
+        "pre_entry_return_3",
+        "pre_entry_return_6",
+        "pre_entry_return_12",
+        "pre_entry_volatility_6",
+        "pre_entry_volatility_12",
+        "pre_entry_atr_14",
+        "pre_entry_volume_ratio_12",
+        "pre_entry_liquidity_bucket",
+        "pre_entry_volatility_bucket",
+        "pre_entry_momentum_bucket",
+        "pre_entry_atr_bucket",
+    }
+    still_missing = [
+        "order_book_spread",
+        "bid_ask_depth",
+        "maker_taker_fee_estimate",
+        "order_book_liquidity_bucket",
+    ]
+    return {
+        "available": enriched_fields,
+        "missing": sorted(required - set(enriched_fields)) + still_missing,
+        "still_unavailable_from_ohlcv_only": still_missing,
+        "order_book_features_missing_reason": "OHLCV-only dataset",
+        "enough_for_enriched_pre_entry_diagnostics": required.issubset(set(enriched_fields)),
     }
 
 
@@ -289,17 +438,25 @@ def _hypothesis(
     stop_loss_removed = sum(1 for cycle in removed if _is_stop_loss(cycle))
     stats = _gross_stats(filtered)
     gross_after = _to_decimal(stats["gross_total"])
+    avg_after = _to_decimal(stats["avg_gross"])
+    median_after = _to_decimal(stats["median_gross"])
     pct_removed = Decimal(stop_loss_removed) / Decimal(stop_loss_total) if stop_loss_total else Decimal("0")
     sample_size = int(stats["sample_size"])
+    removal_rate = Decimal(len(removed)) / Decimal(len(cycles)) if cycles else Decimal("0")
     concentration = _concentration_warning(filtered)
-    economically_better = gross_after > baseline_gross and _to_decimal(stats["median_gross"]) >= 0
+    economically_better = gross_after > baseline_gross and avg_after > 0 and median_after >= 0
+    win_rate_ok = Decimal(str(stats["win_rate"])) >= Decimal("0.50")
+    data_quality_caveat = "ALGO gap caveat" if "ALGO" in removed_value else None
     implementation_candidate = (
         pre_entry_implementable
         and not leakage_risk
         and sample_size >= MINIMUM_SAMPLE_SIZE
         and pct_removed >= MEANINGFUL_STOP_LOSS_REMOVAL_RATE
+        and removal_rate <= MAX_TRADE_REMOVAL_RATE
         and economically_better
+        and win_rate_ok
         and not concentration
+        and data_quality_caveat is None
     )
     return {
         "hypothesis": name,
@@ -308,6 +465,7 @@ def _hypothesis(
         "sample_size_remaining": sample_size,
         "stop_loss_cycles_removed": stop_loss_removed,
         "percent_stop_loss_removed": _fmt_rate(pct_removed),
+        "trade_removal_rate": _fmt_rate(removal_rate),
         "gross_after_filter": stats["gross_total"],
         "avg_gross_after_filter": stats["avg_gross"],
         "median_gross_after_filter": stats["median_gross"],
@@ -315,6 +473,7 @@ def _hypothesis(
         "gross_delta_vs_baseline": _fmt_money(gross_after - baseline_gross),
         "concentration_warning": concentration,
         "overfit_warning": sample_size < PREFERRED_SAMPLE_SIZE or stop_loss_removed < 3,
+        "data_quality_caveat": data_quality_caveat,
         "pre_entry_implementable": pre_entry_implementable,
         "leakage_risk": leakage_risk,
         "implementation_candidate": implementation_candidate,
@@ -322,31 +481,27 @@ def _hypothesis(
     }
 
 
-def _build_hypotheses(cycles: List[Dict[str, Any]], baseline_gross: Decimal) -> List[Dict[str, Any]]:
-    hypotheses: List[Dict[str, Any]] = [
-        _hypothesis(
-            name="exclude_stop_loss_post_outcome",
-            cycles=cycles,
-            predicate=lambda cycle: not _is_stop_loss(cycle),
-            baseline_gross=baseline_gross,
-            feature="exit_reason",
-            removed_value="stop_loss",
-            pre_entry_implementable=False,
-            leakage_risk=True,
+def _build_hypotheses(
+    cycles: List[Dict[str, Any]],
+    baseline_gross: Decimal,
+    *,
+    pre_entry_features: Sequence[str],
+    include_outcome_diagnostic: bool = True,
+) -> List[Dict[str, Any]]:
+    hypotheses: List[Dict[str, Any]] = []
+    if include_outcome_diagnostic:
+        hypotheses.append(
+            _hypothesis(
+                name="exclude_stop_loss_post_outcome",
+                cycles=cycles,
+                predicate=lambda cycle: not _is_stop_loss(cycle),
+                baseline_gross=baseline_gross,
+                feature="exit_reason",
+                removed_value="stop_loss",
+                pre_entry_implementable=False,
+                leakage_risk=True,
+            )
         )
-    ]
-    pre_entry_features = [
-        "symbol",
-        "strategy",
-        "symbol_strategy",
-        "regime",
-        "confidence_bucket",
-        "spread_bucket",
-        "entry_hour_bucket",
-        "entry_day_bucket",
-        "notional_bucket",
-        "entry_basis",
-    ]
     for feature in pre_entry_features:
         values = sorted({_feature_value(cycle, feature) for cycle in cycles})
         for value in values:
@@ -431,7 +586,10 @@ def _diagnostic_answers(payload: Dict[str, Any]) -> Dict[str, Any]:
         ),
         "lower_confidence_than_non_stop_loss": payload["pre_entry_comparison"]["confidence"]["stop_loss_avg"]
         < payload["pre_entry_comparison"]["confidence"]["non_stop_loss_avg"],
-        "worse_spread_or_volatility_or_momentum": "not_proven; spread is modeled and volatility/momentum fields are missing",
+        "worse_spread_or_volatility_or_momentum": (
+            "not_proven; enriched volatility and momentum buckets are diagnostic only, "
+            "and order-book spread/depth remain unavailable in OHLCV"
+        ),
         "pre_entry_rule_avoids_most_while_keeping_50_cycles": bool(keep_50),
         "pre_entry_rule_avoids_most_while_keeping_30_cycles": bool(keep_30),
         "likely_driver": (
@@ -470,10 +628,24 @@ def build_stop_loss_diagnostics_report(
     stop_loss_cycles = [cycle for cycle in cycles if _is_stop_loss(cycle)]
     non_stop_loss_cycles = [cycle for cycle in cycles if not _is_stop_loss(cycle)]
     baseline_gross = _sum(_cycle_gross(cycle) for cycle in cycles)
-    hypotheses = _build_hypotheses(cycles, baseline_gross)
+    hypotheses = _build_hypotheses(
+        cycles,
+        baseline_gross,
+        pre_entry_features=BASE_PRE_ENTRY_FEATURES,
+        include_outcome_diagnostic=True,
+    )
+    enriched_hypotheses = _build_hypotheses(
+        cycles,
+        baseline_gross,
+        pre_entry_features=ENRICHED_PRE_ENTRY_FEATURES,
+        include_outcome_diagnostic=False,
+    )
     pre_entry_results = hypotheses[: max(1, top_n)]
     candidate_rows = [row for row in hypotheses if row["implementation_candidate"]]
     best_candidate = candidate_rows[0] if candidate_rows else None
+    enriched_results = enriched_hypotheses[: max(1, top_n)]
+    enriched_candidate_rows = [row for row in enriched_hypotheses if row["implementation_candidate"]]
+    best_enriched_candidate = enriched_candidate_rows[0] if enriched_candidate_rows else None
 
     payload: Dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -488,6 +660,7 @@ def build_stop_loss_diagnostics_report(
             "future_path_leakage_for_filter": True,
         },
         "pre_entry_feature_availability": _availability(cycles),
+        "enriched_pre_entry_feature_availability": _enriched_availability(cycles),
         "stop_loss_concentration": {
             "by_symbol": _group_stop_loss(cycles, "symbol"),
             "by_strategy": _group_stop_loss(cycles, "strategy"),
@@ -496,7 +669,17 @@ def build_stop_loss_diagnostics_report(
             "by_day_bucket": _group_stop_loss(cycles, "entry_day_bucket"),
             "by_confidence_bucket": _group_stop_loss(cycles, "confidence_bucket"),
             "by_spread_bucket": _group_stop_loss(cycles, "spread_bucket"),
-            "by_volatility_bucket": {},
+            "by_pre_entry_return_3_bucket": _group_stop_loss(cycles, "pre_entry_return_3_bucket"),
+            "by_pre_entry_return_6_bucket": _group_stop_loss(cycles, "pre_entry_return_6_bucket"),
+            "by_pre_entry_return_12_bucket": _group_stop_loss(cycles, "pre_entry_return_12_bucket"),
+            "by_pre_entry_volatility_12_bucket": _group_stop_loss(cycles, "pre_entry_volatility_12_bucket"),
+            "by_pre_entry_atr_bucket": _group_stop_loss(cycles, "pre_entry_atr_bucket"),
+            "by_pre_entry_volume_ratio_12_bucket": _group_stop_loss(cycles, "pre_entry_volume_ratio_12_bucket"),
+            "by_pre_entry_liquidity_bucket": _group_stop_loss(cycles, "pre_entry_liquidity_bucket"),
+            "by_pre_entry_hour_utc_bucket": _group_stop_loss(cycles, "pre_entry_hour_utc_bucket"),
+            "by_pre_entry_day_of_week_utc": _group_stop_loss(cycles, "pre_entry_day_of_week_utc"),
+            "by_pre_entry_session_bucket": _group_stop_loss(cycles, "pre_entry_session_bucket"),
+            "by_pre_entry_symbol_strategy_key": _group_stop_loss(cycles, "pre_entry_symbol_strategy_key"),
             "by_regime": _group_stop_loss(cycles, "regime"),
             "by_notional_bucket": _group_stop_loss(cycles, "notional_bucket"),
             "by_entry_basis": _group_stop_loss(cycles, "entry_basis"),
@@ -511,15 +694,30 @@ def build_stop_loss_diagnostics_report(
                 "non_stop_loss_avg": float(_avg_feature(non_stop_loss_cycles, "entry_spread_pct")),
             },
             "volatility": {
-                "available": False,
-                "interpretation": "pre_entry_volatility/ATR is missing from the synthetic cycle schema",
+                "available": any(cycle.get("pre_entry_volatility_12") not in (None, "") for cycle in cycles),
+                "stop_loss_avg": float(_avg_feature(stop_loss_cycles, "pre_entry_volatility_12")),
+                "non_stop_loss_avg": float(_avg_feature(non_stop_loss_cycles, "pre_entry_volatility_12")),
             },
             "recent_momentum": {
-                "available": False,
-                "interpretation": "recent return window is missing from the synthetic cycle schema",
+                "available": any(cycle.get("pre_entry_return_12") not in (None, "") for cycle in cycles),
+                "stop_loss_avg": float(_avg_feature(stop_loss_cycles, "pre_entry_return_12")),
+                "non_stop_loss_avg": float(_avg_feature(non_stop_loss_cycles, "pre_entry_return_12")),
+            },
+            "atr": {
+                "available": any(cycle.get("pre_entry_atr_14") not in (None, "") for cycle in cycles),
+                "stop_loss_avg": float(_avg_feature(stop_loss_cycles, "pre_entry_atr_14")),
+                "non_stop_loss_avg": float(_avg_feature(non_stop_loss_cycles, "pre_entry_atr_14")),
+            },
+            "volume_ratio": {
+                "available": any(cycle.get("pre_entry_volume_ratio_12") not in (None, "") for cycle in cycles),
+                "stop_loss_avg": float(_avg_feature(stop_loss_cycles, "pre_entry_volume_ratio_12")),
+                "non_stop_loss_avg": float(_avg_feature(non_stop_loss_cycles, "pre_entry_volume_ratio_12")),
             },
         },
         "pre_entry_hypothesis_results": pre_entry_results,
+        "enriched_pre_entry_hypothesis_results": enriched_results,
+        "best_enriched_pre_entry_candidate": best_enriched_candidate,
+        "any_enriched_pre_entry_candidate_found": bool(best_enriched_candidate),
         "post_entry_outcome_diagnostics": {
             "non_implementable_fields": [
                 "exit_reason",
@@ -547,11 +745,11 @@ def build_stop_loss_diagnostics_report(
         "limitations": [
             "Synthetic cycles are offline candidates, not live fills.",
             "Stop-loss is an exit outcome and cannot be used directly as a live pre-entry filter.",
-            "Current synthetic cycle schema lacks ATR, recent return windows, bid/ask depth, and fee-aware liquidity fields.",
+            "OHLCV-derived pre-entry features still lack order-book spread, depth, queue-position, and fee-aware liquidity fields.",
             "Pre-entry bucket hypotheses are exploratory and do not change live strategy behavior.",
         ],
         "next_step_recommendation": (
-            "Add richer pre-entry feature capture to synthetic cycles and rerun diagnostics before any implementation proposal."
+            "Use enriched offline pre-entry fields for P2-026B hypothesis testing before any implementation proposal."
         ),
     }
     payload["diagnostic_answers"] = _diagnostic_answers(payload)
@@ -568,8 +766,9 @@ def _human_summary(payload: Dict[str, Any]) -> str:
     stop_summary = payload["stop_loss_summary"]
     verdict = payload["implementability_verdict"]
     best = verdict.get("best_pre_entry_candidate")
+    best_enriched = payload.get("best_enriched_pre_entry_candidate")
     lines = [
-        "=== P2-025Z STOP-LOSS DIAGNOSTICS ===",
+        "=== P2-026A STOP-LOSS DIAGNOSTICS WITH ENRICHED PRE-ENTRY FEATURES ===",
         f"bars_scanned={source['bars_scanned']}",
         f"synthetic_cycles_count={source['synthetic_cycles_count']}",
         f"baseline_gross={source['baseline_gross']} win_rate={source['baseline_win_rate']}",
@@ -601,6 +800,8 @@ def _human_summary(payload: Dict[str, Any]) -> str:
             "",
             f"any_pre_entry_candidate_found={str(verdict['any_pre_entry_candidate_found']).lower()}",
             f"best_pre_entry_candidate={best['hypothesis'] if best else None}",
+            f"any_enriched_pre_entry_candidate_found={str(payload.get('any_enriched_pre_entry_candidate_found', False)).lower()}",
+            f"best_enriched_pre_entry_candidate={best_enriched['hypothesis'] if best_enriched else None}",
             "Permission verdict: implementation=false paper=false live=false scaling=false",
             f"Next: {payload['next_step_recommendation']}",
             "=== END REPORT ===",

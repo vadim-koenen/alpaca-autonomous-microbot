@@ -116,7 +116,7 @@ Mon stop_loss_count=4/13 stop_loss_rate=0.307692 total_gross=0.01073661
 
 ## Pre-Entry Feature Availability
 
-Available in current synthetic cycles:
+Available in current P2-026A synthetic cycles:
 
 ```text
 symbol
@@ -128,22 +128,41 @@ entry_time
 notional
 entry_basis
 source_ohlcv_file
+pre_entry_return_1
+pre_entry_return_3
+pre_entry_return_6
+pre_entry_return_12
+pre_entry_volatility_6
+pre_entry_volatility_12
+pre_entry_atr_14
+pre_entry_range_pct_1
+pre_entry_range_pct_3
+pre_entry_volume
+pre_entry_volume_sma_12
+pre_entry_volume_ratio_12
+pre_entry_liquidity_bucket
+pre_entry_volatility_bucket
+pre_entry_momentum_bucket
+pre_entry_atr_bucket
+pre_entry_hour_utc
+pre_entry_day_of_week_utc
+pre_entry_session_bucket
+pre_entry_regime
+pre_entry_confidence
+pre_entry_symbol_strategy_key
 ```
 
-Missing before an implementation proposal:
+Still unavailable from OHLCV-only data:
 
 ```text
-pre_entry_atr
-pre_entry_volatility
-recent_return_window
 order_book_spread
 bid_ask_depth
 maker_taker_fee_estimate
-volume_liquidity_bucket
+order_book_liquidity_bucket
 ```
 
-Current fields are enough for exploratory pre-entry diagnostics, but not enough
-for live filter implementation.
+Current enriched fields are enough for exploratory offline diagnostics, but not
+enough for live filter implementation.
 
 ## Pre-Entry Hypothesis Results
 
@@ -199,6 +218,41 @@ No pre-entry rule removed at least half of stop-loss cycles while keeping at
 least 50 cycles. No pre-entry rule removed at least half of stop-loss cycles
 while keeping at least 30 cycles.
 
+P2-026A enriched pre-entry hypothesis highlights:
+
+```text
+avoid_pre_entry_hour_utc_bucket_12-17
+sample_size_remaining=57
+stop_loss_cycles_removed=11
+percent_stop_loss_removed=0.440000
+gross_after_filter=0.29469968
+implementation_candidate=false
+
+avoid_pre_entry_session_bucket_12-17
+sample_size_remaining=57
+stop_loss_cycles_removed=11
+percent_stop_loss_removed=0.440000
+gross_after_filter=0.29469968
+implementation_candidate=false
+
+avoid_pre_entry_day_of_week_utc_Sat
+sample_size_remaining=80
+stop_loss_cycles_removed=6
+percent_stop_loss_removed=0.240000
+gross_after_filter=0.27985822
+implementation_candidate=false
+
+avoid_pre_entry_volatility_12_bucket_0.5%-1%
+sample_size_remaining=85
+stop_loss_cycles_removed=4
+percent_stop_loss_removed=0.160000
+gross_after_filter=0.27204217
+implementation_candidate=false
+```
+
+No enriched pre-entry hypothesis passed the strict implementation-candidate
+gate.
+
 ## Interpretation
 
 The stop-loss result is real as an offline post-outcome diagnostic, but not yet
@@ -226,6 +280,8 @@ richer pre-entry and post-entry path diagnostics.
 stop_loss_exclusion_implementable_as_is=false
 any_pre_entry_candidate_found=false
 best_pre_entry_candidate=null
+any_enriched_pre_entry_candidate_found=false
+best_enriched_pre_entry_candidate=null
 candidate_requires_more_data=true
 implementation_authorized=false
 paper_probe_authorized=false
