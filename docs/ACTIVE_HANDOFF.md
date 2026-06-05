@@ -1,5 +1,49 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-027 — Strategy Signal Redesign Diagnostics (review/p2-027-strategy-signal-redesign-diagnostics)
+P2-026D is merged on main at d52ce2e. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no P2-026B/P2-026D falsified candidate implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes, no price-path logger changes.
+
+Added `scripts/coinbase_strategy_signal_redesign_diagnostics.py`, `tests/test_coinbase_strategy_signal_redesign_diagnostics.py`, and `docs/STRATEGY_SIGNAL_REDESIGN_DIAGNOSTICS.md`.
+
+P2-027 pivots from filter mining to strategy/signal redesign diagnostics because P2-026D falsified `exclude_pre_entry_return_3_above_p80_0.011338` as an implementation candidate.
+
+Current smoke summary:
+- bars_scanned=84627
+- synthetic_cycles_count=205
+- gross_total=-0.05366106
+- avg_gross=-0.00026176
+- median_gross=-0.00465279
+- win_rate=0.424390
+- timeout_count=90
+- timeout_rate=0.439024
+- timeout_gross=0.19508569
+- stop_loss_count=74
+- stop_loss_rate=0.360976
+- stop_loss_gross=-1.65123301
+- p2_026d_verdict=falsified
+
+Leading weakness clusters:
+- worst_symbol=ALGO/USD gross=-0.10131626 win_rate=0.403509 stop_loss_rate=0.447368
+- worst_strategy=mean_reversion gross=-0.04745437 win_rate=0.444444 timeout_rate=0.666667
+- dominant_weak_pair=ALGO/USD|momentum_breakout gross=-0.10131626 win_rate=0.403509 stop_loss_rate=0.447368
+- largest_loss_cluster=exit_reason_summary:stop_loss gross=-1.65123301 cycles=74
+- weak_sessions=12-17 gross=-0.28392201, 06-11 gross=-0.27600575
+
+Ranked redesign roadmap:
+1. `retire_or_redesign_weak_strategy_modules`
+2. `symbol_strategy_gating_based_on_independent_evidence`
+3. `momentum_breakout_redesign_or_retirement`
+4. `timeout_exit_root_cause_analysis`
+5. `entry_confirmation_redesign_pre_entry_only`
+6. `regime_specific_gating_or_signal_design`
+7. `volatility_liquidity_session_diagnostics_only`
+8. `gross_to_net_fee_slippage_realism_after_stable_gross_edge`
+
+Verdict: `implementation_proposal_authorized=false`, `implementation_authorized=false`, `paper_probe_authorized=false`, `live_probe_authorized=false`, `scaling_authorized=false`. No filters were implemented. No stop-loss exclusion, strategy threshold, live strategy, config, risk, runtime, price-path logger, launchd, or LaunchAgent state changed. `data/offline_ohlcv/` remains untracked.
+
+Next recommended action:
+- P2-028 should build an offline redesigned-entry validation harness. Do not implement the falsified P2-026B filter, tune live exits, change thresholds, run paper/live probes, restart, or scale.
+
 ## P2-026D — Independent-Sample Candidate Falsification (review/p2-026d-independent-sample-candidate-falsification)
 P2-026C is merged on main at 65abff3. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no P2-026B candidate implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
 
