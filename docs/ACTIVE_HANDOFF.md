@@ -1,5 +1,48 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025Z — Offline Stop-Loss Diagnostics And Pre-Entry Leakage Check (review/p2-025z-stop-loss-diagnostics)
+P2-025Y is merged on main at 33c1ce2. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
+
+Added `scripts/coinbase_stop_loss_diagnostics_report.py`, `tests/test_coinbase_stop_loss_diagnostics_report.py`, and `docs/STOP_LOSS_DIAGNOSTICS.md`.
+
+The report explains P2-025Y's strong `exclude_stop_loss` diagnostic and checks whether stop-loss losses are predictable from pre-entry fields only.
+
+Headline findings:
+- source synthetic sample: bars_scanned=43333, synthetic_cycles_count=91, baseline_gross=0.16536982, baseline_win_rate=0.505495
+- stop_loss_count=25; non_stop_loss_count=66
+- stop_loss_gross_total=-0.56473020; non_stop_loss_gross_total=0.73010002
+- stop_loss_avg_gross=-0.02258921; stop_loss_median_gross=-0.02205796
+- stop-loss symbols: `ALGO/USD`, `ETH/USD`, `SOL/USD`
+- stop-loss strategies: `mean_reversion`, `momentum_breakout`
+- largest stop-loss concentration: `ALGO/USD` with 19/54 stop-loss cycles and -0.43436161 stop-loss gross; ALGO still has the P2-025Y 539-gap data-quality caveat
+- top implementable-looking pre-entry bucket was `avoid_entry_hour_bucket_12-17`, keeping 57 cycles and improving gross to 0.29469968, but it removed only 44% of stop-loss cycles and therefore is not an implementation candidate
+
+Leakage verdict:
+- `exclude_stop_loss_is_post_outcome=true`
+- `direct_live_filter_implementable=false`
+- `pre_entry_predictor_required=true`
+- `future_path_leakage_for_filter=true`
+- `journal_exit_leakage=false`
+
+Pre-entry feature availability:
+- available: `symbol`, `strategy`, `regime`, `confidence`, `entry_spread_pct`, `entry_time`, `notional`, `entry_basis`, `source_ohlcv_file`
+- missing before implementation proposal: `pre_entry_atr`, `pre_entry_volatility`, `recent_return_window`, `order_book_spread`, `bid_ask_depth`, `maker_taker_fee_estimate`, `volume_liquidity_bucket`
+
+Implementability verdict:
+- `stop_loss_exclusion_implementable_as_is=false`
+- `any_pre_entry_candidate_found=false`
+- `best_pre_entry_candidate=null`
+- `candidate_requires_more_data=true`
+- `implementation_authorized=false`
+- `paper_probe_authorized=false`
+- `live_probe_authorized=false`
+- `scaling_authorized=false`
+
+Interpretation: P2-025Y's stop-loss exclusion remains a useful post-outcome diagnostic, but P2-025Z did not find a leak-free pre-entry rule that avoids most stop-loss losses while keeping at least 30 or 50 cycles. Current evidence points to post-entry path behavior plus normal strategy risk/exit-policy or synthetic close-scan modeling effects, not a clean live pre-entry filter. No filters were implemented. No stop-loss exclusion, strategy threshold, live strategy, config, risk, runtime, price-path logger, or LaunchAgent state changed. `data/offline_ohlcv/` remains untracked.
+
+Next recommended action:
+- Add richer pre-entry feature capture to synthetic cycles and rerun diagnostics before any implementation proposal. Do not implement stop-loss exclusion yet, tune exits, run paper/live probes, restart, or scale.
+
 ## P2-025Y — OHLCV Coverage Expansion And Synthetic Validation Rerun (review/p2-025y-increase-ohlcv-coverage-rerun-validation)
 P2-025X is merged on main at 5a55399. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
 
@@ -2331,7 +2374,7 @@ Profit / momentum readout:
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-06-03 13:14 — automated sync; Coinbase equity $51.42, 0 bot-tracked positions, SOL/USD external inventory, 0 proposals/scan, no errors. (Prior:) P2-014C complete; added local review-gate automation for Grok/Codex patches to reduce copy/paste, false positives, and human verification error. Latest functional patch commit 1e66b94. No strategy/order/risk/symbol/cap/config/runtime behavior changed. Profit readout remains unsafe-to-aggregate until direct fill/proceeds/fees and open-position status are proven.
+**Last updated:** 2026-06-05 08:12 — automated sync; Coinbase equity $55.27, 0 bot-tracked positions, SOL/USD external inventory, 0 proposals/scan, 0 errors in last hour. Git HEAD 33c1ce2 (P2-025Y). Alpaca bot running, crypto=INACTIVE (needs Alpaca dashboard crypto agreement signed). No strategy/order/risk/symbol/cap/config/runtime behavior changed.
 **Updated by:** Grok (per P2-014A ritual)
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** review/p2-014a-coinbase-live-status-and-reconciliation-preflight
@@ -2405,18 +2448,18 @@ ALWAYS:
 
 | Item | Value |
 |---|---|
-| Coinbase equity | $56.23 |
-| Coinbase status | RUNNING_BY_LAUNCHD (last loop 2026-06-03 16:03 UTC, status=running, halt=none) |
+| Coinbase equity | $55.27 |
+| Coinbase status | RUNNING_BY_LAUNCHD (last loop 2026-06-05 08:10 UTC, status=running, halt=none) |
 | Alpaca equity | $10.00 |
-| Alpaca status | RUNNING_BY_LAUNCHD (last loop 2026-05-31 08:23 CDT, outside market hours) |
+| Alpaca status | RUNNING_BY_LAUNCHD (scanning equities; crypto=INACTIVE — needs crypto agreement signed in Alpaca dashboard) |
 | Kill switch | INACTIVE (trading allowed) |
 | Open positions | 0 bot-tracked (SOL/USD seen at broker, classified external/staked/non-bot inventory; not rehydrated) |
-| Last Coinbase trade | 2026-05-25T12:06:37 UTC (ALGO/USD SKIPPED — max trades/day) |
-| Last Coinbase exit | 2026-06-03T01:31:01 UTC (BTC/USD, max-hold, -0.93%) |
+| Last Coinbase trade | 2026-05-25T11:49:55 UTC (ALGO/USD SKIPPED — max trades/day) |
+| Last Coinbase exit | 2026-05-25T11:19:39 UTC (ETH/USD, recovered/max-hold, -0.12%) |
 | Trades today | 0 |
-| Current regime | downtrend (0 proposals/scan; bot correctly sitting out) |
-| Live track record | 48 completed exits, 1 win / 47 loss (2.1% win rate), profit factor 0.003, net ≈ -$1.09 |
-| Capital-add gates | 1/5 passing (only Gate 1 trade-count met) |
+| Current regime | downtrend dominant (BTC/ETH/AVAX/DOGE/LINK all downtrend; ADA/LTC in range; 0 proposals/scan) |
+| Live track record | 26 completed exits, 11 win / 15 loss (42.3% win rate), profit factor 1.505 (journal reset since prior check) |
+| Capital-add gates | 3/5 passing (Gate 1 trade-count ✅, Gate 2 win-rate ❌ 42.3%<50%, Gate 3 PF ✅ 1.505≥1.3, Gate 4 days-live ❌ 12d<14d, Gate 5 consec-loss ✅ 2≤2) |
 
 ---
 
@@ -2667,3 +2710,16 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-06-03 UTC | head=0a28beb | P2-025G: OHLCV loader (csv/json), coverage report in replay, fixtures with symbols, doc. Real coverage may be 0 without local data/ dir. No live changes.
 - 2026-06-03 16:03 | equity=$56.23 | positions=0 | regime=downtrend | errors=0 | head=09e1146
 - 2026-06-03 UTC | head=09e1146 | P2-025H: local OHLCV import/validate tool (dry-run default, --write for normalized export), auto data/ dir discovery in replay report, tests, docs. No live changes.
+
+---
+### 2026-06-05 Auto-check
+- Coinbase equity: $55.27
+- Open positions: 0 (SOL/USD on broker = external/staked, not bot-tracked)
+- Regime: downtrend dominant (BTC/ETH/AVAX/DOGE/LINK all downtrend; ADA/LTC range; 0 proposals/scan)
+- Trades today: 0
+- Last trade: 2026-05-25T11:19:39 UTC (ETH/USD recovered exit, -0.12%; 11 days ago)
+- Errors today: 0 (expected SOL/USD ABANDONED POSITION warnings on each scan — correct behavior)
+- Capital gate status: 3/5 gates passing
+- Notes: Bot running cleanly, scanning every ~60s with 0 trade proposals. Journal appears reset since June 3 check (282 lines, exits only May 24–25); new track record 26 exits, 11W/15L, 42.3% WR, PF=1.505 — dramatically better than prior 2.1% WR. Gate 2 (WR≥50%) and Gate 4 (14 days live — only 12d elapsed since first trade 2026-05-24) still failing. Alpaca bot running but crypto=INACTIVE (user must sign crypto agreement in Alpaca dashboard); equities scanning but all quotes stale (market closed). Latest git: 33c1ce2 (P2-025Y). No RED flags beyond sitting-out downtrend and journal reset discrepancy worth investigating.
+
+- 2026-06-05 08:12 | equity=$55.27 | positions=0 | regime=no_proposals | errors=0 | head=33c1ce2
