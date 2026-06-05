@@ -1,5 +1,34 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025X — Expanded Offline Filter Validation Using Synthetic Cycles (review/p2-025x-expanded-filter-validation-synthetic-cycles)
+P2-025W is merged on main at 005a1a1. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
+
+Added `scripts/coinbase_synthetic_cycle_filter_validation.py`, `tests/test_coinbase_synthetic_cycle_filter_validation.py`, and `docs/SYNTHETIC_CYCLE_FILTER_VALIDATION.md`.
+
+The report consumes P2-025W synthetic cycles through the offline generator and validates candidate filters against strict sample-size, gross, median, win-rate, concentration, and leakage gates.
+
+Source generator summary:
+- symbols_scanned: `ADA/USD`, `ALGO/USD`, `BTC/USD`, `ETH/USD`, `SOL/USD`
+- bars_scanned: 9782
+- synthetic_cycles_count: 32
+- baseline_gross: -0.05962834
+- baseline_win_rate: 0.4375
+- leakage guards: `no_future_bars_for_signal=true`, `exit_after_entry_only=true`, `no_journal_exit_leakage=true`
+
+Filter result summary:
+- validated_filters: []
+- provisional_positive_filters: []
+- rejected_filters: all evaluated scenarios
+- strongest rejected filter: `exclude_stop_loss` / `dynamic_exclude_exit_reason_stop_loss` improved gross to +0.22750788 with 0.7000 win rate but left only 20 cycles, below the 30-cycle minimum.
+- `exclude_symbol_ALGO/USD` improved gross to +0.01172133 but left only 9 cycles and triggered concentration warning.
+- `exclude_symbol_ETH/USD` improved gross to -0.04587091 but remained negative and left only 28 cycles.
+- no scenario reached fully validated status.
+
+Preserved truth: implementation_authorized=false, paper_probe_authorized=false, live_probe_authorized=false, scaling_authorized=false, trade_permission=none, scaling_allowed=false, risk_increase=not_approved. No filters were implemented. No strategy thresholds, live strategy, config, risk, runtime, price-path logger, or LaunchAgent state changed. `data/offline_ohlcv/` remains untracked.
+
+Next recommended action:
+- Increase offline OHLCV coverage and rerun synthetic generation plus P2-025X validation before considering any implementation proposal. Do not implement filters yet, tune exits, run paper/live probes, restart, or scale.
+
 ## P2-025W — Historical Signal Generator, Offline Only (review/p2-025w-historical-signal-generator)
 P2-025V is merged on main at 2dea51e. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
 
