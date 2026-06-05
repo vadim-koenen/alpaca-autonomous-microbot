@@ -1,5 +1,48 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-026B — Enriched Pre-Entry Hypothesis Testing (review/p2-026b-enriched-pre-entry-hypothesis-testing)
+P2-026A is merged on main at a5b4c91. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
+
+Added `scripts/coinbase_enriched_pre_entry_hypothesis_report.py`, `tests/test_coinbase_enriched_pre_entry_hypothesis_report.py`, and `docs/ENRICHED_PRE_ENTRY_HYPOTHESIS_TESTING.md`.
+
+P2-026B evaluates enriched P2-026A pre-entry fields against the offline synthetic cycle set while using stop-loss only as an evaluation target, never as a filter input. It tests single-field exclusions, numeric thresholds, broad combinations, focused ALGO/USD momentum-breakout combinations, strategy intent hypotheses, and an explicit leakage-control row.
+
+Current smoke summary:
+- bars_scanned=43333
+- synthetic_cycles_count=91
+- baseline_gross=0.16536982
+- baseline_win_rate=0.505495
+- baseline_stop_loss_count=25
+- baseline_stop_loss_rate=0.274725
+- hypotheses_evaluated=172
+- validated_candidates=1
+- provisional_candidates=8
+- diagnostic_only_candidates=20
+- likely_overfit_count=69
+- rejected_candidates_count=38
+
+Best candidate:
+- `exclude_pre_entry_return_3_above_p80_0.011338`
+- status=`validated_candidate`
+- sample_size_after=73
+- stop_loss_removed=9
+- percent_stop_loss_removed=0.360000
+- gross_after=0.24400517
+- gross_delta=0.07863535
+- win_rate_after=0.534247
+- stop_loss_rate_after=0.219178
+
+Leakage controls:
+- `pre_entry_features_use_only_past_bars=true`
+- `no_exit_reason_in_pre_entry_features=true`
+- `no_future_path_in_pre_entry_features=true`
+- `reject_exit_reason_stop_loss_as_input` is marked `leakage_risk=true`, `pre_entry_only=false`, and `status=rejected`
+
+Verdict: `any_validated_candidate_found=true`, `any_provisional_candidate_found=true`, `implementation_authorized=false`, `paper_probe_authorized=false`, `live_probe_authorized=false`, `scaling_authorized=false`. No filters were implemented. No stop-loss exclusion, strategy threshold, live strategy, config, risk, runtime, price-path logger, or LaunchAgent state changed. `data/offline_ohlcv/` remains untracked.
+
+Next recommended action:
+- Test stability of the validated/provisional/diagnostic enriched pre-entry hypotheses on a larger or independently sliced offline sample. Do not implement live filters, tune exits, run paper/live probes, restart, or scale from this report alone.
+
 ## P2-026A — Richer Offline Pre-Entry Feature Capture (review/p2-026a-rich-pre-entry-feature-capture)
 P2-025Z is merged on main at 41c450b. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
 
