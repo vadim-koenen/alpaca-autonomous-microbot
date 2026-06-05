@@ -1,5 +1,43 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-025Y — OHLCV Coverage Expansion And Synthetic Validation Rerun (review/p2-025y-increase-ohlcv-coverage-rerun-validation)
+P2-025X is merged on main at 5a55399. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
+
+Added `docs/OHLCV_COVERAGE_EXPANSION_RERUN.md`. No code or config changed. `data/offline_ohlcv/` remains untracked local working data.
+
+Expanded offline local OHLCV coverage with unauthenticated public Coinbase candles only:
+- `ADA/USD`, `ALGO/USD`, `BTC/USD`, `ETH/USD`, `SOL/USD`
+- window: `2026-05-01` to `2026-05-25`
+- generated untracked CSV files under `data/offline_ohlcv/coinbase/`
+- no auth, no API keys, no `.env`, no broker/trading clients, no Advanced Trade endpoints
+
+Corrected validation found no malformed rows and no duplicate timestamps in the new files. Gap caveat: `ALGO/USD` has 539 detected gaps in the early public-data window; ADA/BTC/ETH/SOL each have 2 detected gaps.
+
+Before expansion:
+- bars_scanned: 9782
+- synthetic_cycles_count: 32
+- baseline_gross: -0.05962834
+- baseline_win_rate: 0.4375
+- validated_filters: []
+
+After expansion:
+- bars_scanned: 43333
+- synthetic_cycles_count: 91
+- baseline_gross: 0.16536982
+- baseline_win_rate: 0.505495
+- sample_size_status: preferred
+- validated_filters: `baseline_all_synthetic_cycles`, `exclude_stop_loss`, `exclude_strategy_mean_reversion`, `exclude_symbol_ETH/USD`, `exclude_symbol_ADA/USD`, `exclude_symbol_BTC/USD`, `exclude_symbol_SOL/USD`, `dynamic_exclude_strategy_mean_reversion`, `dynamic_exclude_exit_reason_stop_loss`
+- strongest diagnostic: `exclude_stop_loss`, N=66, gross=0.73010002, win_rate=0.696970, gross_delta_vs_baseline=0.56473020
+- provisional-positive exploratory scenario: `exclude_ALGO_and_stop_loss`, N=31, gross=0.08846366, win_rate=0.580645
+- rejected: `exclude_symbol_ALGO/USD`, `dynamic_exclude_strategy_momentum_breakout`, `dynamic_exclude_exit_reason_take_profit`, `dynamic_exclude_exit_reason_timeout`
+
+Interpretation: the expanded offline sample makes stop-loss exclusion the highest-ROI diagnostic candidate, but it is still gross-only synthetic evidence. This does not authorize live implementation, exit tuning, paper/live probes, restart, config changes, or scaling. SOL remains excluded from live bot inventory/trading because it is externally staked.
+
+Preserved truth: implementation_authorized=false, paper_probe_authorized=false, live_probe_authorized=false, scaling_authorized=false, trade_permission=none, scaling_allowed=false, risk_increase=not_approved. Leakage guards remain `no_future_bars_for_signal=true`, `exit_after_entry_only=true`, `no_journal_exit_leakage=true`.
+
+Next recommended action:
+- P2-025Z should be an offline-only stop-loss diagnostics/explanation report that determines whether stop-loss losers are avoidable entry-quality failures, exit-policy artifacts, or unavoidable adverse moves before any implementation proposal.
+
 ## P2-025X — Expanded Offline Filter Validation Using Synthetic Cycles (review/p2-025x-expanded-filter-validation-synthetic-cycles)
 P2-025W is merged on main at 005a1a1. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
 
