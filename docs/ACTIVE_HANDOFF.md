@@ -1,5 +1,45 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-026D — Independent-Sample Candidate Falsification (review/p2-026d-independent-sample-candidate-falsification)
+P2-026C is merged on main at 65abff3. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no P2-026B candidate implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
+
+Added `scripts/coinbase_independent_sample_candidate_falsification_report.py`, `tests/test_coinbase_independent_sample_candidate_falsification_report.py`, and `docs/INDEPENDENT_SAMPLE_CANDIDATE_FALSIFICATION.md`.
+
+P2-026D keeps the fixed P2-026B/P2-026C candidate unchanged:
+- rule_name=`exclude_pre_entry_return_3_above_p80_0.011338`
+- input_field=`pre_entry_return_3`
+- operator=`>`
+- threshold=0.011338
+- pre_entry_only=true
+- leakage_risk=false
+
+Independent offline public OHLCV April 2026 data was added as untracked local working data for ADA/USD, ALGO/USD, BTC/USD, ETH/USD, and SOL/USD. `data/offline_ohlcv/` remains untracked and must not be committed. Validation rows/gaps: ADA/USD rows=8353 gaps=0, ALGO/USD rows=7882 gaps=408, BTC/USD rows=8353 gaps=0, ETH/USD rows=8353 gaps=0, SOL/USD rows=8353 gaps=0.
+
+Expanded smoke summary:
+- bars_scanned=84627
+- synthetic_cycles_count=205
+- baseline_gross=-0.05366106
+- baseline_win_rate=0.424390
+- baseline_stop_loss_count=74
+- full_sample_gross_delta=0.19776364
+- full_sample_passes_gate=false
+- independent_window_sample_before=114
+- independent_window_sample_after=73
+- independent_window_gross_delta=0.11912829
+- independent_window_passes_gate=false
+- chronological_holdout_gross_delta=0.07863535
+- chronological_holdout_passes_gate=false
+
+Failed gates:
+- expanded full sample: `median_gross_after < 0`, `win_rate_after < 0.50`
+- independent April window: `avg_gross_after <= 0`, `median_gross_after < 0`, `win_rate_after < 0.50`
+- chronological holdout: `median_gross_after < 0`, `win_rate_after < 0.50`
+
+Verdict: `verdict=falsified`, `independently_validated=false`, `falsified=true`, `likely_overfit=true`, `implementation_proposal_authorized=false`, `implementation_authorized=false`, `paper_probe_authorized=false`, `live_probe_authorized=false`, `scaling_authorized=false`. No filters were implemented. No stop-loss exclusion, strategy threshold, live strategy, config, risk, runtime, price-path logger, or LaunchAgent state changed.
+
+Next recommended action:
+- Do not implement the P2-026B filter. Pivot to offline strategy redesign or broader independent-sample falsification before any implementation proposal, paper/live probe, restart, or scale.
+
 ## P2-026C — Pre-Entry Candidate Holdout Validation (review/p2-026c-pre-entry-candidate-holdout-validation)
 P2-026B is merged on main at 296cdca. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no P2-026B candidate implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes.
 
