@@ -1,5 +1,38 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-029 — Redesigned Entry Independent Holdout Validation (review/p2-029-redesigned-entry-independent-holdout-validation)
+P2-028 is merged and pushed on main at 6b58230. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no session filter implementation, no stop-loss exclusion, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes, no price-path logger changes, and no scaling.
+
+Added `scripts/coinbase_redesigned_entry_independent_holdout_validation.py`, `tests/test_coinbase_redesigned_entry_independent_holdout_validation.py`, and `docs/REDESIGNED_ENTRY_INDEPENDENT_HOLDOUT_VALIDATION.md`.
+
+P2-029 freezes `session_avoid_06_17_utc` to exact pre-entry UTC hours `[6,17]`, runs full-sample, chronological holdout, recent-window, rolling-fold, symbol, strategy, symbol_strategy, session, timeout, stop-loss, and predefined sensitivity diagnostics, and never re-optimizes the excluded hours.
+
+Definition caveat: P2-028 used the same candidate name for broad `06-11` and `12-17` session-bucket exclusion. P2-029 follows the approved exact-hour `[6,17]` contract, so the P2-028 prior metrics are context rather than directly comparable performance.
+
+Current smoke summary:
+- bars_scanned=84627
+- synthetic_cycles_count=205
+- fixed_excluded_utc_hours=[6,17]
+- threshold_reoptimized=false
+- full_sample: sample_before=205, sample_after=180, gross_delta=0.04841092, avg_after=-0.00002917, median_after=-0.00465740, win_rate_after=0.427778, passes=false
+- chronological_holdout: sample_before=61, sample_after=48, gross_delta=0.05238370, avg_after=-0.00029189, median_after=-0.00180332, win_rate_after=0.458333, passes=false
+- recent_window: sample_before=82, sample_after=67, gross_delta=0.02635429, avg_after=0.00213422, median_after=0.00245783, win_rate_after=0.507463, timeout_rate_reduction=-0.012923, passes=false
+- rolling_fold_positive_effect_count=1/4
+- positive_symbol_count=1/5
+- positive_strategy_count=0/2
+- positive_symbol_strategy_count=2/8
+- positive_session_count=1/4
+- verdict=`falsified`
+- independently_validated=false
+- likely_overfit=true
+
+The exact-hour rule improves gross in headline slices but does not leave a stable profitable retained sample. Timeout rate worsens in full sample, chronological holdout, and recent window. No stop-loss exclusion or exit tuning is authorized.
+
+Verdict: `implementation_proposal_authorized=false`, `implementation_authorized=false`, `paper_probe_authorized=false`, `live_probe_authorized=false`, `scaling_authorized=false`. No filters were implemented. No strategy thresholds, live strategy, config, risk, runtime, price-path logger, launchd, or LaunchAgent state changed. `data/offline_ohlcv/` remains untracked.
+
+Next recommended action:
+- P2-030 should reconcile the P2-028/P2-029 candidate-definition mismatch and continue offline redesigned-entry work with a genuinely untouched validation sample. Do not implement either the broad session exclusion or exact-hour exclusion.
+
 ## P2-028 — Redesigned Entry Validation Harness (review/p2-028-redesigned-entry-validation-harness)
 P2-027 is merged on main at e94b9d9. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no P2-026B/P2-026D falsified candidate implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes, no price-path logger changes.
 
