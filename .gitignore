@@ -81,3 +81,6 @@ snapshots/
 *.zip
 docs/completed_patch_requests/*.json
 logs/coinbase_price_path.csv
+
+# OHLCV data — runtime, not source
+data/offline_ohlcv/
