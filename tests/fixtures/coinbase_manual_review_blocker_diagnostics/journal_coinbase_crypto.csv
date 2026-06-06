@@ -1,0 +1,6 @@
+timestamp,symbol,side,action,decision,reason,order_id,price,quantity
+2026-06-04T18:10:00Z,ADA/USD,BUY,BUY,FILLED,broker fill confirmed,ada-entry-1,0.6731,7.42
+2026-06-05T02:20:00Z,ADA/USD,SELL,WARN,FAILED,Position dropped after 3 failed close attempts (unrecoverable),ada-close-1,,
+2026-06-05T02:25:00Z,ADA/USD,,WARN,MANUAL_REVIEW,Broker position re-associated with bot-origin journal evidence; broker close capability remains unconfirmed,,,
+2026-06-05T03:00:00Z,BTC/USD,BUY,SKIPPED,ENTRY_BLOCKED,ENTRY_BLOCKED reason=manual_review_position_open,,,
+2026-06-05T03:05:00Z,ETH/USD,BUY,SKIPPED,ENTRY_BLOCKED,ENTRY_BLOCKED reason=manual_review_position_open,,,

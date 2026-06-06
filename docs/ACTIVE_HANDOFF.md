@@ -1,5 +1,34 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-029A — Manual-Review Position Blocker Diagnosis
+
+Review branch only. P2-029A adds an offline/read-only diagnostic that explains
+which local state artifacts cause `manual_review_position_open` entry blocking.
+It does not remediate or mutate state, clear manual-review flags, inspect
+credentials, call brokers, control processes, place orders, change strategy or
+risk, restart runtime, or authorize trading.
+
+Fixture verification represents the reported operator condition:
+- ADA/USD is an open-position blocker with
+  `manual_review_reason=broker_close_capability_unconfirmed`.
+- SOL/USD is external inventory carrying historical
+  `original_manual_review_reason=manual_review_position_open`; it remains
+  `bot_inventory=false` and is not treated as bot-tradable inventory.
+- Captured process text with two `main.py --mode live` rows sets
+  `duplicate_live_process_risk=true`.
+- Journal evidence includes the ADA fill, failed close attempts,
+  broker reassociation, and recent blocked-entry rows.
+
+The diagnostic verdict is `BLOCKED_MANUAL_REVIEW_POSITION`.
+`safe_to_auto_clear=false`, `implementation_authorized=false`,
+`state_mutation_authorized=false`, `manual_review_clear_authorized=false`,
+`live_trading_unblock_authorized=false`, `paper_probe_authorized=false`,
+`live_probe_authorized=false`, and `scaling_authorized=false`.
+
+Next action: manually confirm Coinbase balances for ADA, SOL, BTC, and ETH.
+Do not clear blockers while duplicate live-process risk exists. Prepare a
+separate remediation proposal only after manual balance confirmation.
+
 ## P2-028 — Redesigned Entry Validation Harness (review/p2-028-redesigned-entry-validation-harness)
 P2-027 is merged on main at e94b9d9. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no P2-026B/P2-026D falsified candidate implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes, no price-path logger changes.
 

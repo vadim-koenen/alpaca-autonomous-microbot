@@ -1,0 +1,12 @@
+{
+  "positions": {
+    "ADA/USD": {
+      "symbol": "ADA/USD",
+      "manual_review_reason": "broker_close_capability_unconfirmed",
+      "user_action_required": true,
+      "api_controllable": false,
+      "exit_evaluation_enabled": false,
+      "bot_inventory": true
+    }
+  }
+}
