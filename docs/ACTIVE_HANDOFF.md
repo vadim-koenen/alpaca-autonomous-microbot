@@ -1,5 +1,50 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-029B — Manual-Review Blocker Automation (review/p2-029b-manual-review-blocker-automation)
+
+Review branch only. No merge, restart, launchctl action, live trading, broker
+call, credential read, order action, paper/live probe, scaling, strategy
+change, risk change, symbol change, threshold change, or P2-030 work.
+
+P2-029B adds an offline watchdog for stale Coinbase manual-review blockers and
+a verified stop helper. The triggering incident was an ADA/USD recovered
+position that remained in `open_positions.json` after a failed close and
+re-association, causing repeated
+`ENTRY_BLOCKED reason=manual_review_position_open` cycles for roughly 48 hours.
+
+The watchdog reports blocker age, missed cycles, entry/fill and close-failure
+evidence, re-association evidence, duplicate live-process risk, runtime lock
+state, kill-switch state, and severity. It escalates blockers older than 30
+minutes, 2 hours, and 24 hours. Default and remediation-plan modes are
+local-only and read-only.
+
+Guarded cleanup requires `STOP_TRADING`, a supplied process snapshot with no
+live bot process, no active runtime lock PID, exactly one matching
+manual-review position, explicit operator confirmation that no broker position
+or open order exists, and a nonempty reason. It writes a timestamped backup
+and remediation audit record and touches only the selected local symbol.
+That cleanup is not broker reconciliation and does not authorize restart or
+trading.
+
+`scripts/stop_all_verified.sh` retains `STOP_TRADING`, checks both process and
+lock PIDs, prints remaining PIDs, and returns nonzero unless stopping is
+verified. It sends no signal unless the operator explicitly supplies
+`--term-after` or `--kill-after`.
+
+Future `--broker-read-only-reconcile` work is deferred to P2-029C. Current
+authorization remains:
+
+```text
+implementation_authorized=false
+strategy_change_authorized=false
+live_trading_unblock_authorized=false
+state_mutation_authorized=false by default
+broker_order_authorized=false
+paper_probe_authorized=false
+live_probe_authorized=false
+scaling_authorized=false
+```
+
 ## P2-028 — Redesigned Entry Validation Harness (review/p2-028-redesigned-entry-validation-harness)
 P2-027 is merged on main at e94b9d9. Review branch only. No merge, no restart, no launchctl, no live trading, no `--live-read-only`, no broker/trading endpoints, no `.env`/secrets reads, no orders/cancels/closes/modifications, no paper/live probes, no live filter implementation, no P2-026B/P2-026D falsified candidate implementation, no stop-loss exclusion implementation, no maker/post-only implementation, no exit tuning, no live config/risk/notional/max-open/max-trades/symbol/strategy/LaunchAgent changes, no price-path logger changes.
 

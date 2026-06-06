@@ -1,0 +1,27 @@
+{
+  "state_namespace": "coinbase",
+  "positions": {
+    "ADA/USD": {
+      "symbol": "ADA/USD",
+      "qty": 30.27848101,
+      "entry_price": 0.1817,
+      "entry_time": "2026-06-04T12:00:00+00:00",
+      "order_id": "2e5a0fae-b6cb-45de-bd62-7e2f29ae47ea",
+      "manual_review_reason": "broker_close_capability_unconfirmed",
+      "api_controllable": false,
+      "exit_evaluation_enabled": false,
+      "user_action_required": true,
+      "recovery_source": "journal_reassociated"
+    },
+    "BTC/USD": {
+      "symbol": "BTC/USD",
+      "qty": 0.00001,
+      "entry_price": 100000,
+      "entry_time": "2026-06-05T15:00:00+00:00",
+      "api_controllable": true,
+      "exit_evaluation_enabled": true,
+      "user_action_required": false,
+      "recovery_source": "bot_strategy"
+    }
+  }
+}

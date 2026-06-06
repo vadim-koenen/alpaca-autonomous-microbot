@@ -1,0 +1,2 @@
+vadim 34217 1 0 08:10 ?? 0:01.00 python3 main.py --mode live --broker coinbase
+vadim 34222 1 0 08:10 ?? 0:01.00 python3 main.py --mode live --broker coinbase

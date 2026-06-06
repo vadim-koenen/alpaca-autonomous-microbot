@@ -1,0 +1,7 @@
+timestamp,symbol,side,status,reason,order_id,price,qty
+2026-06-04T12:00:00+00:00,ADA/USD,BUY,FILLED,entry_filled,2e5a0fae-b6cb-45de-bd62-7e2f29ae47ea,0.1817,30.27848101
+2026-06-05T09:00:00+00:00,ADA/USD,SELL,FAILED,close failed after 3 attempts,,0.1782,30.27848101
+2026-06-05T09:05:00+00:00,ADA/USD,,WARNING,journal_reassociated broker-origin manual-review,,,30.27848101
+2026-06-05T09:10:00+00:00,BTC/USD,BUY,SKIPPED,ENTRY_BLOCKED reason=manual_review_position_open,,,0
+2026-06-05T10:10:00+00:00,ETH/USD,BUY,SKIPPED,ENTRY_BLOCKED reason=manual_review_position_open,,,0
+2026-06-05T11:10:00+00:00,BTC/USD,BUY,SKIPPED,ENTRY_BLOCKED reason=manual_review_position_open,,,0

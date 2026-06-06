@@ -1,0 +1,16 @@
+{
+  "external_inventory": {
+    "SOL/USD": {
+      "symbol": "SOL/USD",
+      "external_inventory_classification": "external_staked_position",
+      "staked_external_position": true,
+      "bot_inventory": false,
+      "tradable_by_bot": false,
+      "manual_close_allowed": false,
+      "blocks_new_entries": false,
+      "user_action_required": true,
+      "api_controllable": false,
+      "exit_evaluation_enabled": false
+    }
+  }
+}
