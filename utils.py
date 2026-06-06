@@ -18,9 +18,10 @@ import os
 import re
 import sys
 import uuid
+import fcntl
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 import pytz
 import yaml
@@ -104,6 +105,7 @@ class _DynamicLockFile:
 
 LOCK_FILE = _DynamicLockFile()
 STOP_FILE = RUNTIME_DIR / "STOP_TRADING"
+_PROCESS_LOCK_HANDLES: dict[str, TextIO] = {}
 
 # ---------------------------------------------------------------------------
 # Config loading
@@ -766,6 +768,107 @@ def assert_not_live_without_env() -> None:
 # Process lock — prevents duplicate live instances per broker
 # ---------------------------------------------------------------------------
 
+def _acquire_process_lock_path(lock_file: Path, force: bool = False) -> bool:
+    """Atomically acquire and retain an exclusive advisory lock."""
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    key = str(lock_file.resolve())
+    if key in _PROCESS_LOCK_HANDLES:
+        return False
+
+    guard_file = lock_file.with_name(f".{lock_file.name}.guard")
+    handle = guard_file.open("a+", encoding="utf-8")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        return False
+    except Exception:
+        handle.close()
+        raise
+
+    try:
+        previous = lock_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        previous = ""
+    if force:
+        logging.getLogger("runtime_safety").critical(
+            "FORCE LOCK requested. Atomic lock was available, so startup may "
+            "continue, but the override request is recorded for audit. "
+            f"previous_lock_metadata={previous or 'empty'}"
+        )
+        try:
+            from scripts.bot_alerts import alert
+            alert(
+                "CRITICAL",
+                "Force-lock override request recorded",
+                {"lock_file": str(lock_file), "previous_lock_metadata": previous or "empty"},
+            )
+        except Exception:
+            pass
+    elif previous and previous != str(os.getpid()):
+        try:
+            previous_pid = int(previous)
+            os.kill(previous_pid, 0)
+        except (ProcessLookupError, ValueError):
+            logging.getLogger("runtime_safety").warning(
+                f"Recovered stale process lock metadata for PID {previous or 'invalid'}."
+            )
+        except PermissionError:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            handle.close()
+            return False
+
+    temporary = lock_file.with_name(f".{lock_file.name}.{os.getpid()}.tmp")
+    temporary.write_text(str(os.getpid()), encoding="utf-8")
+    os.replace(temporary, lock_file)
+    _PROCESS_LOCK_HANDLES[key] = handle
+    return True
+
+
+def _process_lock_path_owned(lock_file: Path) -> bool:
+    """Return True only while this process holds the same on-disk lock inode."""
+    key = str(lock_file.resolve())
+    handle = _PROCESS_LOCK_HANDLES.get(key)
+    if handle is None or handle.closed:
+        return False
+    try:
+        guard_file = lock_file.with_name(f".{lock_file.name}.guard")
+        guard_stat = guard_file.stat()
+        held_stat = os.fstat(handle.fileno())
+        if (guard_stat.st_dev, guard_stat.st_ino) != (held_stat.st_dev, held_stat.st_ino):
+            return False
+        return lock_file.read_text(encoding="utf-8").strip() == str(os.getpid())
+    except OSError:
+        return False
+
+
+def _release_process_lock_path(lock_file: Path) -> None:
+    key = str(lock_file.resolve())
+    handle = _PROCESS_LOCK_HANDLES.pop(key, None)
+    if handle is None:
+        return
+    try:
+        owned = _process_lock_handle_matches_guard(handle, lock_file)
+        if owned:
+            lock_file.unlink(missing_ok=True)
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    finally:
+        handle.close()
+
+
+def _process_lock_handle_matches_guard(handle: TextIO, lock_file: Path) -> bool:
+    try:
+        guard_file = lock_file.with_name(f".{lock_file.name}.guard")
+        guard_stat = guard_file.stat()
+        held_stat = os.fstat(handle.fileno())
+        return (
+            (guard_stat.st_dev, guard_stat.st_ino) == (held_stat.st_dev, held_stat.st_ino)
+            and lock_file.read_text(encoding="utf-8").strip() == str(os.getpid())
+        )
+    except OSError:
+        return False
+
+
 def acquire_process_lock(force: bool = False) -> bool:
     """
     Write broker-specific runtime/<broker>.lock with the current PID.
@@ -779,41 +882,22 @@ def acquire_process_lock(force: bool = False) -> bool:
     if get_mode() != "live":
         return True  # no lock needed for non-live modes
 
-    RUNTIME_DIR.mkdir(exist_ok=True)
-    my_pid = os.getpid()
+    return _acquire_process_lock_path(get_lock_file(), force=force)
 
-    if LOCK_FILE.exists() and not force:
-        try:
-            existing_pid = int(LOCK_FILE.read_text().strip())
-            # Check if that PID is still alive
-            os.kill(existing_pid, 0)   # signal 0 = existence check, no actual signal
-            # Process is alive — refuse to start
-            return False
-        except (ProcessLookupError, PermissionError):
-            # Stale lock — dead process, safe to overwrite. Log for ops visibility.
-            logger = logging.getLogger("runtime_safety")
-            logger.warning(
-                f"Recovered stale process lock (PID {existing_pid} is dead). "
-                "This can happen after hard kills or unclean shutdowns."
-            )
-            pass
-        except ValueError:
-            # Corrupt lock file — overwrite it
-            pass
 
-    LOCK_FILE.write_text(str(my_pid))
-    return True
+def process_lock_owned() -> bool:
+    """Live-loop ownership check. Non-live modes do not require a lock."""
+    if get_mode() != "live":
+        return True
+    return _process_lock_path_owned(get_lock_file())
 
 
 def release_process_lock() -> None:
     """Remove the lock file on clean shutdown. Safe to call multiple times."""
     try:
-        if LOCK_FILE.exists():
-            stored = LOCK_FILE.read_text().strip()
-            if stored == str(os.getpid()):
-                LOCK_FILE.unlink()
+        _release_process_lock_path(get_lock_file())
     except Exception:
-        pass  # never let cleanup errors propagate
+        pass
 
 
 # ---------------------------------------------------------------------------

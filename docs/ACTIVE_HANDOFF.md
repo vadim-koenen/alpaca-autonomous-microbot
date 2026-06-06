@@ -1,5 +1,53 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## P2-029C — Broker Reconciliation, Alerts, Heartbeat, And Atomic Locking
+
+Branch: `review/p2-029c-broker-reconcile-alert-lock-hardening`.
+Review branch only. No merge, live trading, restart, launchctl action, broker
+order action, ADA state clear, strategy/risk/config/threshold change, scaling,
+P2-030 work, or original live-repo mutation.
+
+P2-029C adds:
+
+- fixture/captured-JSON Coinbase balance and open-order reconciliation;
+- ADA clear-candidate logic requiring direct broker flatness evidence;
+- separate classification for externally staked SOL inventory;
+- local JSONL and human-readable alerts with secret-safe redaction;
+- dead-man checks for stale heartbeat, failed close, manual blocker, duplicate
+  process, stale lock, missing round trip, and STOP_TRADING/process mismatch;
+- atomic `flock` single-instance ownership held for process lifetime;
+- live-loop lock ownership verification before broker refresh/order evaluation;
+- conservative recovery GO/NO_GO reporting.
+
+Real Coinbase querying is not enabled in this patch. `BrokerCoinbase`
+initialization currently loads credentials and performs an immediate fee-rate
+request, so a narrower credential-safe balances/open-orders client requires a
+separate review. Until then, broker truth must be supplied as an approved
+captured JSON payload.
+
+ADA local state may be considered for guarded P2-029B cleanup only when direct
+captured broker facts show both zero ADA balance and no ADA open order. The
+reconciler never clears state itself.
+
+Micro-trading evidence readiness is GO only when broker reconciliation
+succeeds, ADA is directly confirmed flat, duplicate-process risk is absent,
+lock health is OK, heartbeat is fresh, file alerting is active, and
+`max_open_positions=1`. GO does not authorize trading.
+
+Preserved authorization state:
+
+```text
+broker_order_authorized=false
+live_trading_authorized=false
+state_clear_authorized=false
+scaling_authorized=false
+strategy_change_authorized=false
+```
+
+No entry, exit, sizing, symbol, risk-cap, strategy-threshold, or runtime config
+was changed. Do not clear ADA, restart, or resume live trading during review.
+Do not start P2-030.
+
 ## P2-029B — Manual-Review Blocker Automation (review/p2-029b-manual-review-blocker-automation)
 
 Review branch only. No merge, restart, launchctl action, live trading, broker

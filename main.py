@@ -59,6 +59,7 @@ from utils import (
     kill_switch_active,
     load_config,
     load_env,
+    process_lock_owned,
     release_process_lock,
     safe_float,
     setup_logging,
@@ -265,8 +266,8 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help=(
-            "Override stale process lock and start anyway. "
-            "Only use if you are certain no other live bot is running."
+            "Record an explicit stale-lock override request. An actively held "
+            "atomic lock can never be stolen."
         ),
     )
     return p.parse_args()
@@ -375,6 +376,15 @@ def main() -> None:
             f"(PID {existing_pid}). Refusing to start a second live instance. "
             "Stop the first process or delete the broker-specific runtime/<broker>.lock if it is stale."
         )
+        try:
+            from scripts.bot_alerts import alert
+            alert(
+                "CRITICAL",
+                "Duplicate live process startup refused",
+                {"broker": broker_name, "existing_pid": existing_pid},
+            )
+        except Exception:
+            pass
         sys.exit(1)
 
     # Kill-switch file check at startup
@@ -516,6 +526,28 @@ def main() -> None:
     while _running:
         cycle_count += 1
         logger.debug(f"--- Cycle {cycle_count} ---")
+
+        if mode == "live" and not process_lock_owned():
+            message = "Atomic process lock ownership lost; refusing further live trading cycles."
+            logger.critical(message)
+            try:
+                from scripts.bot_alerts import alert
+                alert(
+                    "CRITICAL",
+                    message,
+                    {"broker": broker_name, "pid": os.getpid(), "cycle": cycle_count},
+                )
+            except Exception:
+                pass
+            _write_heartbeat(
+                broker_name,
+                mode,
+                _session,
+                permissions,
+                last_error="process_lock_ownership_lost",
+            )
+            _running = False
+            break
 
         # Daily reset: clear per-day counters when UTC date rolls over.
         # This lets the bot run unattended through midnight without launchd

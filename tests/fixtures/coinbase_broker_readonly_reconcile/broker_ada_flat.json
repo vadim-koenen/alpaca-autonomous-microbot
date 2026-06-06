@@ -1,0 +1,10 @@
+{
+  "broker_query_succeeded": true,
+  "balances": [
+    {"asset": "ADA", "available": "0"},
+    {"asset": "BTC", "available": "0"},
+    {"asset": "ETH", "available": "0"},
+    {"asset": "SOL", "available": "1.25"}
+  ],
+  "open_orders": []
+}

@@ -13,13 +13,19 @@ Intended to be called from main.py at startup only.
 
 from __future__ import annotations
 
-import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from utils import RUNTIME_DIR, get_runtime_namespace, now_utc
+from utils import (
+    RUNTIME_DIR,
+    _acquire_process_lock_path,
+    _process_lock_path_owned,
+    _release_process_lock_path,
+    get_runtime_namespace,
+    now_utc,
+)
 
 
 # =============================================================================
@@ -37,35 +43,18 @@ def acquire_live_process_lock(namespace: Optional[str] = None, force: bool = Fal
     It is namespace-aware (coinbase vs alpaca do not block each other).
     """
     ns = namespace or get_runtime_namespace()
-    lock_file = RUNTIME_DIR / f"{ns}.lock"
+    return _acquire_process_lock_path(RUNTIME_DIR / f"{ns}.lock", force=force)
 
-    RUNTIME_DIR.mkdir(exist_ok=True)
-    my_pid = os.getpid()
 
-    if lock_file.exists() and not force:
-        try:
-            existing = int(lock_file.read_text().strip())
-            # Check if process is still alive (portable signal 0 test)
-            os.kill(existing, 0)
-            return False  # another live instance holds it
-        except (ProcessLookupError, ValueError, PermissionError):
-            # Stale or corrupt — we can take it
-            pass
-
-    lock_file.write_text(str(my_pid))
-    return True
+def live_process_lock_owned(namespace: Optional[str] = None) -> bool:
+    ns = namespace or get_runtime_namespace()
+    return _process_lock_path_owned(RUNTIME_DIR / f"{ns}.lock")
 
 
 def release_live_process_lock(namespace: Optional[str] = None) -> None:
     """Release our lock if we hold it."""
     ns = namespace or get_runtime_namespace()
-    lock_file = RUNTIME_DIR / f"{ns}.lock"
-    try:
-        if lock_file.exists():
-            if lock_file.read_text().strip() == str(os.getpid()):
-                lock_file.unlink()
-    except Exception:
-        pass
+    _release_process_lock_path(RUNTIME_DIR / f"{ns}.lock")
 
 
 # =============================================================================

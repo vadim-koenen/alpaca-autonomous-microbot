@@ -1,0 +1,9 @@
+{
+  "broker_query_succeeded": true,
+  "balances": [
+    {"asset": "ADA", "available": "30.27848101"}
+  ],
+  "open_orders": [
+    {"product_id": "ADA-USD", "side": "SELL", "status": "OPEN"}
+  ]
+}
