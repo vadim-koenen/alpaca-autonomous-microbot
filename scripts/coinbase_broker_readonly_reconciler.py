@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -21,6 +23,7 @@ try:
         position_symbol,
         read_json,
     )
+    from scripts.utils import load_env
 except ModuleNotFoundError:
     from bot_heartbeat_watchdog import build_report as build_heartbeat_report
     from coinbase_manual_review_blocker_watchdog import (
@@ -31,6 +34,10 @@ except ModuleNotFoundError:
         position_symbol,
         read_json,
     )
+    try:
+        from utils import load_env
+    except ImportError:
+        def load_env(): pass
 
 
 SYMBOLS = ("ADA/USD", "SOL/USD", "BTC/USD", "ETH/USD")
@@ -41,6 +48,7 @@ AUTHORIZATIONS = {
     "scaling_authorized": False,
     "strategy_change_authorized": False,
 }
+DUST_THRESHOLD_ADA = 1.0  # qty below this is considered dust
 
 
 def _broker_balances(payload: Dict[str, Any]) -> Dict[str, float]:
@@ -97,6 +105,94 @@ def _config_constraints(path: Path) -> Dict[str, Any]:
     }
 
 
+def fetch_live_coinbase_data(repo_root: Path) -> Dict[str, Any]:
+    """Fetch real balances and open orders from Coinbase Advanced Trade."""
+    try:
+        from coinbase.rest import RESTClient
+    except ImportError:
+        return {"broker_query_succeeded": False, "error": "coinbase-advanced-py not installed"}
+
+    # Use existing utils if possible to load keys safely
+    os.environ["ROOT_DIR"] = str(repo_root) # hint for load_env if needed
+    load_env()
+
+    api_key = os.environ.get("COINBASE_API_KEY")
+    api_secret = os.environ.get("COINBASE_API_SECRET")
+
+    if not api_key or not api_secret or api_key == "replace_me":
+        return {"broker_query_succeeded": False, "error": "COINBASE_API_KEY/SECRET not set in environment"}
+
+    try:
+        # Suppress noisy SDK warnings
+        logging.getLogger("coinbase").setLevel(logging.ERROR)
+
+        client = RESTClient(api_key=api_key, api_secret=api_secret.replace("\\n", "\n"))
+
+        # 1. Get Portfolio
+        portfolios = client.get_portfolios()
+        if not portfolios:
+            return {"broker_query_succeeded": False, "error": "No portfolios returned"}
+
+        p_list = getattr(portfolios, "portfolios", [])
+        if not p_list:
+             # Try dictionary access if object has no portfolios attr (SDK versions vary)
+             if isinstance(portfolios, dict):
+                 p_list = portfolios.get("portfolios", [])
+             elif hasattr(portfolios, "to_dict"):
+                 p_list = portfolios.to_dict().get("portfolios", [])
+
+        if not p_list:
+            return {"broker_query_succeeded": False, "error": "Portfolio list empty"}
+
+        p_uuid = p_list[0].get("uuid") if isinstance(p_list[0], dict) else getattr(p_list[0], "uuid", "")
+        if not p_uuid:
+            return {"broker_query_succeeded": False, "error": "Could not resolve portfolio UUID"}
+
+        # 2. Get Breakdown (Spot Positions)
+        breakdown = client.get_portfolio_breakdown(portfolio_uuid=p_uuid)
+        bd_dict = {}
+        if hasattr(breakdown, "to_dict"):
+            bd_dict = breakdown.to_dict()
+        elif isinstance(breakdown, dict):
+            bd_dict = breakdown
+
+        spot_positions = bd_dict.get("breakdown", {}).get("spot_positions", [])
+        balances_list = []
+        for sp in spot_positions:
+            balances_list.append({
+                "asset": sp.get("asset"),
+                "available": sp.get("total_balance_crypto")
+            })
+
+        # 3. Get Open Orders
+        orders_resp = client.list_orders(order_status=["OPEN"])
+        orders_list = []
+        o_source = []
+        if hasattr(orders_resp, "to_dict"):
+            o_source = orders_resp.to_dict().get("orders", [])
+        elif isinstance(orders_resp, dict):
+            o_source = orders_resp.get("orders", [])
+
+        for o in o_source:
+            orders_list.append({
+                "product_id": o.get("product_id"),
+                "side": o.get("side"),
+                "status": o.get("status")
+            })
+
+        return {
+            "broker_query_succeeded": True,
+            "balances": balances_list,
+            "open_orders": orders_list,
+            "broker_truth_source": "coinbase_advanced_trade_api",
+            "broker_calls_made": True,
+            "real_broker_query_implemented": True
+        }
+
+    except Exception as e:
+        return {"broker_query_succeeded": False, "error": f"API call failed: {str(e)}"}
+
+
 def build_report(
     *,
     repo_root: Path,
@@ -107,6 +203,7 @@ def build_report(
     emit_alerts: bool = False,
     reports_root: Optional[Path] = None,
     alive_pids: Optional[set[int]] = None,
+    live_read_only: bool = False,
 ) -> Dict[str, Any]:
     now = now or datetime.now(timezone.utc)
     open_state, open_error = read_json(
@@ -135,6 +232,12 @@ def build_report(
     balances = _broker_balances(payload) if broker_succeeded else {}
     orders = _broker_orders(payload) if broker_succeeded else []
     per_symbol: Dict[str, Dict[str, Any]] = {}
+
+    broker_positions_nonzero = []
+    for sym, qty in sorted(balances.items()):
+        if qty > 0:
+            broker_positions_nonzero.append({"symbol": sym, "quantity": qty})
+
     for symbol in SYMBOLS:
         local_is_open = symbol in local_open
         local_is_external = symbol in local_external
@@ -164,9 +267,11 @@ def build_report(
     ada_local_blocker = bool(
         "ADA/USD" in local_open and is_manual_review_blocker(local_open["ADA/USD"])
     )
+    ada_broker_qty = balances.get("ADA/USD", 0.0)
+    ada_broker_present = ada_broker_qty > DUST_THRESHOLD_ADA
     ada_broker_flat = bool(
         broker_succeeded
-        and balances.get("ADA/USD", 0.0) <= 0
+        and not ada_broker_present
         and not any(order["symbol"] == "ADA/USD" for order in orders)
     )
     ada_clear_candidate = ada_local_blocker and ada_broker_flat
@@ -179,17 +284,21 @@ def build_report(
         emit_alerts=emit_alerts,
         reports_root=reports_root,
     )
+
     safe_to_clear_local_ada = bool(
         ada_clear_candidate
         and not heartbeat.get("duplicate_live_process_risk")
         and heartbeat.get("lock_health") == "OK"
     )
+
     constraints = _config_constraints(repo_root / "config_coinbase_crypto.yaml")
     reasons: List[str] = []
     if not broker_succeeded:
-        reasons.append("broker_truth_unknown_fixture_or_captured_json_required")
-    if not ada_broker_flat:
-        reasons.append("ada_broker_exposure_or_open_order_not_confirmed_absent")
+        reasons.append("broker_truth_unknown_live_read_only_required")
+    if broker_succeeded and not ada_broker_flat:
+        reasons.append("ada_broker_exposure_or_open_order_still_present")
+    if broker_succeeded and any(orders):
+        reasons.append("open_broker_orders_exist")
     if heartbeat.get("duplicate_live_process_risk"):
         reasons.append("duplicate_live_process_risk")
     if heartbeat.get("lock_health") != "OK":
@@ -200,61 +309,76 @@ def build_report(
         reasons.append("file_alerting_not_active")
     if constraints.get("max_open_positions") != 1:
         reasons.append("max_open_positions_not_one")
-    if ada_local_blocker and not ada_clear_candidate:
-        reasons.append("local_ada_blocker_not_safely_clearable")
+    if ada_local_blocker and not ada_clear_candidate and broker_succeeded:
+        reasons.append("local_ada_blocker_requires_broker_close_first")
 
-    go = not reasons
+    safe_to_resume = False
+    if broker_succeeded and not reasons and not local_open and not orders:
+        safe_to_resume = "READY_FOR_OPERATOR_APPROVAL"
+
+    go = bool(safe_to_resume == "READY_FOR_OPERATOR_APPROVAL")
+
     actions: List[str] = []
     if not broker_succeeded:
-        actions.append("Capture balances and open orders through a separately approved read-only broker command.")
+        actions.append("Run with --live-read-only to verify broker truth.")
+    if ada_broker_present:
+        actions.append("ADA still present at broker. Operator must manually close/convert ADA or implement controlled close workflow.")
     if safe_to_clear_local_ada:
         actions.append("Operator may run the guarded P2-029B ADA local-state clear command.")
     elif ada_clear_candidate:
         actions.append(
             "ADA broker facts are flat, but resolve process/lock guards before guarded local cleanup."
         )
-    elif ada_local_blocker:
-        actions.append("Do not clear ADA local state until broker flatness is directly confirmed.")
+    elif ada_local_blocker and broker_succeeded:
+        actions.append("Do not clear ADA local state until broker position is closed/sold.")
     if heartbeat.get("duplicate_live_process_risk"):
         actions.append("Stop and verify all duplicate live processes before any recovery.")
     if not heartbeat.get("file_alerting_active"):
         actions.append("Run the heartbeat watchdog with --emit-alerts and verify local alert files.")
 
     return {
-        "schema_version": "1.0",
-        "generated_at_utc": now.isoformat(),
+        "schema_version": "1.1",
+        "timestamp_utc": now.isoformat(),
         "report_class": "coinbase_broker_readonly_reconciliation",
-        "broker_readonly_enabled": broker_payload is not None,
-        "broker_query_attempted": False,
+        "broker": "coinbase",
+        "live_read_only": live_read_only,
+        "broker_calls_made": bool(payload.get("broker_calls_made", False)),
+        "order_mutation_performed": False,
+        "state_mutation_performed": False,
+        "restart_performed": False,
+        "broker_readonly_enabled": broker_payload is not None or live_read_only,
+        "broker_query_attempted": live_read_only,
         "broker_query_succeeded": broker_succeeded,
-        "broker_integration_status": "fixture_or_captured_json_only_pending_credential_boundary_review",
+        "broker_integration_status": payload.get("error", "fixture_first" if not live_read_only else "live_success"),
+        "stop_trading_present": repo_root.joinpath("runtime", "STOP_TRADING").exists(),
         "local_open_positions": sorted(local_open),
         "local_external_inventory": sorted(local_external),
-        "broker_balances": (
-            [{"symbol": symbol, "quantity": quantity} for symbol, quantity in sorted(balances.items())]
-            if broker_succeeded else None
-        ),
+        "broker_positions_nonzero": broker_positions_nonzero if broker_succeeded else None,
         "broker_open_orders": orders if broker_succeeded else None,
         "reconciled_symbols": per_symbol,
+        "ada_broker_qty": ada_broker_qty if broker_succeeded else None,
+        "ada_broker_present": ada_broker_present if broker_succeeded else None,
         "ada_local_blocker_present": ada_local_blocker,
         "ada_clear_candidate": ada_clear_candidate,
         "safe_to_clear_local_ada": safe_to_clear_local_ada,
         "resume_micro_trading_go_no_go": "GO" if go else "NO_GO",
-        "safe_to_resume_micro_trading": go,
+        "safe_to_resume_micro_trading": safe_to_resume,
+        "external_inventory_symbols": sorted(local_external),
+        "local_broker_mismatches": [s for s, v in per_symbol.items() if "mismatch" in v["classification"] or v["classification"].startswith("local_open_broker_flat") or v["classification"].startswith("local_flat_broker_open")],
         "reasons": reasons,
         "required_operator_actions": actions,
+        "recommended_action": actions[0] if actions else "Continue normal monitoring.",
         "heartbeat": {
             "fresh": heartbeat.get("heartbeat_fresh"),
             "duplicate_live_process_risk": heartbeat.get("duplicate_live_process_risk"),
             "lock_health": heartbeat.get("lock_health"),
-            "file_alerting_active": heartbeat.get("file_alerting_active"),
+            "file_alerting_active": heartbeat.get("file_alerting_not_active") is False,
         },
         "config_constraints": constraints,
         "input_status": {
             "open_positions": open_error or "loaded",
             "external_inventory": external_error or "loaded",
         },
-        "default_mode_state_mutation": False,
         **AUTHORIZATIONS,
     }
 
@@ -263,6 +387,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--broker-json", type=Path)
+    parser.add_argument("--live-read-only", action="store_true")
     parser.add_argument("--process-snapshot", type=Path)
     parser.add_argument("--now")
     parser.add_argument("--emit-alerts", action="store_true")
@@ -270,11 +395,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
+
     broker_payload = None
     if args.broker_json:
         broker_payload, error = read_json(args.broker_json, {})
         if error:
-            broker_payload = {"broker_query_succeeded": False, "input_error": error}
+            broker_payload = {"broker_query_succeeded": False, "error": f"JSON read error: {error}"}
+    elif args.live_read_only:
+        broker_payload = fetch_live_coinbase_data(args.repo_root)
+
     now = parse_time(args.now) if args.now else datetime.now(timezone.utc)
     report = build_report(
         repo_root=args.repo_root.resolve(),
@@ -282,6 +411,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         process_snapshot=args.process_snapshot.resolve() if args.process_snapshot else None,
         now=now,
         emit_alerts=args.emit_alerts,
+        live_read_only=args.live_read_only,
     )
     if args.go_no_go_report:
         report["go_no_go_report_requested"] = True
