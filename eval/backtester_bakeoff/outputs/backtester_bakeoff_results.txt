@@ -1,0 +1,14 @@
+Backtester Bake-off Results - 2026-06-06T16:30:06.336050+00:00
+============================================================
+Engine: current_replay
+  Available: True
+  Verdict:   keep_current_temporarily
+--------------------
+Engine: jesse
+  Available: False
+  Verdict:   blocked_missing_dependencies
+--------------------
+Engine: freqtrade
+  Available: False
+  Verdict:   blocked_missing_dependencies
+--------------------

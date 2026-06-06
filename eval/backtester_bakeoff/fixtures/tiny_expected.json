@@ -1,0 +1,13 @@
+{
+  "engine": "hand_computed",
+  "trades": [
+    {
+      "entry_time": "2026-06-06T12:15:00Z",
+      "entry_price": 105.5,
+      "exit_time": "2026-06-06T12:20:00Z",
+      "exit_price": 92.0,
+      "qty": 1.0,
+      "gross_pnl": -13.5
+    }
+  ]
+}

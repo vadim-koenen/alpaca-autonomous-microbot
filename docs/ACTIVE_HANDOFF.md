@@ -1,6 +1,24 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
-## P2-029C — Broker Reconciliation, Alerts, Heartbeat, And Atomic Locking
+## P2-030-EVAL — Backtester Fidelity Bake-off (review/p2-030-eval-backtester-bakeoff)
+
+Review branch only. Offline evaluation only. No live broker calls, no Coinbase API calls, no .env reads, no secrets, no orders/cancels/closes, no restart, no launchctl. No changes to live config, strategy, risk gates, caps, main.py, runtime_safety.py, or production bot imports.
+
+P2-030-EVAL adds:
+- `eval/backtester_bakeoff/`: isolated structure for fidelity bake-off;
+- `run_bakeoff.py`: evaluation harness for Jesse, Freqtrade, and current engine;
+- `adapters/`: normalized interface for backtesting engines;
+- `strategies/`: faithful ports of production crypto rules for each engine;
+- Unit tests verifying harness isolation and metric consistency.
+
+This is not an engine adoption patch. It is an evidentiary bake-off to determine if external engines can reproduce the bot's actual 50 Coinbase live cycles with better fidelity than the current home-grown replay engine.
+
+Initial audit findings:
+- `data/offline_ohlcv/`: MISSING (cleared in previous git clean);
+- `jesse`, `freqtrade`: NOT INSTALLED (requires explicit approval for network install);
+- Bake-off status: `blocked_dependency_install_required`.
+
+## P2-029D — Real Coinbase Read-Only Reconciliation (review/p2-029d-real-coinbase-readonly-reconciliation)
 
 Branch: `review/p2-029c-broker-reconcile-alert-lock-hardening`.
 Review branch only. No merge, live trading, restart, launchctl action, broker

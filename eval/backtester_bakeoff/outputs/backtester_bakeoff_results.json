@@ -1,0 +1,63 @@
+{
+  "timestamp_utc": "2026-06-06T16:30:06.336050+00:00",
+  "ohlcv_present": false,
+  "engines": [
+    {
+      "engine": "current_replay",
+      "engine_available": true,
+      "ran_full_50_cycle_eval": false,
+      "cycles_evaluated": 0,
+      "direction_match": 0.0,
+      "median_gross_residual_usd": 0.0,
+      "p90_gross_residual_usd": 0.0,
+      "median_gross_residual_pct_notional": 0.0,
+      "p90_gross_residual_pct_notional": 0.0,
+      "reconciliation_gap_usd": 0.0,
+      "engine_net_usd": 0.0,
+      "realized_net_usd": 0.0,
+      "setup_cost": "low",
+      "lookahead_bias_controls": "manual",
+      "fee_model_flexibility": "low",
+      "maintenance_burden": "high",
+      "verdict": "keep_current_temporarily"
+    },
+    {
+      "engine": "jesse",
+      "engine_available": false,
+      "ran_full_50_cycle_eval": false,
+      "cycles_evaluated": 0,
+      "direction_match": 0.0,
+      "median_gross_residual_usd": 0.0,
+      "p90_gross_residual_usd": 0.0,
+      "median_gross_residual_pct_notional": 0.0,
+      "p90_gross_residual_pct_notional": 0.0,
+      "reconciliation_gap_usd": 0.0,
+      "engine_net_usd": 0.0,
+      "realized_net_usd": 0.0,
+      "setup_cost": "medium",
+      "lookahead_bias_controls": "built-in",
+      "fee_model_flexibility": "high",
+      "maintenance_burden": "medium",
+      "verdict": "blocked_missing_dependencies"
+    },
+    {
+      "engine": "freqtrade",
+      "engine_available": false,
+      "ran_full_50_cycle_eval": false,
+      "cycles_evaluated": 0,
+      "direction_match": 0.0,
+      "median_gross_residual_usd": 0.0,
+      "p90_gross_residual_usd": 0.0,
+      "median_gross_residual_pct_notional": 0.0,
+      "p90_gross_residual_pct_notional": 0.0,
+      "reconciliation_gap_usd": 0.0,
+      "engine_net_usd": 0.0,
+      "realized_net_usd": 0.0,
+      "setup_cost": "medium",
+      "lookahead_bias_controls": "built-in",
+      "fee_model_flexibility": "high",
+      "maintenance_burden": "medium",
+      "verdict": "blocked_missing_dependencies"
+    }
+  ]
+}

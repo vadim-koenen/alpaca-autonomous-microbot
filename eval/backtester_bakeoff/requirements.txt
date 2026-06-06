@@ -1,0 +1,13 @@
+# P2-030-EVAL Bake-off dependencies
+# NOTE: Installation requires explicit operator approval (network access required).
+
+# Current Replay (already available via production requirements)
+pandas
+numpy
+pyyaml
+
+# Jesse Backtester
+# jesse>=0.45.0
+
+# Freqtrade
+# freqtrade>=2024.5
