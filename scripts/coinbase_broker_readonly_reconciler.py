@@ -372,7 +372,7 @@ def build_report(
             "fresh": heartbeat.get("heartbeat_fresh"),
             "duplicate_live_process_risk": heartbeat.get("duplicate_live_process_risk"),
             "lock_health": heartbeat.get("lock_health"),
-            "file_alerting_active": heartbeat.get("file_alerting_not_active") is False,
+            "file_alerting_active": bool(heartbeat.get("file_alerting_active")),
         },
         "config_constraints": constraints,
         "input_status": {
