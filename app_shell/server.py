@@ -142,6 +142,17 @@ class ReadOnlyDashboardHandler(http.server.SimpleHTTPRequestHandler):
         else:
             self.send_json({"error": "Not Found"}, status=404)
 
+
+    def send_json(self, data, status: int = 200):
+        """Send a JSON response from the read-only dashboard handler."""
+        content = json.dumps(data, indent=2, sort_keys=True, default=str).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(content)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(content)
+
 def run_server():
     print(f"Starting read-only app shell foundation on http://localhost:{PORT}")
     with socketserver.TCPServer(("", PORT), ReadOnlyDashboardHandler) as httpd:

@@ -91,3 +91,15 @@ def test_frontend_update_targets_exist_in_html():
     missing = sorted(js_update_refs - html_ids)
     assert missing == []
 
+def test_http_handler_has_send_json_method():
+    from app_shell.server import ReadOnlyDashboardHandler
+    assert hasattr(ReadOnlyDashboardHandler, "send_json")
+    assert callable(ReadOnlyDashboardHandler.send_json)
+
+
+def test_server_source_keeps_api_handler_json_response_path():
+    source = (ROOT / "app_shell" / "server.py").read_text()
+    assert "def send_json" in source
+    assert "self.send_json(data)" in source
+    assert "self.send_json({\"error\": \"Not Found\"}, status=404)" in source
+
