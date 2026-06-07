@@ -54,7 +54,7 @@ async function refreshDashboard() {
 
     // Activity
     updateElement('trades-today', profit.trades_today);
-    updateElement('last_trade', profit.last_trade_at || 'N/A');
+    updateElement('last-trade', profit.last_trade_at || 'N/A');
     updateElement('last-exit', profit.last_exit_at || 'N/A');
 
     // Diagnostics

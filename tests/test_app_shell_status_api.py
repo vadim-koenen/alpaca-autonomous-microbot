@@ -79,3 +79,15 @@ def test_server_does_not_import_broker_modules():
     forbidden = ["broker_coinbase", "broker_alpaca", "create_order", "place_order", "cancel_order"]
     for f in forbidden:
         assert f not in content
+
+def test_frontend_update_targets_exist_in_html():
+    import re
+    html = (ROOT / "app_shell" / "static" / "index.html").read_text()
+    js = (ROOT / "app_shell" / "static" / "app.js").read_text()
+
+    html_ids = set(re.findall(r'id="([^"]+)"', html))
+    js_update_refs = set(re.findall(r"updateElement\(['\"]([^'\"]+)", js))
+
+    missing = sorted(js_update_refs - html_ids)
+    assert missing == []
+
