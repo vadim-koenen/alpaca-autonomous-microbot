@@ -100,12 +100,18 @@ def build_report(
         # 3. Local heartbeat is fresh (calculated in this run)
         # 4. Lock health is OK (calculated in this run)
         # 5. File alerting was active in the reconciler's source report
+        # 6. No local open positions
+        # 7. No broker open orders
+        # 8. No STOP_TRADING present
         reconciler_clean = (
             reconciler_report.get("broker_query_succeeded") is True
             and not reconciler_report.get("reasons")
             and heartbeat_fresh
             and (valid_lock or not live_process_running)
             and reconciler_report.get("heartbeat", {}).get("file_alerting_active") is True
+            and not local_open_positions
+            and not broker_open_orders
+            and not reconciler_report.get("stop_trading_present")
         )
 
     events: List[Dict[str, Any]] = []
