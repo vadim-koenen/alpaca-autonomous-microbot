@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investing Bot Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Investing Bot Shell</h1>
+        <div id="status-bar">
+            <span>STOP_TRADING: <span id="stop-trading-status">...</span></span>
+            <span>Git: <span id="git-head">...</span></span>
+        </div>
+    </header>
+
+    <main>
+        <section id="bot-health">
+            <h2>Bot Health</h2>
+            <div class="card">
+                <p>Status: <span id="hb-status">...</span></p>
+                <p>Last Loop: <span id="hb-time">...</span></p>
+                <p>Risk Halt: <span id="risk-halt">...</span></p>
+                <p>Watchdog: <span id="watchdog-level">...</span></p>
+            </div>
+        </section>
+
+        <section id="profit-readout">
+            <h2>Profit Readout</h2>
+            <div class="card grid">
+                <div>
+                    <label>Equity</label>
+                    <p id="equity">$0.00</p>
+                </div>
+                <div>
+                    <label>Buying Power</label>
+                    <p id="buying-power">$0.00</p>
+                </div>
+                <div>
+                    <label>Daily P&L</label>
+                    <p id="daily-pnl">$0.00</p>
+                </div>
+                <div>
+                    <label>Cumulative Net</label>
+                    <p id="cumulative-net">$0.00</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="trading-activity">
+            <h2>Activity (Today)</h2>
+            <div class="card grid">
+                <div>
+                    <label>Trades</label>
+                    <p id="trades-today">0</p>
+                </div>
+                <div>
+                    <label>Last Trade</label>
+                    <p id="last-trade">N/A</p>
+                </div>
+                <div>
+                    <label>Last Exit</label>
+                    <p id="last-exit">N/A</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="diagnostics">
+            <h2>Latest Diagnostics</h2>
+            <div class="card">
+                <p>Reconciler: <span id="reconciler-verdict">...</span></p>
+                <p>Opportunity Skip: <span id="diag-action">...</span></p>
+                <details>
+                    <summary>View Details</summary>
+                    <pre id="diag-json"></pre>
+                </details>
+            </div>
+        </section>
+
+        <section id="controls">
+            <h2>Controls (Coming Soon)</h2>
+            <div class="card controls">
+                <button disabled>Start Bot</button>
+                <button disabled>Stop Bot</button>
+                <button disabled>Restart</button>
+                <button disabled>Liquidate All</button>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Read-Only Foundation Mode</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
