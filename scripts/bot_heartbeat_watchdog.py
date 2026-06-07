@@ -56,6 +56,7 @@ def build_report(
     emit_alerts: bool = False,
     reports_root: Optional[Path] = None,
     alert_writer: Callable[..., Dict[str, Any]] = write_alert,
+    reconciler_report: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     now = now or datetime.now(timezone.utc)
     args = argparse.Namespace(
@@ -85,6 +86,28 @@ def build_report(
     stale_lock = paths["lock"].exists() and not lock_active
     valid_lock = lock_active and (not process_pids or lock_pid in process_pids)
 
+    # Reconciler hygiene: determine if we are clean enough to downgrade stale artifacts
+    local_open_positions = set()
+    broker_open_orders = []
+    reconciler_clean = False
+    if reconciler_report:
+        local_open_positions = set(reconciler_report.get("local_open_positions", []))
+        broker_open_orders = reconciler_report.get("broker_open_orders", [])
+        
+        # Clean requires:
+        # 1. Broker query succeeded
+        # 2. No reconciler reasons (which covers many things)
+        # 3. Local heartbeat is fresh (calculated in this run)
+        # 4. Lock health is OK (calculated in this run)
+        # 5. File alerting was active in the reconciler's source report
+        reconciler_clean = (
+            reconciler_report.get("broker_query_succeeded") is True
+            and not reconciler_report.get("reasons")
+            and heartbeat_fresh
+            and (valid_lock or not live_process_running)
+            and reconciler_report.get("heartbeat", {}).get("file_alerting_active") is True
+        )
+
     events: List[Dict[str, Any]] = []
     if blocker["duplicate_live_process_risk"]:
         events.append(_event(
@@ -94,19 +117,33 @@ def build_report(
             {"pids": blocker["live_process_pids"]},
         ))
     if blocker["last_close_failure"]:
+        failure = blocker["last_close_failure"]
+        failure_symbol = failure.get("symbol")
+        # Active if reconciler not clean OR symbol still in local open OR open broker orders
+        failure_active = (
+            not reconciler_clean
+            or failure_symbol in local_open_positions
+            or any(str(o.get("symbol")).upper() == str(failure_symbol).upper() for o in broker_open_orders)
+        )
         events.append(_event(
-            "CRITICAL",
+            "CRITICAL" if failure_active else "INFO",
             "failed_close",
             "A failed close warning exists in the Coinbase journal.",
-            blocker["last_close_failure"],
+            failure,
         ))
     age_hours = blocker.get("blocker_age_hours")
     if age_hours is not None and age_hours >= 0.5:
+        primary_symbol = blocker.get("primary_blocker_symbol")
+        # Active if reconciler not clean OR primary symbol still in local open
+        blocker_active = (
+            not reconciler_clean
+            or (primary_symbol and primary_symbol in local_open_positions)
+        )
         events.append(_event(
-            "CRITICAL",
+            "CRITICAL" if blocker_active else "INFO",
             "manual_review_blocker",
             "Manual-review blocker has exceeded 30 minutes.",
-            {"symbol": blocker["primary_blocker_symbol"], "age_hours": age_hours},
+            {"symbol": primary_symbol, "age_hours": age_hours},
         ))
     elif age_hours is not None and age_hours >= 0.25:
         events.append(_event(
@@ -123,8 +160,11 @@ def build_report(
             {"heartbeat_age_minutes": heartbeat_age, "input_status": heartbeat_error or "loaded"},
         ))
     if no_round_trip_24h:
+        level = "MEDIUM"
+        if reconciler_clean and heartbeat.get("trades_today", 0) == 0:
+            level = "INFO"
         events.append(_event(
-            "MEDIUM",
+            level,
             "no_round_trip_24h",
             "No completed round-trip exit is visible in the last 24 hours.",
             {"last_exit_age_minutes": last_exit_age},
@@ -214,13 +254,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--now")
     parser.add_argument("--emit-alerts", action="store_true")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--reconciler-report", type=Path, help="Path to JSON reconciler report")
     args = parser.parse_args(argv)
     now = parse_time(args.now) if args.now else datetime.now(timezone.utc)
+
+    reconciler_report = None
+    if args.reconciler_report:
+        reconciler_report, err = read_json(args.reconciler_report, None)
+        if err:
+            # If we fail to read it, we treat it as None (not clean)
+            reconciler_report = None
+
     report = build_report(
         repo_root=args.repo_root.resolve(),
         process_snapshot=args.process_snapshot.resolve() if args.process_snapshot else None,
         now=now,
         emit_alerts=args.emit_alerts,
+        reconciler_report=reconciler_report,
     )
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
