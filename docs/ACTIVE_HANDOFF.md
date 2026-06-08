@@ -1,5 +1,20 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+## Latest Status — P2-034B (2026-06-08)
+
+P2-034B completed. Broker read-only parity is clean enough to move to heartbeat/watchdog refresh,
+but restart remains NO_GO because `heartbeat_not_fresh` and `file_alerting_not_active` remain
+unresolved. `STOP_TRADING` must remain present.
+
+See full evidence: [docs/P2_034B_BROKER_READONLY_EVIDENCE.md](P2_034B_BROKER_READONLY_EVIDENCE.md)
+
+- `runtime/STOP_TRADING` present — do not remove.
+- No live trading restart approved.
+- No order mutation was performed in P2-034A or P2-034B.
+- Next step: **P2-034C** heartbeat/watchdog refresh evidence gate (read-only diagnostics only).
+
+---
+
 ## P2-029C — Broker Reconciliation, Alerts, Heartbeat, And Atomic Locking
 
 Branch: `review/p2-029c-broker-reconcile-alert-lock-hardening`.
