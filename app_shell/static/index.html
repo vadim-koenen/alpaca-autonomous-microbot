@@ -87,6 +87,43 @@
                 <button disabled>Liquidate All</button>
             </div>
         </section>
+
+        <section id="runtime-truth">
+            <h2>Runtime Truth</h2>
+            <div class="card runtime-truth-card">
+                <div class="grid">
+                    <div>
+                        <label>STOP_TRADING</label>
+                        <p id="truth-stop-trading">...</p>
+                    </div>
+                    <div>
+                        <label>Live Process</label>
+                        <p id="truth-live-process">...</p>
+                    </div>
+                    <div>
+                        <label>Read-only</label>
+                        <p id="truth-read-only">...</p>
+                    </div>
+                    <div>
+                        <label>Broker Calls</label>
+                        <p id="truth-broker-calls">...</p>
+                    </div>
+                    <div>
+                        <label>Order Mutation</label>
+                        <p id="truth-order-mutation">...</p>
+                    </div>
+                    <div>
+                        <label>State Mutation</label>
+                        <p id="truth-state-mutation">...</p>
+                    </div>
+                </div>
+                <details>
+                    <summary>Runtime file truth</summary>
+                    <pre id="truth-json"></pre>
+                </details>
+            </div>
+        </section>
+
     </main>
 
     <footer>

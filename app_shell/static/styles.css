@@ -103,3 +103,12 @@ footer {
 .status-on { color: var(--accent-color); }
 .status-off { color: var(--danger-color); }
 .status-warn { color: var(--warn-color); }
+
+.runtime-truth-card details {
+    margin-top: 1rem;
+}
+
+.runtime-truth-card pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+}

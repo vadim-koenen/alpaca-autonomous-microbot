@@ -21,6 +21,59 @@ function formatCurrency(value) {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
 }
 
+
+const RUNTIME_TRUTH_LABELS = {
+    title: 'Runtime Truth',
+    stopTrading: 'STOP_TRADING',
+    liveProcess: 'Live Process',
+    mode: 'Read-only',
+    endpoint: '/api/runtime-truth',
+};
+
+function updateRuntimeTruth(runtimeTruth) {
+    if (!runtimeTruth || runtimeTruth.error) {
+        updateElement('truth-stop-trading', 'Unavailable', 'status-off');
+        return;
+    }
+
+    const guards = runtimeTruth.guards || {};
+    updateElement(
+        'truth-stop-trading',
+        guards.stop_trading_present ? 'Present' : 'Absent',
+        guards.stop_trading_present ? 'status-warn' : 'status-on'
+    );
+    updateElement(
+        'truth-live-process',
+        guards.live_process_detected ? 'Detected' : 'Not detected',
+        guards.live_process_detected ? 'status-warn' : 'status-on'
+    );
+    updateElement(
+        'truth-read-only',
+        runtimeTruth.read_only ? 'Read-only' : 'Writable / unexpected',
+        runtimeTruth.read_only ? 'status-on' : 'status-off'
+    );
+    updateElement(
+        'truth-broker-calls',
+        runtimeTruth.broker_calls_made ? 'Made / unexpected' : 'None',
+        runtimeTruth.broker_calls_made ? 'status-off' : 'status-on'
+    );
+    updateElement(
+        'truth-order-mutation',
+        runtimeTruth.order_mutation_performed ? 'Performed / unexpected' : 'None',
+        runtimeTruth.order_mutation_performed ? 'status-off' : 'status-on'
+    );
+    updateElement(
+        'truth-state-mutation',
+        runtimeTruth.state_mutation_performed ? 'Performed / unexpected' : 'None',
+        runtimeTruth.state_mutation_performed ? 'status-off' : 'status-on'
+    );
+
+    const truthJson = document.getElementById('truth-json');
+    if (truthJson) {
+        truthJson.textContent = JSON.stringify(runtimeTruth.runtime_files || {}, null, 2);
+    }
+}
+
 async function refreshDashboard() {
     const status = await fetchData('/api/status');
     const heartbeat = await fetchData('/api/heartbeat/coinbase');
@@ -28,6 +81,7 @@ async function refreshDashboard() {
     const watchdog = await fetchData('/api/watchdog/latest');
     const reconciler = await fetchData('/api/reconciler/latest');
     const diagnostics = await fetchData('/api/diagnostics/latest');
+    const runtimeTruth = await fetchData(RUNTIME_TRUTH_LABELS.endpoint);
 
     // Status
     updateElement('stop-trading-status', status.stop_trading_present ? 'PRESENT' : 'MISSING', 
@@ -64,6 +118,9 @@ async function refreshDashboard() {
         reconciler.resume_micro_trading_go_no_go === 'GO' ? 'status-on' : 'status-off');
     updateElement('diag-action', diagnostics.recommended_next_action || 'N/A');
     document.getElementById('diag-json').textContent = JSON.stringify(diagnostics, null, 2);
+
+    // Runtime Truth
+    updateRuntimeTruth(runtimeTruth);
 }
 
 // Initial refresh

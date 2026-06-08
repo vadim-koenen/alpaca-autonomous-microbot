@@ -20,6 +20,11 @@ PORT = 8080
 REPO_ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = REPO_ROOT / "app_shell" / "static"
 
+try:
+    from app_shell.runtime_truth import build_runtime_truth
+except ModuleNotFoundError:
+    from runtime_truth import build_runtime_truth
+
 class DashboardAPI:
     def __init__(self, repo_root: Path):
         self.repo_root = repo_root
@@ -90,6 +95,9 @@ class DashboardAPI:
             "buying_power": hb.get("buying_power", 0.0)
         }
 
+    def get_runtime_truth(self) -> Dict[str, Any]:
+        return build_runtime_truth(self.repo_root)
+
     def _read_json_safe(self, path: Path) -> Dict[str, Any]:
         if not path or not path.exists():
             return {}
@@ -131,6 +139,7 @@ class ReadOnlyDashboardHandler(http.server.SimpleHTTPRequestHandler):
             "/api/reconciler/latest": self.api.get_latest_reconciler,
             "/api/diagnostics/latest": self.api.get_latest_diagnostics,
             "/api/profit-readout": self.api.get_profit_readout,
+            "/api/runtime-truth": self.api.get_runtime_truth,
         }
 
         handler = routes.get(self.path)
