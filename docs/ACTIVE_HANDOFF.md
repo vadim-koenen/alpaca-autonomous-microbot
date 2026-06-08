@@ -2725,7 +2725,7 @@ Profit / momentum readout:
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-06-05 08:12 — automated sync; Coinbase equity $55.27, 0 bot-tracked positions, SOL/USD external inventory, 0 proposals/scan, 0 errors in last hour. Git HEAD 33c1ce2 (P2-025Y). Alpaca bot running, crypto=INACTIVE (needs Alpaca dashboard crypto agreement signed). No strategy/order/risk/symbol/cap/config/runtime behavior changed.
+**Last updated:** 2026-06-08 09:01 — automated sync; KILL SWITCH ACTIVE on both bots (runtime/STOP_TRADING present). Last Coinbase equity unknown (heartbeat missing); last known $55.27 on 2026-06-05. 0 bot-tracked positions. Last trade: 2026-06-07T20:43:55Z BTC/USD exit (max hold exceeded 458.3min). Git HEAD 6c9be2c (P2-032C). No scanning — kill switch blocks all trading.
 **Updated by:** Grok (per P2-014A ritual)
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** review/p2-014a-coinbase-live-status-and-reconciliation-preflight
@@ -2799,18 +2799,18 @@ ALWAYS:
 
 | Item | Value |
 |---|---|
-| Coinbase equity | $55.27 |
-| Coinbase status | RUNNING_BY_LAUNCHD (last loop 2026-06-05 08:10 UTC, status=running, halt=none) |
-| Alpaca equity | $10.00 |
-| Alpaca status | RUNNING_BY_LAUNCHD (scanning equities; crypto=INACTIVE — needs crypto agreement signed in Alpaca dashboard) |
-| Kill switch | INACTIVE (trading allowed) |
-| Open positions | 0 bot-tracked (SOL/USD seen at broker, classified external/staked/non-bot inventory; not rehydrated) |
-| Last Coinbase trade | 2026-05-25T11:49:55 UTC (ALGO/USD SKIPPED — max trades/day) |
-| Last Coinbase exit | 2026-05-25T11:19:39 UTC (ETH/USD, recovered/max-hold, -0.12%) |
-| Trades today | 0 |
-| Current regime | downtrend dominant (BTC/ETH/AVAX/DOGE/LINK all downtrend; ADA/LTC in range; 0 proposals/scan) |
-| Live track record | 26 completed exits, 11 win / 15 loss (42.3% win rate), profit factor 1.505 (journal reset since prior check) |
-| Capital-add gates | 3/5 passing (Gate 1 trade-count ✅, Gate 2 win-rate ❌ 42.3%<50%, Gate 3 PF ✅ 1.505≥1.3, Gate 4 days-live ❌ 12d<14d, Gate 5 consec-loss ✅ 2≤2) |
+| Coinbase equity | unknown — heartbeat missing; last known $55.27 (2026-06-05) |
+| Coinbase status | KILL_SWITCH_ACTIVE — runtime/STOP_TRADING file present; bot loops immediately on each launchd restart |
+| Alpaca equity | unknown — kill switch also active on Alpaca bot |
+| Alpaca status | KILL_SWITCH_ACTIVE — runtime/STOP_TRADING file present |
+| Kill switch | ACTIVE — both bots blocked (remove runtime/STOP_TRADING to allow trading) |
+| Open positions | 0 bot-tracked (last exit BTC/USD 2026-06-07T20:43:55Z; emergency SOL/USD halt on kill switch detection) |
+| Last Coinbase trade | 2026-06-07T20:43:55 UTC (BTC/USD EXIT PLACED — max hold time 458.3min exceeded) |
+| Last Coinbase exit | 2026-06-07T20:43:55 UTC (BTC/USD coinbase_exploration, max-hold, gross -0.07%) |
+| Trades today | 0 (kill switch active since at least 2026-06-08 08:57 UTC) |
+| Current regime | KILL_SWITCH_ACTIVE — no scanning occurring |
+| Live track record | see journal.csv; last journal entries 2026-06-07 (BTC/USD exit + SOL/USD emergency halt error) |
+| Capital-add gates | n/a — kill switch active, no live trading |
 
 ---
 
@@ -3074,3 +3074,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - Notes: Bot running cleanly, scanning every ~60s with 0 trade proposals. Journal appears reset since June 3 check (282 lines, exits only May 24–25); new track record 26 exits, 11W/15L, 42.3% WR, PF=1.505 — dramatically better than prior 2.1% WR. Gate 2 (WR≥50%) and Gate 4 (14 days live — only 12d elapsed since first trade 2026-05-24) still failing. Alpaca bot running but crypto=INACTIVE (user must sign crypto agreement in Alpaca dashboard); equities scanning but all quotes stale (market closed). Latest git: 33c1ce2 (P2-025Y). No RED flags beyond sitting-out downtrend and journal reset discrepancy worth investigating.
 
 - 2026-06-05 08:12 | equity=$55.27 | positions=0 | regime=no_proposals | errors=0 | head=33c1ce2
+- 2026-06-08 09:01 | equity=unknown(kill_switch) | positions=0 | regime=kill_switch_active | errors=CRITICAL(continuous_kill_switch_loop) | head=6c9be2c
