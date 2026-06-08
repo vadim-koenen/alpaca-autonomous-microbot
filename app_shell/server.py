@@ -10,6 +10,7 @@ import http.server
 import json
 import os
 import socketserver
+import ssl
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -153,9 +154,35 @@ class ReadOnlyDashboardHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(content)
 
+
+class ReusableTCPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
+
+def _truthy(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def run_server():
-    print(f"Starting read-only app shell foundation on http://localhost:{PORT}")
-    with socketserver.TCPServer(("", PORT), ReadOnlyDashboardHandler) as httpd:
+    host = os.environ.get("APP_SHELL_HOST", "127.0.0.1")
+    https_enabled = _truthy(os.environ.get("APP_SHELL_HTTPS"))
+    scheme = "https" if https_enabled else "http"
+
+    print(f"Starting read-only app shell foundation on {scheme}://{host}:{PORT}")
+
+    with ReusableTCPServer((host, PORT), ReadOnlyDashboardHandler) as httpd:
+        if https_enabled:
+            cert_file = os.environ.get("APP_SHELL_CERT_FILE")
+            key_file = os.environ.get("APP_SHELL_KEY_FILE")
+            if not cert_file or not key_file:
+                raise RuntimeError(
+                    "APP_SHELL_HTTPS=true requires APP_SHELL_CERT_FILE and APP_SHELL_KEY_FILE"
+                )
+
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.load_cert_chain(certfile=cert_file, keyfile=key_file)
+            httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
+
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

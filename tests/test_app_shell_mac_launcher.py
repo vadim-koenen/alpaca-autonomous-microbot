@@ -23,7 +23,7 @@ def test_launcher_starts_existing_app_shell_script():
     assert "scripts/run_app_shell.py" in text
     assert 'PYTHONPATH=".:scripts"' in text
     assert "reports/app_shell" in text
-    assert "http://localhost:${PORT}" in text
+    assert ("http://localhost:${PORT}" in text) or ('URL="${SCHEME}://localhost:${PORT}"' in text)
     assert 'open "$URL"' in text
     assert "lsof -iTCP" in text
 

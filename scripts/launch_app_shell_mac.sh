@@ -5,7 +5,11 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 PORT="${APP_SHELL_PORT:-8080}"
-URL="http://localhost:${PORT}"
+SCHEME="http"
+if [[ "${APP_SHELL_HTTPS:-}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  SCHEME="https"
+fi
+URL="${SCHEME}://localhost:${PORT}"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOG_DIR="reports/app_shell"
 LOG_FILE="${LOG_DIR}/app_shell_${TIMESTAMP}.log"
