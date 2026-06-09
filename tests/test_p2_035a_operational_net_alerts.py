@@ -47,6 +47,39 @@ def test_dry_run_macos_notification_does_not_send_by_default(monkeypatch):
     assert status == "dry_run"
 
 
+def test_smoke_script_dry_run_compliance(monkeypatch, capsys):
+    import scripts.p2_035a_operational_net_smoke as smoke
+
+    # 1. Default (no env vars) -> dry run
+    monkeypatch.delenv("ENABLE_MACOS_ALERTS", raising=False)
+    monkeypatch.delenv("P2_035A_SMOKE_SEND_MACOS_ALERTS", raising=False)
+    smoke.test_macos_notification()
+    captured = capsys.readouterr().out
+    assert "macOS dry-run result: dry_run" in captured
+    assert "Live notification test skipped by default." in captured
+
+    # 2. Even if ENABLE_MACOS_ALERTS=1, the smoke script resets it to dry run for its first test,
+    # and leaves it off if P2_035A_SMOKE_SEND_MACOS_ALERTS is not set.
+    monkeypatch.setenv("ENABLE_MACOS_ALERTS", "1")
+    smoke.test_macos_notification()
+    captured = capsys.readouterr().out
+    assert "macOS dry-run result: dry_run" in captured
+    assert "Live notification test skipped by default." in captured
+
+    # 3. Setting P2_035A_SMOKE_SEND_MACOS_ALERTS=1 allows live notification
+    monkeypatch.setenv("P2_035A_SMOKE_SEND_MACOS_ALERTS", "1")
+    # For testing, we mock _send_macos_notification so we don't actually trigger osascript during pytest
+    original_send = smoke._send_macos_notification
+    def mock_send(lvl, msg):
+        if not os.environ.get("ENABLE_MACOS_ALERTS") == "1":
+            return "dry_run"
+        return "sent_mock"
+    monkeypatch.setattr(smoke, "_send_macos_notification", mock_send)
+    smoke.test_macos_notification()
+    captured = capsys.readouterr().out
+    assert "Live run result: sent_mock" in captured
+
+
 def test_stale_heartbeat_triggers_alert(tmp_path):
     root = setup_repo(tmp_path)
     now = datetime(2026, 6, 7, 12, tzinfo=timezone.utc)
