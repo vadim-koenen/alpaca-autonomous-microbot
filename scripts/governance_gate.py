@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
 Governance Automation for alpaca-autonomous-microbot patches.
+
+Tip: If this script is required but missing from `main`, use `scripts/governance_bootstrap.py` to start your new patch safely.
 """
 import argparse
 import subprocess
