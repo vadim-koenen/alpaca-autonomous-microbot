@@ -545,6 +545,7 @@ def main() -> None:
                 _session,
                 permissions,
                 last_error="process_lock_ownership_lost",
+                loop_count=cycle_count,
             )
             _running = False
             break
@@ -901,9 +902,9 @@ def main() -> None:
         except Exception as e:
             _session.api_error_count += 1
             logger.error(f"Unexpected error in main loop cycle {cycle_count}: {e}", exc_info=True)
-            _write_heartbeat(broker_name, mode, _session, permissions if 'permissions' in dir() else None, last_error=str(e))
+            _write_heartbeat(broker_name, mode, _session, permissions if 'permissions' in dir() else None, last_error=str(e), loop_count=cycle_count)
         else:
-            _write_heartbeat(broker_name, mode, _session, permissions)
+            _write_heartbeat(broker_name, mode, _session, permissions, loop_count=cycle_count)
             store.record_event(
                 event_type="cycle_complete",
                 severity="info",
@@ -1099,6 +1100,7 @@ def _write_heartbeat(
     session: "SessionState | None",
     permissions: "AccountPermissions | None",
     last_error: str | None = None,
+    loop_count: int | None = None,
 ) -> None:
     """
     Write a heartbeat JSON file every loop cycle.
@@ -1135,6 +1137,7 @@ def _write_heartbeat(
             "risk_halt_active": bool(session and session.halted),
             "halt_reason": (session.halt_reason if session and session.halted else None),
             "last_error": last_error,
+            "loop_count": loop_count,
         }
 
         tmp = hb_file.with_suffix(".tmp")

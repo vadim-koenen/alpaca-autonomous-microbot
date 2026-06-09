@@ -86,6 +86,39 @@ def build_report(
     stale_lock = paths["lock"].exists() and not lock_active
     valid_lock = lock_active and (not process_pids or lock_pid in process_pids)
 
+    state_path = repo_root / "runtime" / "watchdog_state.json"
+    watchdog_state = {}
+    if state_path.exists():
+        try:
+            watchdog_state = json.loads(state_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    current_time = heartbeat.get("last_loop_time")
+    current_count = heartbeat.get("loop_count")
+    loop_not_advancing_alert = False
+    if current_time and current_count is not None:
+        prev_time = watchdog_state.get("last_loop_time")
+        prev_count = watchdog_state.get("loop_count")
+        if prev_time and prev_time != current_time and prev_count == current_count:
+            loop_not_advancing_alert = True
+        
+        # Write back updated state only if no heartbeat error
+        if not heartbeat_error:
+            try:
+                state_path.parent.mkdir(parents=True, exist_ok=True)
+                state_path.write_text(json.dumps({
+                    "last_loop_time": current_time,
+                    "loop_count": current_count,
+                    "updated_at": now.isoformat(),
+                }, indent=2), encoding="utf-8")
+            except Exception:
+                pass
+
+    lock_file_exists = paths["lock"].exists()
+    lock_pid_missing = lock_file_exists and lock_pid is None
+    lock_owner_mismatch = bool(lock_pid is not None and process_pids and lock_pid not in process_pids)
+
     # Reconciler hygiene: determine if we are clean enough to downgrade stale artifacts
     local_open_positions = set()
     broker_open_orders = []
@@ -115,6 +148,35 @@ def build_report(
         )
 
     events: List[Dict[str, Any]] = []
+    if loop_not_advancing_alert:
+        events.append(_event(
+            "CRITICAL",
+            "loop_not_advancing",
+            "Trading loop is not advancing while heartbeat timestamp is updated.",
+            {"last_loop_time": current_time, "loop_count": current_count}
+        ))
+    api_errors = heartbeat.get("api_errors_this_session", 0)
+    if api_errors >= 5:
+        events.append(_event(
+            "HIGH",
+            "repeated_errors_detected",
+            f"API error count in session has crossed threshold: {api_errors}.",
+            {"api_errors_this_session": api_errors, "last_error": heartbeat.get("last_error")}
+        ))
+    if lock_pid_missing:
+        events.append(_event(
+            "HIGH",
+            "lock_pid_missing",
+            "Lock file exists but does not contain a valid PID.",
+            {"lock_path": str(paths["lock"])}
+        ))
+    if lock_owner_mismatch:
+        events.append(_event(
+            "CRITICAL",
+            "lock_owner_mismatch",
+            "Lock PID mismatch: lock PID does not match the running process PID.",
+            {"lock_pid": lock_pid, "running_pids": process_pids}
+        ))
     if blocker["duplicate_live_process_risk"]:
         events.append(_event(
             "CRITICAL",
@@ -235,6 +297,10 @@ def build_report(
         "runtime_lock_active": lock_active,
         "lock_health": "OK" if valid_lock or not live_process_running else "INVALID",
         "stale_runtime_lock": stale_lock,
+        "lock_pid_missing": lock_pid_missing,
+        "lock_owner_mismatch": lock_owner_mismatch,
+        "loop_not_advancing_alert": loop_not_advancing_alert,
+        "api_errors_this_session": api_errors,
         "no_completed_round_trip_24h": no_round_trip_24h,
         "failed_close_warning": blocker["last_close_failure"],
         "kill_switch_present_while_running": blocker["kill_switch_present"] and live_process_running,

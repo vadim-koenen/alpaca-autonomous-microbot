@@ -121,7 +121,10 @@ def test_live_process_without_valid_lock_or_heartbeat_is_critical(tmp_path):
 
 
 def test_scripts_have_no_process_control_or_broker_hooks():
-    combined = SCRIPT.read_text(encoding="utf-8") + ALERT_SCRIPT.read_text(encoding="utf-8")
+    watchdog_content = SCRIPT.read_text(encoding="utf-8")
+    alert_content = ALERT_SCRIPT.read_text(encoding="utf-8")
+    
+    # Check watchdog script (no subprocess allowed)
     for token in (
         "subprocess.",
         "os.kill",
@@ -132,4 +135,16 @@ def test_scripts_have_no_process_control_or_broker_hooks():
         "cancel_order",
         "close_position",
     ):
-        assert token not in combined
+        assert token not in watchdog_content
+
+    # Check alert script (subprocess.run is allowed for osascript, but others are not)
+    for token in (
+        "os.kill",
+        "launchctl",
+        "BrokerCoinbase",
+        "create_order",
+        "place_order",
+        "cancel_order",
+        "close_position",
+    ):
+        assert token not in alert_content

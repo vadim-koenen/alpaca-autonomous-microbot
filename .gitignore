@@ -54,6 +54,7 @@ htmlcov/
 # Runtime / live bot state
 logs/
 runtime/
+runtime/watchdog_state.json
 state/
 state.bak*/
 *.lock

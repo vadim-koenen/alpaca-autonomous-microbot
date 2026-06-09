@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -15,10 +17,21 @@ SECRET_KEY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+ACCOUNT_KEY_PATTERN = re.compile(
+    r"(account[_-]?id|account[_-]?number|account[_-]?num|account)",
+    re.IGNORECASE,
+)
+
 
 def _redact(value: Any, key: str = "") -> Any:
     if SECRET_KEY_PATTERN.search(key):
         return "<REDACTED>"
+    if ACCOUNT_KEY_PATTERN.search(key) and value is not None:
+        if isinstance(value, str):
+            if len(value) > 4:
+                return "****" + value[-4:]
+            return "[REDACTED_ACCOUNT]"
+        return "[REDACTED_ACCOUNT]"
     if isinstance(value, dict):
         return {str(k): _redact(v, str(k)) for k, v in value.items()}
     if isinstance(value, list):
@@ -31,7 +44,38 @@ def _redact(value: Any, key: str = "") -> Any:
             r"\1=<REDACTED>",
             value,
         )
+        # Redact UUID-like patterns
+        value = re.sub(
+            r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{8}([0-9a-fA-F]{4})\b",
+            r"****\1",
+            value,
+        )
     return value
+
+
+def _send_macos_notification(level: str, message: str, context: Optional[Dict[str, Any]] = None) -> str:
+    if os.environ.get("ENABLE_MACOS_ALERTS") != "1":
+        return "dry_run"
+
+    # AppleScript string escaping
+    def escape(s: str) -> str:
+        return str(s).replace("\\", "\\\\").replace('"', '\\"')
+
+    esc_msg = escape(message)
+    esc_title = escape(f"Bot Alert: {level}")
+    code = (context or {}).get("code", "Notification") if context else "Notification"
+    esc_subtitle = escape(str(code))
+
+    script = f'display notification "{esc_msg}" with title "{esc_title}" subtitle "{esc_subtitle}"'
+    try:
+        import subprocess
+        res = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, check=False, timeout=5)
+        if res.returncode == 0:
+            return "sent"
+        else:
+            return f"failed_code_{res.returncode}"
+    except Exception as e:
+        return f"failed: {e}"
 
 
 def alert(
@@ -54,9 +98,14 @@ def alert(
         "message": str(_redact(message)),
         "context": _redact(context or {}),
     }
+    
+    # Send macOS notification
+    macos_status = _send_macos_notification(payload["level"], payload["message"], payload["context"])
+
     result = {
         "file_alert_written": False,
         "email_status": "email_not_configured",
+        "macos_notification_status": macos_status,
         "jsonl_path": str(jsonl_path),
         "text_path": str(text_path),
         "payload": payload,
@@ -77,3 +126,4 @@ def alert(
 
 
 __all__ = ["alert"]
+
