@@ -2740,7 +2740,7 @@ Profit / momentum readout:
 <!-- This file is the shared context layer between Claude (advisor) and ChatGPT/Copilot (executor). -->
 <!-- Update this file after every session. Both AIs read from here. Do not let it go stale. -->
 
-**Last updated:** 2026-06-08 17:04 — automated sync; KILL SWITCH ACTIVE on both bots (runtime/STOP_TRADING present). Last Coinbase equity unknown (heartbeat missing); last known $55.27 on 2026-06-05. 0 bot-tracked positions. Last trade: 2026-06-07T20:43:55Z BTC/USD exit (max hold exceeded 458.3min). Git HEAD 2ac2df9 (P2-034B). No scanning — kill switch blocks all trading.
+**Last updated:** 2026-06-08 21:05 — automated sync; KILL SWITCH ACTIVE on both bots (runtime/STOP_TRADING present). Coinbase equity unknown (heartbeat missing); last known $55.27 on 2026-06-05. 0 bot-tracked positions. Last trade: 2026-06-07T20:43:55Z BTC/USD exit (max hold exceeded 458.3min). Git HEAD f903731. Logs stale since 16:05 — launchd may have throttled restarts.
 **Updated by:** Grok (per P2-014A ritual)
 **Repo:** https://github.com/vadim-koenen/alpaca-autonomous-microbot.git  
 **Branch:** review/p2-014a-coinbase-live-status-and-reconciliation-preflight
@@ -3091,3 +3091,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-06-05 08:12 | equity=$55.27 | positions=0 | regime=no_proposals | errors=0 | head=33c1ce2
 - 2026-06-08 09:01 | equity=unknown(kill_switch) | positions=0 | regime=kill_switch_active | errors=CRITICAL(continuous_kill_switch_loop) | head=6c9be2c
 - 2026-06-08 17:04 | equity=unknown(kill_switch) | positions=0 | regime=kill_switch_active | errors=CRITICAL(continuous_kill_switch_loop) | head=2ac2df9
+- 2026-06-08 21:05 | equity=unknown(kill_switch) | positions=0 | regime=kill_switch_active | errors=0(logs_stale_since_16:05) | head=f903731
