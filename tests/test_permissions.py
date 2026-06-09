@@ -193,3 +193,42 @@ class TestPaperFlag:
         broker = _mock_broker(is_paper=False)
         perms = fetch_permissions(broker)
         assert perms.paper is False
+
+
+class TestAccountIdMasking:
+    """Verify summary() never emits the full account identifier."""
+
+    def test_uuid_is_masked(self):
+        """A full UUID-style account number should be masked to ****XXXX."""
+        perms = AccountPermissions(
+            account_number="d4b97f68-9a92-5fc8-8a7f-b654af62059a",
+            account_status="ACTIVE",
+            equity=59.96,
+            buying_power=53.21,
+        )
+        s = perms.summary()
+        assert "d4b97f68" not in s, "Full UUID prefix must not appear in summary"
+        assert "b654af62059a" not in s, "Full UUID suffix must not appear in summary"
+        assert "****059a" in s, "Masked form ****XXXX must appear"
+
+    def test_short_account_number_redacted(self):
+        """Account numbers <= 4 chars should show [REDACTED]."""
+        perms = AccountPermissions(account_number="AB12")
+        s = perms.summary()
+        assert "AB12" not in s
+        assert "[REDACTED]" in s
+
+    def test_empty_account_number_redacted(self):
+        """Empty account number should show [REDACTED]."""
+        perms = AccountPermissions(account_number="")
+        s = perms.summary()
+        assert "[REDACTED]" in s
+
+    def test_fetched_permissions_summary_is_masked(self):
+        """Integration: fetch_permissions() → summary() must mask."""
+        broker = _mock_broker(account_number="11111111-2222-3333-4444-555555555555")
+        perms = fetch_permissions(broker)
+        s = perms.summary()
+        assert "11111111" not in s
+        assert "****5555" in s
+

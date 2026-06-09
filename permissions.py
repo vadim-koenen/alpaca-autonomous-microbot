@@ -47,8 +47,13 @@ class AccountPermissions:
         )
 
     def summary(self) -> str:
+        # Mask account number — never emit full ID in logs
+        if self.account_number and len(self.account_number) > 4:
+            masked = "****" + self.account_number[-4:]
+        else:
+            masked = "[REDACTED]"
         return (
-            f"Account: {self.account_number} | status={self.account_status} | "
+            f"Account: {masked} | status={self.account_status} | "
             f"equity=${self.equity:.2f} | bp=${self.buying_power:.2f} | "
             f"paper={self.paper} | crypto={self.crypto_enabled}(status={self.crypto_status}) | "
             f"options={self.options_enabled}(L{self.options_level}) | "
