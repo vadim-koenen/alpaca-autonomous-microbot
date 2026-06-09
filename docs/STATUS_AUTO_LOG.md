@@ -1,0 +1,1 @@
+- 2026-06-09T12:57:29Z | cb_eq=59.8793 pos=0 pnl=-0.0619 | AUDIT_VERDICT=WARN | cycles=51 wins=1 win_rate=2.0% cumulative_net_usd=-1.4405 | head=f3d8afe
