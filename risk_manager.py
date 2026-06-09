@@ -154,6 +154,7 @@ class RiskManager:
             self._check_controlled_fee_aware_pilot,
             self._check_crypto_manual_review_gate,
             self._check_total_crypto_exposure,
+            self._check_mandatory_fee_edge_gate,
             # Session limits
             self._check_daily_loss_limit,
             self._check_consecutive_losses,
@@ -637,6 +638,70 @@ class RiskManager:
                 f"need ${p.notional:.2f}, safe_bp=${safe_bp:.2f} "
                 f"(raw_bp=${s.buying_power:.2f})"
             )
+        return True, ""
+
+    def _check_mandatory_fee_edge_gate(self, p, s, mode):
+        """
+        MANDATORY config-driven fee-edge gate for ALL crypto entries.
+
+        Unlike _check_fee_hurdle (opt-in via proposal.meta), this gate
+        reads fee/spread/slippage rates directly from config and derives
+        the expected gross move from the proposal's take-profit distance.
+        No strategy can silently bypass this check by omitting metadata.
+
+        Rejects when:
+            expected_gross_move < taker_fee*2 + spread + slippage + safety_margin
+
+        Uses worst-case (taker both sides) to be conservative.
+        """
+        if p.asset_class != "crypto":
+            return True, ""
+
+        # Only gate entries (buy / short side)
+        if p.side not in ("buy", "short"):
+            return True, ""
+
+        # Derive entry price from proposal
+        entry = p.limit_price if p.limit_price > 0 else p.price
+        if entry <= 0:
+            return False, "fee_edge_gate: no valid entry price to evaluate"
+
+        tp = p.take_profit_price
+        if tp <= 0 or tp <= entry:
+            # No valid take-profit — cannot prove edge clears fees.
+            # _check_exit_plan will catch missing TP separately; here we
+            # only block because we can't compute the expected move.
+            return False, "fee_edge_gate: take_profit missing or <= entry — cannot verify fee edge"
+
+        expected_gross_move_pct = ((tp - entry) / entry) * 100.0  # in %
+
+        # Config-driven cost rates
+        taker_fee = self._c("fees", "taker_fee_pct", default=0.012)  # decimal
+        spread_pct = safe_float(calc_spread_pct(p.bid, p.ask)) if p.bid > 0 and p.ask > 0 else 0.0
+        slippage = self._c("crypto", "slippage_estimate_pct", default=0.05)  # already in %
+        safety_margin = self._c("crypto", "fee_edge_safety_margin_pct", default=0.005) * 100.0  # decimal → %
+
+        worst_rt_fee_pct = taker_fee * 2 * 100.0  # decimal → %
+        total_cost_pct = worst_rt_fee_pct + spread_pct + slippage + safety_margin
+
+        if expected_gross_move_pct < total_cost_pct:
+            logger.warning(
+                f"ENTRY_SKIPPED fee_edge_gate "
+                f"strategy={p.strategy} symbol={p.symbol} "
+                f"expected_move={expected_gross_move_pct:.3f}% "
+                f"< total_cost={total_cost_pct:.3f}% "
+                f"(rt_fee={worst_rt_fee_pct:.3f}% "
+                f"spread={spread_pct:.3f}% "
+                f"slippage={slippage:.3f}% "
+                f"safety={safety_margin:.3f}%)"
+            )
+            return False, (
+                f"fee_edge_gate: expected_move {expected_gross_move_pct:.3f}% "
+                f"< total_cost {total_cost_pct:.3f}% "
+                f"(fees={worst_rt_fee_pct:.3f}% spread={spread_pct:.3f}% "
+                f"slip={slippage:.3f}% margin={safety_margin:.3f}%)"
+            )
+
         return True, ""
 
     def _check_fee_hurdle(self, p, s, mode):

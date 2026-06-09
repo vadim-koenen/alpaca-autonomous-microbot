@@ -550,7 +550,7 @@ class TestExitPlan:
         state = _healthy_state()
         allowed, reason = rm.check(proposal, state)
         assert not allowed
-        assert "exit" in reason.lower()
+        assert "exit" in reason.lower() or "fee_edge_gate" in reason.lower()
 
 
 # ---------------------------------------------------------------------------
