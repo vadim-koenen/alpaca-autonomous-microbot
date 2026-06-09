@@ -29,15 +29,19 @@ def test_macos_notification():
     # Force dry run
     os.environ.pop("ENABLE_MACOS_ALERTS", None)
     res = _send_macos_notification("INFO", "Dry run smoke test")
-    print(f"Dry run result: {res}")
+    print(f"macOS dry-run result: {res}")
     assert res == "dry_run"
 
-    # Live (if we enable it locally)
-    os.environ["ENABLE_MACOS_ALERTS"] = "1"
-    res = _send_macos_notification("INFO", "P2-035A Smoke Test Notification")
-    print(f"Live run result: {res}")
-    if res.startswith("failed"):
-        print("Warning: osascript notification failed (expected if running headless/SSH).")
+    # Live (only if explicitly enabled via P2_035A_SMOKE_SEND_MACOS_ALERTS)
+    if os.environ.get("P2_035A_SMOKE_SEND_MACOS_ALERTS") == "1":
+        os.environ["ENABLE_MACOS_ALERTS"] = "1"
+        res = _send_macos_notification("INFO", "P2-035A Smoke Test Notification")
+        print(f"Live run result: {res}")
+        if res.startswith("failed"):
+            print("Warning: osascript notification failed (expected if running headless/SSH).")
+    else:
+        print("Live notification test skipped by default.")
+
     print("macOS Notification checks completed.\n")
 
 
