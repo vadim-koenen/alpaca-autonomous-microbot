@@ -3159,3 +3159,16 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - No live asset expansion
 - No notional increase
 - No online learning
+
+## 2026-06-11 P2-039A Asset Universe / Fee Hurdle / Liquidity Feasibility Scanner
+
+**P2-039A Status:**
+- branch: `review/p2-039a-asset-universe-fee-hurdle-scanner`
+- P2-038C merged to main at `0e3a290f396d29e19dc9477bfa56e84f8ae5da28`
+- P2-039A remains advisory-only/research-only
+- no live asset expansion
+- public fetch performed false
+- candidate assets analyzed: BTC/USD, ETH/USD, SOL/USD, ADA/USD
+- sufficient data status: None
+- insufficient data status: All
+- next actor: GPT merge review for P2-039A
