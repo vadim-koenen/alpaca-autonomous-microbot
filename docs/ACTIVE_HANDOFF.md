@@ -3199,3 +3199,11 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 **Next steps:**
 - Next actor: GPT review for merge decision on P2-039C
 - Next recommended patch: Public historical data fetching (e.g. P2-039D) to feed into this backfill extractor.
+
+## 2026-06-11 P2-039C Local OHLCV Backfill Extractor MERGED
+
+**P2-039C Status:**
+- branch: `main`
+- Merged P2-039C deterministic local backfill extractor.
+- Validated purely local operation with PyArrow and DuckDB.
+- Verified test suite passes locally on `main` without generating forbidden artifacts.
