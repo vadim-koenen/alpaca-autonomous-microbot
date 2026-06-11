@@ -1,5 +1,9 @@
 # ACTIVE HANDOFF — Alpaca/Coinbase Autonomous Trading Bot
 
+> **North star:** all collaborators (ChatGPT, Claude, Codex, Grok) must check proposals against
+> [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
+> roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
+
 ## Latest Status — P2-034B (2026-06-08)
 
 P2-034B completed. Broker read-only parity is clean enough to move to heartbeat/watchdog refresh,
@@ -3137,3 +3141,21 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 **Next steps:**
 - Next actor: GPT/Codex review for merge decision
 - Next recommended patch: P2-038D Public OHLCV backfill or safe passive path capture design
+
+## 2026-06-11 P2-038C Price-Path Evidence Capture / Replay Readiness Gate
+**P2-038C Status:**
+- branch: `review/p2-038c-price-path-replay-readiness-gate`
+- commit: `f0c5bb3d5354da5f86e2e2e02ec0628172d3cca2`
+- REPLAY_READY=false
+- trades analyzed: 80
+- ready: 0, partial: 80, missing: 0, ambiguous: 0
+- local sources checked: `logs/coinbase_price_path.csv`, `data/ohlcv`
+- public fetch performed: false
+- next actor: GPT review for merge decision
+- **P2-039A parked pending P2-038C merge**
+
+**North Star Summary:**
+- Predictions advisory-first/veto-only later
+- No live asset expansion
+- No notional increase
+- No online learning
