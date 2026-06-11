@@ -32,8 +32,7 @@ DEFAULT_SEARCH_DIRS = [
     REPO_ROOT / "data",
     REPO_ROOT / "logs",
 ]
-DIAG_DIR = REPO_ROOT / "reports" / "diagnostics"
-DIAG_DIR.mkdir(parents=True, exist_ok=True)
+
 
 def _load_json_file(path: pathlib.Path) -> dict | None:
     """Load a single JSON file, returning None on parse error."""
@@ -61,10 +60,12 @@ def _discover_journal_files(input_path: pathlib.Path | None) -> list[pathlib.Pat
     if REPORTS_ROOT.exists():
         candidates.extend(list(REPORTS_ROOT.rglob("*journal*.json")))
         candidates.extend(list(REPORTS_ROOT.rglob("*trade*.json")))
-    # Remove duplicate paths while preserving order
+    # Remove duplicate paths and exclude diagnostic reports
     seen = set()
     unique_candidates = []
     for p in candidates:
+        if "diagnostics" in p.parts:
+            continue
         if p not in seen:
             seen.add(p)
             unique_candidates.append(p)
@@ -93,12 +94,9 @@ def _trade_duration_seconds(entry: dict) -> float:
         return 0.0
 
 def main() -> None:
-    # Clean up any existing timeout exit reports to ensure test picks up the latest output
-    for old_report in DIAG_DIR.glob("timeout_exit_report_*.json"):
-        try:
-            old_report.unlink()
-        except Exception:
-            pass
+    diag_dir = REPORTS_ROOT / "diagnostics"
+    diag_dir.mkdir(parents=True, exist_ok=True)
+
     parser = argparse.ArgumentParser(description="P2‑036 timeout‑exit diagnostics", add_help=False)
     parser.add_argument("--input", type=str, help="Path to a directory or JSON file containing journal data")
     args, _ = parser.parse_known_args()
@@ -106,7 +104,7 @@ def main() -> None:
 
     # Discovery phase
     scanned_paths = [str(p) for p in (input_path.parents if input_path else DEFAULT_SEARCH_DIRS)]
-    journal_files = _discover_journal_files(input_path)
+    journal_files = sorted(_discover_journal_files(input_path))
     print("=== Discovery Summary ===")
     print(f"Scanned directories: {scanned_paths}")
     print(f"Candidate journal files found: {len(journal_files)}")
@@ -119,7 +117,7 @@ def main() -> None:
             "scanned_paths": scanned_paths,
             "next_action": "Run against exported live journal files or confirm expected journal path."
         }
-        out_path = DIAG_DIR / f"timeout_exit_report_no_data_{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
+        out_path = diag_dir / f"timeout_exit_report_no_data_{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
         out_path.write_text(json.dumps(report, indent=2, sort_keys=True))
         print(f"No journal data found. Report written to {out_path}")
         return
@@ -135,9 +133,20 @@ def main() -> None:
             parsed_entries.append(data)
         else:
             ignored += 1
-    # Filter out entries that lack an exit_reason (non-trade JSON)
-    filtered_entries = [e for e in parsed_entries if isinstance(e, dict) and e.get("exit_reason")]
-    print(f"Parsed journal entries: {len(parsed_entries)} (ignored files: {ignored})")
+    # Filter out entries that lack an exit_reason (non-trade JSON) and deduplicate
+    filtered_entries = []
+    seen_trades = set()
+    for e in parsed_entries:
+        if isinstance(e, dict) and e.get("exit_reason"):
+            # Dedupe by symbol and timing to prevent double-counting if multiple reports provide the same trade
+            trade_sig = (e.get("symbol", ""), e.get("entry_time", ""), e.get("exit_time", ""))
+            if trade_sig not in seen_trades:
+                seen_trades.add(trade_sig)
+                filtered_entries.append(e)
+        elif not isinstance(e, dict) or not e.get("exit_reason"):
+            ignored += 1
+
+    print(f"Analyzed unique trades: {len(filtered_entries)} (ignored {ignored} non-trade/duplicate records)")
     if not filtered_entries:
         # No valid trade data found
         report = {
@@ -145,7 +154,7 @@ def main() -> None:
             "scanned_paths": scanned_paths,
             "next_action": "Ensure journal files are valid JSON with expected fields."
         }
-        out_path = DIAG_DIR / f"timeout_exit_report_no_data_{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
+        out_path = diag_dir / f"timeout_exit_report_no_data_{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
         out_path.write_text(json.dumps(report, indent=2, sort_keys=True))
         print(f"No valid trade data found. Report written to {out_path}")
         return
@@ -175,7 +184,17 @@ def main() -> None:
         if "mae" in entry:
             s["mae"].append(float(entry["mae"]))
 
-    report = {"generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')}
+    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    out_file = diag_dir / f"timeout_exit_report_{timestamp}.json"
+
+    # Add metadata
+    report = {
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z'),
+        "source_inputs": [str(f) for f in journal_files],
+        "output_path": str(out_file),
+        "test_mode": "pytest" in sys.modules,
+        "trades_analyzed": len(filtered_entries),
+    }
     for typ, data in stats.items():
         avg_dur = sum(data["durations"]) / len(data["durations"]) if data["durations"] else 0.0
         block = {
@@ -191,8 +210,6 @@ def main() -> None:
             block["avg_mae"] = round(sum(data["mae"]) / len(data["mae"]), 4)
         report[typ] = block
 
-    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    out_file = DIAG_DIR / f"timeout_exit_report_{timestamp}.json"
     out_file.write_text(json.dumps(report, indent=2, sort_keys=True))
     try:
         import subprocess

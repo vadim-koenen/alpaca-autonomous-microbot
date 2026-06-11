@@ -14,8 +14,7 @@ import datetime
 import re
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-REPORTS_ROOT = REPO_ROOT / "reports"
-JOURNALS_DIR = REPORTS_ROOT / "journals"
+
 
 def _infer_entry_time(exit_time_str: str, reason: str) -> str | None:
     if not exit_time_str or not reason:
@@ -102,22 +101,18 @@ def main() -> None:
         if p.is_file() and not any(part in exclude_dirs for part in p.parts):
             candidate_files.append(p)
             
+    candidate_files = sorted(candidate_files)
+    
     print(f"Candidate CSV files found: {len(candidate_files)}")
     for cf in candidate_files:
         print(f" - {cf}")
         
     total_exported = 0
-    JOURNALS_DIR.mkdir(parents=True, exist_ok=True)
-    DIAG_DIR = REPORTS_ROOT / "diagnostics"
-    DIAG_DIR.mkdir(parents=True, exist_ok=True)
-    
-    # Clean previous exports to avoid stale data during verification
-    for old_export in JOURNALS_DIR.glob("export_*.json"):
-        try:
-            old_export.unlink()
-        except Exception:
-            pass
-            
+    reports_root = REPO_ROOT / "reports"
+    journals_dir = reports_root / "journals"
+    journals_dir.mkdir(parents=True, exist_ok=True)
+    diag_dir = reports_root / "diagnostics"
+    diag_dir.mkdir(parents=True, exist_ok=True)
     report = {
         "generated_at": datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         "scanned_paths": scanned_paths,
@@ -127,7 +122,8 @@ def main() -> None:
         "matched_entries": 0,
         "matched_exits": 0,
         "exported_trade_count": 0,
-        "export_directory": str(JOURNALS_DIR),
+        "export_directory": str(journals_dir),
+        "test_mode": "pytest" in sys.modules,
         "normalized_schema_fields": [
             "entry_time", "exit_time", "exit_reason", "gross_pnl", 
             "net_pnl", "fees", "symbol", "qty", "entry_price", "exit_price"
@@ -155,7 +151,7 @@ def main() -> None:
                     continue
                     
                 out_name = f"export_{cf.stem}.json"
-                out_path = JOURNALS_DIR / out_name
+                out_path = journals_dir / out_name
                 with open(out_path, "w", encoding="utf-8") as f:
                     json.dump(trades, f, indent=2, sort_keys=True)
                     
@@ -190,7 +186,7 @@ def main() -> None:
 
     # Write provenance report
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-    prov_report_path = DIAG_DIR / f"p2_037_journal_provenance_{timestamp}.json"
+    prov_report_path = diag_dir / f"p2_037_journal_provenance_{timestamp}.json"
     with open(prov_report_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, sort_keys=True)
     print(f"\nProvenance report written to {prov_report_path}")

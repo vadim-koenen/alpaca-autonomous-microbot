@@ -56,7 +56,7 @@ def test_aggregation_and_report(tmp_path, monkeypatch, capsys):
     diag.main()
     captured = capsys.readouterr()
     assert "Diagnostic report written to" in captured.out
-    report_file = next(diag.DIAG_DIR.glob("timeout_exit_report_*.json"))
+    report_file = next((reports_root / "diagnostics").glob("timeout_exit_report_*.json"))
     report = json.loads(report_file.read_text())
     assert report["timeout"]["trades"] == 2
     assert report["take_profit"]["trades"] == 1
@@ -73,7 +73,7 @@ def test_no_journal_data(tmp_path, monkeypatch, capsys):
     diag.main()
     captured = capsys.readouterr()
     assert "No journal data found" in captured.out or "No journal data found" in captured.out
-    no_data_report = next(diag.DIAG_DIR.glob("timeout_exit_report_no_data_*.json"))
+    no_data_report = next((empty_root / "diagnostics").glob("timeout_exit_report_no_data_*.json"))
     report = json.loads(no_data_report.read_text())
     assert report.get("no_historical_trade_data_found") is True
 
@@ -84,6 +84,37 @@ def test_ignores_unrelated_json(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(diag, "REPORTS_ROOT", reports_root)
     diag.main()
     captured = capsys.readouterr()
-    no_data_report = next(diag.DIAG_DIR.glob("timeout_exit_report_no_data_*.json"))
+    no_data_report = next((reports_root / "diagnostics").glob("timeout_exit_report_no_data_*.json"))
     report = json.loads(no_data_report.read_text())
     assert report.get("no_historical_trade_data_found") is True
+def test_ignores_diagnostic_reports_and_dedupes(tmp_path, monkeypatch, capsys):
+    reports_root = tmp_path / "reports"
+    (reports_root / "journals").mkdir(parents=True)
+    diag_dir = reports_root / "diagnostics"
+    diag_dir.mkdir(parents=True)
+    
+    # 1. Create a fake diagnostic report
+    diag_report = {"exit_reason": "timeout", "gross_pnl": 100}
+    (diag_dir / "p2_037_journal_provenance_old.json").write_text(json.dumps([diag_report]))
+    
+    # 2. Create duplicate trades
+    trade1 = _make_entry("timeout", gross=-50, entry_time="2026-06-01T10:00:00+00:00", exit_time="2026-06-01T11:00:00+00:00")
+    trade2 = _make_entry("TP hit", gross=100, entry_time="2026-06-02T10:00:00+00:00", exit_time="2026-06-02T11:00:00+00:00")
+    
+    (reports_root / "journals" / "run1.json").write_text(json.dumps([trade1, trade2]))
+    # Run2 has the exact same trade1 (duplicate)
+    (reports_root / "journals" / "run2.json").write_text(json.dumps([trade1]))
+    
+    monkeypatch.setattr(diag, "REPORTS_ROOT", reports_root)
+    diag.main()
+    
+    report_file = next(diag_dir.glob("timeout_exit_report_*.json"))
+    report = json.loads(report_file.read_text())
+    
+    assert report["trades_analyzed"] == 2
+    assert report["timeout"]["trades"] == 1
+    assert report["take_profit"]["trades"] == 1
+    
+    # TRADES_ANALYZED equals sum
+    classified = report.get("timeout", {}).get("trades", 0) + report.get("take_profit", {}).get("trades", 0) + report.get("stop_loss", {}).get("trades", 0) + report.get("unknown", {}).get("trades", 0)
+    assert report["trades_analyzed"] == classified

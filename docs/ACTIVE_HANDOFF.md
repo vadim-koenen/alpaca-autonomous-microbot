@@ -3092,3 +3092,4 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-06-08 09:01 | equity=unknown(kill_switch) | positions=0 | regime=kill_switch_active | errors=CRITICAL(continuous_kill_switch_loop) | head=6c9be2c
 - 2026-06-08 17:04 | equity=unknown(kill_switch) | positions=0 | regime=kill_switch_active | errors=CRITICAL(continuous_kill_switch_loop) | head=2ac2df9
 - 2026-06-08 21:05 | equity=unknown(kill_switch) | positions=0 | regime=kill_switch_active | errors=0(logs_stale_since_16:05) | head=f903731
+- 2026-06-11 UTC | P2-035/P2-036/P2-037 complete; Fee-edge gate operational, Coinbase live. P2-037 extracted 80 historic exits from CSVs, P2-036 diagnosed 77 timeouts causing severe fee drag vs 3 SLs. All P2-038A evidence isolation/determinism fixes applied to diagnostic scripts so tests do not destructively overwrite real reports.
