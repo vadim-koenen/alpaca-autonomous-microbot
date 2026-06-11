@@ -3172,3 +3172,17 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - sufficient data status: None
 - insufficient data status: All
 - next actor: GPT merge review for P2-039A
+
+## 2026-06-11 P2-039B Local Market Data Substrate / Parquet + DuckDB Readiness
+
+**P2-039B Status:**
+- branch: `review/p2-039b-data-substrate`
+- Initialized local market data directories `data/market_data/ohlcv` and `data/market_data/spreads`.
+- Formalized Parquet schemas using PyArrow.
+- Verified DuckDB read capabilities.
+- Defined dataset JSON manifest schemas for auditability.
+- No network requests, no live collector changes, purely architectural.
+
+**Next steps:**
+- Next actor: GPT review for merge decision
+- Next recommended patch: P2-039C Backfill 90d OHLCV data using public API into the substrate

@@ -13,6 +13,8 @@ python-dotenv>=1.0.0
 # Data
 pandas>=2.0.0
 numpy>=1.26.0
+duckdb>=0.10.0
+pyarrow>=15.0.0
 
 # HTTP / retry
 requests>=2.31.0
