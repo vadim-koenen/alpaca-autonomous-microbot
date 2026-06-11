@@ -101,9 +101,9 @@ def test_ignores_diagnostic_reports_and_dedupes(tmp_path, monkeypatch, capsys):
     trade1 = _make_entry("timeout", gross=-50, entry_time="2026-06-01T10:00:00+00:00", exit_time="2026-06-01T11:00:00+00:00")
     trade2 = _make_entry("TP hit", gross=100, entry_time="2026-06-02T10:00:00+00:00", exit_time="2026-06-02T11:00:00+00:00")
     
-    (reports_root / "journals" / "run1.json").write_text(json.dumps([trade1, trade2]))
+    (reports_root / "journals" / "run1_journal.json").write_text(json.dumps([trade1, trade2]))
     # Run2 has the exact same trade1 (duplicate)
-    (reports_root / "journals" / "run2.json").write_text(json.dumps([trade1]))
+    (reports_root / "journals" / "run2_journal.json").write_text(json.dumps([trade1]))
     
     monkeypatch.setattr(diag, "REPORTS_ROOT", reports_root)
     diag.main()
