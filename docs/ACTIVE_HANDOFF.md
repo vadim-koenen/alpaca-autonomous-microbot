@@ -3125,3 +3125,15 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 **Next steps:**
 - Next actor: GPT/Codex review for merge decision
 - Next recommended patch: P2-038C Price-Path Evidence Capture / Replay Readiness Gate
+
+## 2026-06-11 P2-038C Price-Path Evidence Capture / Replay Readiness Gate
+
+**P2-038C Status:**
+- branch: `review/p2-038c-price-path-replay-readiness-gate`
+- readiness gate implemented.
+- REPLAY_READY=false (insufficient path data found).
+- Baseline policies marked unavailable.
+
+**Next steps:**
+- Next actor: GPT/Codex review for merge decision
+- Next recommended patch: P2-038D Public OHLCV backfill or safe passive path capture design
