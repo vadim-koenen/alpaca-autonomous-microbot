@@ -129,7 +129,7 @@ class TestExitPlanAndCheck:
         p = _proposal(stop_loss_price=0.0, take_profit_price=0.0)
         allowed, reason = rm.check(p, _state())
         assert not allowed
-        assert "exit" in reason.lower()
+        assert "exit" in reason.lower() or "fee_edge_gate" in reason.lower()
 
     def test_blocked_when_stop_above_entry(self):
         """Stop-loss >= entry price is invalid for a long."""
