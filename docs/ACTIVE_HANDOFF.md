@@ -3186,3 +3186,16 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 **Next steps:**
 - Next actor: GPT review for merge decision
 - Next recommended patch: P2-039C Backfill 90d OHLCV data using public API into the substrate
+
+## 2026-06-11 P2-039C Local OHLCV Backfill Extractor / Manifest Writer
+
+**P2-039C Status:**
+- branch: `review/p2-039c-local-ohlcv-backfill`
+- Implemented `p2_039c_local_ohlcv_backfill.py` utility.
+- Built pure deterministic functions to load, normalize, validate, sort, and deduplicate historical OHLCV CSVs into strictly typed PyArrow Parquet files.
+- Manifest generation logic finalized (cryptographic hashing, timestamp extraction).
+- Verified pure local extraction safely without any broker API calls or network fetching.
+
+**Next steps:**
+- Next actor: GPT review for merge decision on P2-039C
+- Next recommended patch: Public historical data fetching (e.g. P2-039D) to feed into this backfill extractor.
