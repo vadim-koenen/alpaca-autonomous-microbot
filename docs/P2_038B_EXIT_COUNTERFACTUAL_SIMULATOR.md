@@ -61,3 +61,25 @@ The output will be saved deterministically in `reports/diagnostics/p2_038b_exit_
 
 ## How to Interpret Insufficient Path Data State
 If `path_data_status` is `insufficient` or `unavailable`, it means the repository lacks the localized tick data required to reconstruct intra-trade price behavior. In this state, only `baseline` and `notional_sensitivity`/`maker_taker_sensitivity` are calculated using the raw entry/exit prices. All other policies will be listed under `unavailable_policies` and skipped to prevent reporting fabricated or "faked" simulations.
+
+## Acceptance Criteria
+Per P2-038B senior-review bundle, the following metrics are explicit acceptance criteria.
+
+**Required when path data is available:**
+- per-policy gross PnL
+- estimated fees
+- net PnL
+- fee-adjusted win rate
+- notional sensitivity
+- maker/taker assumptions
+- MFE/MAE distributions
+- TP-hit probability vs TP distance
+- fee-inclusive breakeven per symbol
+- intra-candle TP-vs-SL ambiguity bounds
+- conservative/worst-case TP-vs-SL assumption when candle order is ambiguous
+
+**Required when path data is unavailable:**
+- do not fake path-dependent policies
+- mark unavailable policies explicitly
+- still compute baseline economics and fee/notional sensitivity from entry/exit prices
+- explicitly state what price-path/OHLCV data is missing

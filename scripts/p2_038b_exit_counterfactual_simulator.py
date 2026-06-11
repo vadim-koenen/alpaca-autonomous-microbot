@@ -202,12 +202,18 @@ def main() -> None:
             "gross_win_rate": 0.0,
             "fee_adjusted_win_rate": 0.0,
             "avg_net_pnl": 0.0,
+            "fee_inclusive_breakeven_per_symbol": {},
             "notes": "Simulated.",
             "data_quality": "synthetic"
         })
         report["unavailable_policies"] = []
-        report["MFE"] = []
-        report["MAE"] = []
+        report["MFE_distributions"] = []
+        report["MAE_distributions"] = []
+        report["TP_hit_probability_vs_TP_distance"] = []
+        report["intra_candle_ambiguity"] = {
+            "TP_vs_SL_ambiguity_bounds": "unknown",
+            "conservative_worst_case_assumption": "assume SL hit before TP"
+        }
 
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out_file = diag_dir / f"p2_038b_exit_counterfactual_simulator_{timestamp}.json"

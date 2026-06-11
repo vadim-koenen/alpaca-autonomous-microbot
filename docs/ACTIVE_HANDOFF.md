@@ -3093,3 +3093,35 @@ No live behavior, config, risk, runtime, strategy, .env, LaunchAgent, or order-s
 - 2026-06-08 17:04 | equity=unknown(kill_switch) | positions=0 | regime=kill_switch_active | errors=CRITICAL(continuous_kill_switch_loop) | head=2ac2df9
 - 2026-06-08 21:05 | equity=unknown(kill_switch) | positions=0 | regime=kill_switch_active | errors=0(logs_stale_since_16:05) | head=f903731
 - 2026-06-11 UTC | P2-035/P2-036/P2-037 complete; Fee-edge gate operational, Coinbase live. P2-037 extracted 80 historic exits from CSVs, P2-036 diagnosed 77 timeouts causing severe fee drag vs 3 SLs. All P2-038A evidence isolation/determinism fixes applied to diagnostic scripts so tests do not destructively overwrite real reports.
+
+## 2026-06-11 P2-038A and P2-038B Diagnostics and Counterfactual Simulator
+
+**P2-038A Confirmation:**
+- DIAG_DIR isolation confirmed true
+- non-destructive retention confirmed true
+
+**Clean Evidence Report:**
+- report path: `reports/diagnostics/timeout_exit_report_20260611T031116Z.json`
+- generated_at: `2026-06-11T03:11:16.853784Z`
+- CONSISTENCY_PASS=true
+- trades_analyzed=80
+- timeout=77
+- take_profit=0
+- stop_loss=3
+- unknown=0
+
+**P2-038B Status:**
+- branch: `review/p2-038b-timeout-fee-exit-counterfactual-simulator`
+- commit before amendment: `72962e2`
+- price-path data insufficient
+- path-dependent policies unavailable rather than faked
+- baseline economics:
+  - gross_pnl ≈ -0.1385
+  - estimated_fees ≈ 1.4392
+  - net_pnl ≈ -1.5777
+  - gross_win_rate ≈ 28.75%
+  - fee_adjusted_win_rate ≈ 2.50%
+
+**Next steps:**
+- Next actor: GPT/Codex review for merge decision
+- Next recommended patch: P2-038C Price-Path Evidence Capture / Replay Readiness Gate
