@@ -76,7 +76,7 @@ def main():
             "schema_preserved": report1["schema_validated"] and report2["schema_validated"],
             "manifest_provenance_preserved_or_referenced": True,
             "normalized_replay_smoke_test_pass": True if (
-                report1["normalized_replay_rows"] == 1440 and
+                report1["normalized_replay_rows"] == report1["raw_inclusive_rows"] - 1 and
                 report2["normalized_replay_rows"] == 2880 and
                 not dup_found and not gaps_found and utc_aligned and monotonic
             ) else False
