@@ -1,0 +1,46 @@
+# P2-040N 7-Day Backfill Manifest Validation and Replay-Grade Coverage Review
+
+## Base Commit
+`c7249af4e36087b33afd3e09632388fc4934c991`
+
+## Source Dataset
+* **Provider:** `coinbase_public`
+* **Symbol:** `BTC/USD`
+* **Timeframe:** `1m`
+* **Output Directory:** `/tmp/BTC_USD/1m`
+* **Manifest Path:** `/tmp/BTC_USD/1m/coinbase_public_BTC_USD_1m.manifest.json`
+* **Report Path:** `/tmp/p2_040m_report.json`
+
+## Validation Results
+* `SOURCE_TMP_DATA_FOUND=true`
+* `RAW_INCLUSIVE_CANDLE_COUNT=10081`
+* `NORMALIZED_REPLAY_CANDLE_COUNT=10080`
+* `EXPECTED_NORMALIZED_REPLAY_CANDLE_COUNT=10080`
+* `START_TIMESTAMP=2026-06-03T23:00:00+00:00`
+* `END_TIMESTAMP=2026-06-10T23:00:00+00:00`
+* `BOUNDARY_SEMANTICS=INCLUSIVE_START_AND_END`
+* `REPLAY_WINDOW_POLICY=END_EXCLUSIVE`
+* `UTC_ALIGNED=true`
+* `MONOTONIC_TIMESTAMPS=true`
+* `DUPLICATE_TIMESTAMPS_FOUND=false`
+* `DUPLICATE_TIMESTAMPS_AFTER_NORMALIZATION=false`
+* `GAPS_FOUND=false`
+* `GAPS_AFTER_NORMALIZATION=false`
+* `SCHEMA_VALIDATED=true`
+* `SCHEMA_PRESERVED_AFTER_NORMALIZATION=true`
+* `MANIFEST_INTEGRITY_VALID=true`
+* `MANIFEST_PROVENANCE_PRESERVED_OR_REFERENCED=true`
+* `PARTIAL_LATEST_CANDLE_EXCLUDED_OR_MARKED=true`
+* `COVERAGE_AUDIT_PASS=true`
+* `COVERAGE_AUDIT_PERCENT=100.0`
+* `GENERATED_DATA_COMMITTED=false`
+
+## Decision
+* `SEVEN_DAY_BACKFILL_VALIDATED=true`
+* `REPLAY_GRADE_COVERAGE_READY_FOR_APPROVAL=true`
+* `REPLAY_GRADE_COVERAGE_APPROVED=false`
+* `BROADER_FETCH_APPROVED=false`
+* `ML_BLOCKED_UNTIL_REPLAY_GRADE_COVERAGE=true`
+
+## Recommendation
+Since validation passes, the next patch should be P2-040O — Replay-Grade Coverage Approval Packet for BTC/USD 1m 7-Day Dataset.
