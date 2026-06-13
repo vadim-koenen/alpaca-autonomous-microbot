@@ -27,8 +27,8 @@ def test_p2_040j_gate_passes_for_valid_state():
     assert report["multiday_fetch_ready_for_user_approval"] is True
     assert report["multiday_fetch_approved"] is False
     assert report["public_fetch_performed"] is False
-    assert report["replay_grade_coverage_approved"] is False
-    assert report["ml_blocked_until_replay_grade_coverage"] is True
+    assert report["replay_grade_coverage_approved"] is True
+    assert report["ml_blocked_until_replay_grade_coverage"] is False
     assert report["candidate_provider"] == "coinbase_public"
     assert report["candidate_symbol"] == "BTC/USD"
     assert report["candidate_timeframe"] == "1m"

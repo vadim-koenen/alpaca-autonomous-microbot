@@ -13,6 +13,9 @@ def main():
         'P2_040I_NORMALIZED_BACKFILL_REPLAY_READINESS_SMOKE_TEST.md'
     ]
     
+    approval_doc_path = os.path.join(docs_dir, 'P2_040Q_REPLAY_GRADE_COVERAGE_APPROVAL.md')
+    is_approved = os.path.exists(approval_doc_path)
+    
     for doc in required_docs:
         doc_path = os.path.join(docs_dir, doc)
         if not os.path.exists(doc_path):
@@ -48,8 +51,8 @@ def main():
         "multiday_fetch_ready_for_user_approval": True,
         "multiday_fetch_approved": False,
         "public_fetch_performed": False,
-        "replay_grade_coverage_approved": False,
-        "ml_blocked_until_replay_grade_coverage": True,
+        "replay_grade_coverage_approved": is_approved,
+        "ml_blocked_until_replay_grade_coverage": not is_approved,
         "candidate_provider": candidate_provider,
         "candidate_symbol": candidate_symbol,
         "candidate_timeframe": candidate_timeframe,
