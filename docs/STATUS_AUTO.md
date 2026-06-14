@@ -1,7 +1,7 @@
 # Auto Status (machine-generated — do not hand-edit)
 
-Generated: 2026-06-14T15:12:20Z
-Main-tree HEAD: 1ae92a4 Add P2-043A Profit Thesis EV Contract
+Generated: 2026-06-14T19:12:23Z
+Main-tree HEAD: 8f2ca3c P2-043B: Wire fee-adjusted EV gate with dedicated tests and defensive meta
 Audit verdict: AUDIT_VERDICT=WARN
 
 ## Coinbase (live)
@@ -9,22 +9,22 @@ status=running  equity=59.4605  open_positions=1  daily_pnl=0.0
 last_trade_at=None  last_loop_time=2026-06-14T09:52:14.114534-05:00  halt_reason=None
 
 ## Alpaca
-status=running  equity=10.0  open_positions=0  last_loop_time=2026-06-14T10:11:50.517095-05:00
+status=running  equity=10.0  open_positions=0  last_loop_time=2026-06-14T14:12:23.427018-05:00
 
 ## Economics digest
 cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
-recent_log_errors(last200 lines)=44
+recent_log_errors(last200 lines)=100
 
 ## Full audit snapshot
 ```
-=== AUDIT SNAPSHOT 2026-06-14T15:12:19Z ===
+=== AUDIT SNAPSHOT 2026-06-14T19:12:22Z ===
 === GIT HEAD ===
+8f2ca3c P2-043B: Wire fee-adjusted EV gate with dedicated tests and defensive meta
+0644aa4 chore(ci): comment pytest results on PRs
+67489be auto-sync handoff 2026-06-14T12:31
+5f61f40 auto-sync handoff 2026-06-14T10:24
 1ae92a4 Add P2-043A Profit Thesis EV Contract
 25fb60c Add P2-042D high-volatility exploration strategy queue
-7aeaf89 Add P2-042C research budget monitor and auto-kill decision layer
-9bc9588 Add P2-042B live research evidence journal
-556b966 Add P2-042A live research policy gate
-66f49a0 Add P2-041D fee slippage replay scoring layer
 === LIVE P/L TRUTH (mode=live, action=EXIT) ===
 cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
 === EXIT REASONS (live) ===
