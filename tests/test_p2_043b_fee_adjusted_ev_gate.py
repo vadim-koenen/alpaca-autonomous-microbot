@@ -1,4 +1,4 @@
-import pytes
+import pytest
 from datetime import datetime, timezone
 import pandas as pd
 from unittest.mock import MagicMock, patch
@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from risk_manager import RiskManager, TradeProposal, AccountState
 from strategy_crypto import CryptoStrategy
 from market_data import MarketData, Quote
-from profit_thesis_ev_contract import ProfitThesisDecision, ProfitThesisStatus, profit_thesis_to_dic
+from profit_thesis_ev_contract import ProfitThesisDecision, ProfitThesisStatus, profit_thesis_to_dict
 
 @pytest.fixture
 def crypto_strategy():
@@ -49,7 +49,7 @@ def test_strategy_ev_gate_rejects_negative_net_ev(mock_get_cfg, crypto_strategy)
     def mock_cfg(section, key, default=None):
         if key == "taker_fee_pct": return 0.05  # 5% fee!
         if key == "slippage_estimate_pct": return 0.05
-        return defaul
+        return default
     mock_get_cfg.side_effect = mock_cfg
 
     quote = Quote(symbol="BTC/USD", bid=100000, ask=100010, mid=100005, spread_pct=0.01, timestamp=datetime.now(timezone.utc), is_stale=False)
@@ -67,7 +67,7 @@ def test_strategy_ev_gate_approves_positive_net_ev_and_attaches_meta(mock_get_cf
     def mock_cfg(section, key, default=None):
         if key == "taker_fee_pct": return 0.0025
         if key == "slippage_estimate_pct": return 0.05
-        return defaul
+        return default
     mock_get_cfg.side_effect = mock_cfg
 
     quote = Quote(symbol="BTC/USD", bid=100000, ask=100010, mid=100005, spread_pct=0.01, timestamp=datetime.now(timezone.utc), is_stale=False)
@@ -182,7 +182,7 @@ def test_generate_proposals_gates_standard(mock_classify, mock_enforce, crypto_s
     crypto_strategy._md.get_crypto_quote.return_value = quote
     crypto_strategy._md.get_crypto_bars_df.return_value = df
 
-    # Standard path via momentum_breakou
+    # Standard path via momentum_breakout
     p = TradeProposal(symbol="BTC/USD", asset_class="crypto", strategy="momentum_breakout", side="buy", order_type="limit", notional=1)
     crypto_strategy._momentum_breakout = MagicMock(return_value=p)
     crypto_strategy._ema_crossover = MagicMock(return_value=None)
@@ -194,7 +194,7 @@ def test_generate_proposals_gates_standard(mock_classify, mock_enforce, crypto_s
     assert mock_enforce.call_args[0][0].strategy == "momentum_breakout"
 
 # ---------------------------------------------------------
-# 4. Status Serialization Integrity Tes
+# 4. Status Serialization Integrity Test
 # ---------------------------------------------------------
 
 def test_status_serialization():
@@ -204,5 +204,5 @@ def test_status_serialization():
         thesis=None
     )
     d = profit_thesis_to_dict(decision)
-    # Proves the Risk Manager `thesis_dict.get("status") == "APPROVED"` check is exac
+    # Proves the Risk Manager `thesis_dict.get("status") == "APPROVED"` check is exact
     assert d["status"] == "APPROVED"
