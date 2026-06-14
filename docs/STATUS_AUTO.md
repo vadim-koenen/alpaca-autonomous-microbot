@@ -1,46 +1,46 @@
 # Auto Status (machine-generated — do not hand-edit)
 
-Generated: 2026-06-09T12:57:29Z
-Main-tree HEAD: f3d8afe P2-035: free status sync + GPT working agreement + reviews
+Generated: 2026-06-14T15:12:20Z
+Main-tree HEAD: 1ae92a4 Add P2-043A Profit Thesis EV Contract
 Audit verdict: AUDIT_VERDICT=WARN
 
 ## Coinbase (live)
-status=running  equity=59.8793  open_positions=0  daily_pnl=-0.0619
-last_trade_at=2026-06-09T03:54:00.279679Z  last_loop_time=2026-06-09T07:56:44.524673-05:00  halt_reason=None
+status=running  equity=59.4605  open_positions=1  daily_pnl=0.0
+last_trade_at=None  last_loop_time=2026-06-14T09:52:14.114534-05:00  halt_reason=None
 
 ## Alpaca
-status=running  equity=10.0  open_positions=0  last_loop_time=2026-06-09T07:57:05.500132-05:00
+status=running  equity=10.0  open_positions=0  last_loop_time=2026-06-14T10:11:50.517095-05:00
 
 ## Economics digest
-cycles=51 wins=1 win_rate=2.0% cumulative_net_usd=-1.4405
-recent_log_errors(last200 lines)=0
+cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
+recent_log_errors(last200 lines)=44
 
 ## Full audit snapshot
 ```
-=== AUDIT SNAPSHOT 2026-06-09T12:57:27Z ===
+=== AUDIT SNAPSHOT 2026-06-14T15:12:19Z ===
 === GIT HEAD ===
-f3d8afe P2-035: free status sync + GPT working agreement + reviews
-6cd49fe Add P2-035 Claude senior review + GPT roadmap
-f903731 auto: handoff sync 2026-06-08 17:04
-2ac2df9 Add P2-034B broker readonly evidence handoff
-85f889c auto: handoff sync 2026-06-08 09:01
-6c9be2c Add P2-032C dashboard runtime truth panel
+1ae92a4 Add P2-043A Profit Thesis EV Contract
+25fb60c Add P2-042D high-volatility exploration strategy queue
+7aeaf89 Add P2-042C research budget monitor and auto-kill decision layer
+9bc9588 Add P2-042B live research evidence journal
+556b966 Add P2-042A live research policy gate
+66f49a0 Add P2-041D fee slippage replay scoring layer
 === LIVE P/L TRUTH (mode=live, action=EXIT) ===
-cycles=51 wins=1 win_rate=2.0% cumulative_net_usd=-1.4405
+cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
 === EXIT REASONS (live) ===
-  48 max hold time min (timeout)
+  51 max hold time min (timeout)
    1 stop-loss hit @ 2016.1450 (stop=2018.3369)
    1 stop-loss hit @ 1762.0400 (stop=1762.6427)
    1 stop-loss hit @ 0.2001 (stop=0.2003)
 === NET BY STRATEGY (live EXIT) ===
 mean_reversion         c=2 net=-0.0666
 coinbase_probe         c=13 net=-0.0829
-coinbase_exploration   c=23 net=-0.6428
+coinbase_exploration   c=26 net=-0.8141
 recovered              c=13 net=-0.6482
 === ACTIVITY (last 3 live-EXIT days) ===
-   2 2026-06-03
-   1 2026-06-04
    1 2026-06-09
+   2 2026-06-10
+   1 2026-06-11
 === RISK CONFIG ===
   max_open_positions: 1
   min_trade_notional_usd: 5.00
@@ -60,7 +60,7 @@ recovered              c=13 net=-0.6482
   # Micro-size only: new symbols use the *existing* max_trade_notional_usd / min_trade_notional_usd.
     # Pilot-size: uses existing max_trade_notional_usd (10.00). Exposure/daily loss capped at BTC/ETH-only pilot limits.
 === FINDINGS ===
-- WARN: 48/51 live exits are time-based (exit logic not fixed)
-- WARN: win_rate 2.0% < 45% over 51 cycles
+- WARN: 51/54 live exits are time-based (exit logic not fixed)
+- WARN: win_rate 3.7% < 45% over 54 cycles
 AUDIT_VERDICT=WARN
 ```
