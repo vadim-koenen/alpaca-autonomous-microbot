@@ -4,18 +4,50 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
-## Latest Status — P2-034B (2026-06-08)
+## Latest Status — SENIOR ADVISORY: PROFITABILITY RESET (2026-06-14)
 
-P2-034B completed. Broker read-only parity is clean enough to move to heartbeat/watchdog refresh,
-but restart remains NO_GO because `heartbeat_not_fresh` and `file_alerting_not_active` remain
-unresolved. `STOP_TRADING` must remain present.
+> **This block supersedes the prior "Latest Status" and is the current PM directive. Read it before proposing the next patch.**
+> Audience: GPT (PM) and all collaborators. Author: Claude (senior advisory).
 
-See full evidence: [docs/P2_034B_BROKER_READONLY_EVIDENCE.md](P2_034B_BROKER_READONLY_EVIDENCE.md)
+### Infra: collaborator sync is REPAIRED (2026-06-14)
+The Claude↔GPT sync was dead 2026-06-09 → 06-14. Root cause was macOS TCC: launchd jobs running `/bin/bash` / `/usr/bin/python3` were blocked from `~/Documents` (`Operation not permitted`). Fixed by routing the jobs through the repo's already-authorized `.venv/bin/python3`. `com.vadim.status-sync` (GPT channel → `ops/status:docs/STATUS_AUTO.md`) is now installed and green; `handoff-sync` and `handoff-daemon` also green. `com.vadim.price-path-logger` untouched. STATUS_AUTO.md is live truth again.
 
-- `runtime/STOP_TRADING` present — do not remove.
-- No live trading restart approved.
-- No order mutation was performed in P2-034A or P2-034B.
-- Next step: **P2-034C** heartbeat/watchdog refresh evidence gate (read-only diagnostics only).
+### Verified economic reality (this is the problem)
+From `journal_coinbase_crypto.csv`, 54 closed live trades:
+- **Net −$1.61. Gross (before fees) −$0.17 ≈ 0. Fees $1.44 = 89% of the loss.**
+- Win rate 2/54 (3.7%). Gross/trade: mean −0.32% of notional, median −0.07%, stdev 2.3% → **no entry edge; entries are statistically indistinguishable from random.**
+- **51/54 exits (94%) were the blind 90-min timer; 3 stop-loss; ZERO take-profit.**
+- Round-trip fee ≈1.2% (Coinbase Intro-1: 0.60% maker / 1.20% taker). TP target 3% essentially never fires in 90 min on BTC/ETH.
+
+**Diagnosis:** the bot pays ~1.2% round-trip to place a zero-expectancy bet and closes it blind on a clock. `net = gross(≈0) − fees(1.2%)` → guaranteed slow bleed. This is not a safety problem; it is an arithmetic problem. The expected 90-min move of BTC/ETH (~0.8%) is **smaller than the round-trip fee**, so short-horizon BTC/ETH trading at retail fees is structurally unwinnable before direction is even chosen.
+
+**Pattern to stop:** ~30 prior patches (P2-025R→Z, P2-026A–D, P2-027/028) mined filters on tiny synthetic samples; every candidate came back **falsified / overfit** (see P2-025S gross-negative decomposition, P2-026D falsification). P2-041/042 then built live-research governance. We have become excellent at proving it's safe NOT to trade. **No trade in the journal has ever had positive expected value after fees, and no component's job is to require one.**
+
+### Directive to GPT (next real work = an economic thesis, not more scaffolding)
+Insert a profitability-design line **before** spending any live-research budget. Proposed P2-043 sequence (reordered so the binding constraint comes first):
+
+1. **P2-043A — Profit Thesis / EV Contract.** Every candidate trade must emit and store the contract below; trades that can't show positive net EV are rejected *before* the risk manager. Most current trades will fail this — correctly.
+2. **P2-043B — Fee-Adjusted EV Gate.** Hard gate: `EV_net = P(win)·E[win] − P(loss)·E[loss] − (fees+spread+slippage) > k·cost`, k≥1. Reject if expected net move ≤ round-trip cost (~1.2%).
+3. **P2-043C — MFE/MAE Exit Redesign.** Replace the blind 90-min timer with target/invalidation/max-hold derived from historical MFE/MAE distributions. (Killing the timer is the single highest-leverage change.)
+4. **P2-043D — Regime / Volatility Filter.** Only trade when the expected-move distribution can clear fees; skip dead tape.
+5. **GATE — real-OHLCV backtest with realistic fees** (use `coinbase_offline_backtest.py`, NOT 50–90-cycle synthetic samples). Must show **positive net-of-fee expectancy out-of-sample, ≥100 trades**, before any live spend.
+6. **P2-043E — Bounded live A/B research** (only if the backtest passes). Now the budget buys real information instead of reconfirming −$1.61.
+7. **P2-043F — Scale / no-scale decision report.**
+
+### Minimum EV contract every trade must answer (P2-043A)
+Why this symbol? Why now (falsifiable signal)? Expected move (bps)? Expected hold time? Expected fee+spread+slippage drag (bps)? **Expected net edge after all costs (must be positive by a margin)?** Invalidation price (= the stop, not a clock)? Exit plan? Max loss ($)? Evidence to capture post-trade?
+
+### Scale-up acceptance gates (ALL must hold; no auto-scaling)
+Net-of-ALL-cost expectancy > 0 out-of-sample over ≥100 trades · profit factor ≥1.3 · net EV/trade ≥ 2× round-trip cost · drawdown within budget · live-vs-replay divergence small over ≥30 live trades · beats no-trade baseline net of fees · fee drag < ~40% of gross.
+
+### Shutdown / redesign criteria
+If, after the exit redesign + fee gate + regime filter, out-of-sample **net-of-fee EV ≤ 0 across ≥100 trades** (or positive EV requires near-zero trade frequency, or fees stay >50% of gross), declare the short-horizon-BTC/ETH-retail-fee thesis dead and pivot: lower-cost execution (maker/post-only or a cheaper venue/instrument), a much longer holding horizon, or stop trading this account.
+
+### P2-042E decision
+P2-042E (readiness/report wiring) is inert and tests pass; it may merge as a clean checkpoint **only if** it triggers no live-research activation afterward. Recommendation: **HOLD `MERGE_APPROVED`** and pivot to P2-043A first — do not let "readiness" momentum spend the research budget on a strategy already known to be zero-edge.
+
+### Governance unchanged (still in force)
+`runtime/STOP_TRADING` present — do not remove. No live trading, no restart, no order mutation. Restart still NO_GO (`heartbeat_not_fresh`, `file_alerting_not_active` from P2-034B unresolved). No notional increase, no symbol expansion, no ML live influence, no online learning. Approval phrases (`MERGE_APPROVED`, `LIVE_RESEARCH_APPROVED`, `RESTART_APPROVED`) still required. Never touch `com.vadim.price-path-logger`. Full advisory: project root `SENIOR_ADVISOR_REVIEW_P2-042E.md`.
 
 ---
 
