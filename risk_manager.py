@@ -154,6 +154,7 @@ class RiskManager:
             self._check_controlled_fee_aware_pilot,
             self._check_crypto_manual_review_gate,
             self._check_total_crypto_exposure,
+            self._check_profit_thesis_ev_gate,
             self._check_mandatory_fee_edge_gate,
             # Session limits
             self._check_daily_loss_limit,
@@ -638,6 +639,29 @@ class RiskManager:
                 f"need ${p.notional:.2f}, safe_bp=${safe_bp:.2f} "
                 f"(raw_bp=${s.buying_power:.2f})"
             )
+        return True, ""
+
+    def _check_profit_thesis_ev_gate(self, p, s, mode):
+        """
+        P2-043B Fee-Adjusted EV Gate
+        Block any proposal that lacks an approved profit thesis.
+        """
+        if p.asset_class != "crypto":
+            return True, ""
+
+        if p.side not in ("buy", "short"):
+            return True, ""
+
+        meta = getattr(p, "meta", None) or {}
+        thesis_dict = meta.get("profit_thesis")
+        if not thesis_dict:
+            return False, "EV_GATE: proposal lacks profit_thesis metadata"
+
+        # `profit_thesis_to_dict` serializes enums to string values
+        if thesis_dict.get("status") != "APPROVED":
+            reasons = thesis_dict.get("reject_reasons", ["UNKNOWN"])
+            return False, f"EV_GATE: profit thesis rejected: {reasons}"
+
         return True, ""
 
     def _check_mandatory_fee_edge_gate(self, p, s, mode):

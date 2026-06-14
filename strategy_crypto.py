@@ -46,6 +46,16 @@ from utils import (
     spread_pct as calc_spread,
 )
 
+from profit_thesis_ev_contract import (
+    TradeEconomicInputs,
+    TradeCostModel,
+    ExpectedMoveModel,
+    ProfitThesisStatus,
+    build_profit_thesis,
+    evaluate_profit_thesis,
+    profit_thesis_to_dict,
+)
+
 # P2-012B: prediction telemetry integration (live scan decisions).
 # Safe import + no-op fallbacks so telemetry can never break strategy loading or execution.
 try:
@@ -181,19 +191,19 @@ class CryptoStrategy:
             logging_cfg = get_cfg("logging", default={})
             if not logging_cfg:
                 return None
-            
+
             journal_file = logging_cfg.get("journal_file", "journal_coinbase_crypto.csv")
             journal_path = ROOT / journal_file
-            
+
             if not journal_path.exists():
                 return None
-            
+
             # Read journal and get equity from most recent row
             with open(journal_path, "r", newline="") as f:
                 rows = list(csv.DictReader(f))
                 if not rows:
                     return None
-                
+
                 # Iterate from end backwards to find first non-zero equity
                 for row in reversed(rows):
                     equity_str = row.get("equity", "").strip()
@@ -204,7 +214,7 @@ class CryptoStrategy:
                                 return equity
                         except (ValueError, TypeError):
                             continue
-            
+
             return None
         except Exception as e:
             logger.debug(f"Error retrieving current equity from journal: {e}")
@@ -224,31 +234,31 @@ class CryptoStrategy:
             logging_cfg = get_cfg("logging", default={})
             if not logging_cfg:
                 return history
-                
+
             journal_file = logging_cfg.get("journal_file", "journal_coinbase_crypto.csv")
             journal_path = ROOT / journal_file
-            
+
             if not journal_path.exists():
                 return history
-            
+
             now = now_utc()
             with open(journal_path, "r", newline="") as f:
                 rows = list(csv.DictReader(f))
                 for row in reversed(rows):  # Most recent first
                     if row.get("strategy") != "coinbase_exploration":
                         continue
-                    
+
                     raw_ts = row.get("timestamp", "")
                     symbol = row.get("symbol", "")
-                    
+
                     if not symbol:
                         continue
-                    
+
                     try:
                         ts = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
                         if ts.tzinfo is None:
                             ts = ts.replace(tzinfo=timezone.utc)
-                        
+
                         # Only keep entries from last 24 hours
                         if (now - ts).total_seconds() < 24 * 3600:
                             if symbol not in history:
@@ -257,7 +267,7 @@ class CryptoStrategy:
                         continue
         except Exception as e:
             logger.debug(f"Error loading exploration history: {e}")
-        
+
         return history
 
     def _get_exploration_entries_today(self) -> dict[str, int]:
@@ -270,32 +280,32 @@ class CryptoStrategy:
             logging_cfg = get_cfg("logging", default={})
             if not logging_cfg:
                 return counts
-                
+
             journal_file = logging_cfg.get("journal_file", "journal_coinbase_crypto.csv")
             journal_path = ROOT / journal_file
-            
+
             if not journal_path.exists():
                 return counts
-            
+
             now = now_utc()
             with open(journal_path, "r", newline="") as f:
                 rows = list(csv.DictReader(f))
                 for row in rows:
                     if row.get("strategy") != "coinbase_exploration":
                         continue
-                    
+
                     raw_ts = row.get("timestamp", "")
                     symbol = row.get("symbol", "")
                     decision = row.get("decision", "")
-                    
+
                     if not symbol:
                         continue
-                    
+
                     try:
                         ts = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
                         if ts.tzinfo is None:
                             ts = ts.replace(tzinfo=timezone.utc)
-                        
+
                         # Only count entries from last 24 hours
                         if (now - ts).total_seconds() < 24 * 3600:
                             # Count both FILLED and PLACED (not SKIPPED)
@@ -305,7 +315,7 @@ class CryptoStrategy:
                         continue
         except Exception as e:
             logger.debug(f"Error counting exploration entries: {e}")
-        
+
         return counts
 
     def _get_open_symbol_positions(self) -> set[str]:
@@ -327,27 +337,27 @@ class CryptoStrategy:
         2. Avoid symbols on per-symbol cooldown
         3. Avoid symbols at max entries per day
         4. Prefer least-recently-selected symbol
-        
+
         Returns: symbol name, or None if no eligible symbol found.
         """
         if not approved_symbols:
             return None
-        
+
         cfg = get_cfg("crypto", "controlled_exploration", default={})
         cooldown_min = float(cfg.get("per_symbol_cooldown_minutes", 30))
         max_entries_per_day = float(cfg.get("max_entries_per_symbol_per_day", 4))
         avoid_repeat = cfg.get("avoid_same_symbol_repeat", True)
-        
+
         history = self._load_exploration_history()
         entries_today = self._get_exploration_entries_today()
         open_positions = self._get_open_symbol_positions()
         external_inventory_excluded = load_external_inventory_excluded_symbols()
         now = now_utc()
-        
+
         # Filter: eligible symbols
         eligible = []
         reject_reasons: dict[str, str] = {}
-        
+
         for symbol in approved_symbols:
             if is_external_inventory_excluded_symbol(
                 symbol,
@@ -360,7 +370,7 @@ class CryptoStrategy:
             if symbol in open_positions:
                 reject_reasons[symbol] = "already_has_open_position"
                 continue
-            
+
             # 2. On cooldown?
             if symbol in history:
                 last_ts = history[symbol]
@@ -368,27 +378,27 @@ class CryptoStrategy:
                 if age_min < cooldown_min:
                     reject_reasons[symbol] = f"cooldown({age_min:.0f}m<{cooldown_min:.0f}m)"
                     continue
-            
+
             # 3. At max entries today?
             count_today = entries_today.get(symbol, 0)
             if count_today >= max_entries_per_day:
                 reject_reasons[symbol] = f"max_entries_per_day({count_today:.0f}>={max_entries_per_day:.0f})"
                 continue
-            
+
             # Eligible!
             eligible.append((symbol, history.get(symbol)))
-        
+
         # Log rejections
         for symbol, reason in reject_reasons.items():
             logger.debug(f"EXPLORE {symbol} | ineligible: {reason}")
-        
+
         if not eligible:
             return None
-        
+
         # If avoid_repeat is enabled, sort by least-recently-selected
         # (None timestamps = never selected, go first)
         eligible.sort(key=lambda x: (x[1] is not None, x[1]))
-        
+
         selected = eligible[0][0]
         last_ts = eligible[0][1]
         if last_ts:
@@ -396,7 +406,7 @@ class CryptoStrategy:
             logger.info(f"EXPLORE selected {selected} | least-recently-used({age_min:.0f}m ago)")
         else:
             logger.info(f"EXPLORE selected {selected} | never-selected-before")
-        
+
         return selected
 
     # -----------------------------------------------------------------------
@@ -682,6 +692,96 @@ class CryptoStrategy:
     # Main entry point: generate proposals for a single symbol
     # -----------------------------------------------------------------------
 
+    def _enforce_ev_gate(
+        self,
+        p: TradeProposal,
+        quote: Quote,
+        regime: str
+    ) -> Optional[TradeProposal]:
+        """
+        P2-043B Fee-Adjusted EV Gate
+        Rejects candidates that fail to prove positive net-of-fee expected value.
+        """
+        if p.side != "buy":
+            return p
+
+        entry_price = p.limit_price if p.limit_price > 0 else p.price
+        if entry_price <= 0:
+            logger.info(f"EV_GATE {p.symbol} | Rejected: no valid entry price")
+            return None
+
+        tp = p.take_profit_price
+        if tp <= 0 or tp <= entry_price:
+            logger.info(f"EV_GATE {p.symbol} | Rejected: no valid take profit")
+            return None
+
+        sl = p.stop_loss_price
+
+        expected_move_bps = ((tp - entry_price) / entry_price) * 10000.0
+
+        taker_fee = get_cfg("fees", "taker_fee_pct", default=0.0025)
+        slippage_pct = get_cfg("crypto", "slippage_estimate_pct", default=0.05)
+
+        # Dominant constraint: worst-case round trip fees
+        expected_fee_bps = taker_fee * 2.0 * 10000.0
+        expected_spread_bps = 0.0
+        if p.bid > 0 and p.ask > 0 and p.price > 0:
+            expected_spread_bps = ((p.ask - p.bid) / p.price) * 10000.0
+        expected_slippage_bps = slippage_pct * 100.0
+
+        costs = TradeCostModel(
+            expected_fee_bps=expected_fee_bps,
+            expected_spread_bps=expected_spread_bps,
+            expected_slippage_bps=expected_slippage_bps
+        )
+
+        gross_expected_edge_bps = expected_move_bps
+
+        invalidation_price_or_bps = None
+        if sl > 0:
+            invalidation_price_or_bps = sl
+
+        max_loss_usd = None
+        if sl > 0 and p.notional > 0:
+            max_loss_usd = p.notional * ((entry_price - sl) / entry_price)
+
+        move = ExpectedMoveModel(
+            expected_move_bps=expected_move_bps,
+            expected_hold_minutes=90,
+            invalidation_price_or_bps=invalidation_price_or_bps,
+            target_price_or_bps=tp,
+            max_loss_usd=max_loss_usd,
+            evidence_required_after_trade="MFE/MAE cross or timeout",
+            scale_no_scale_criteria="requires offline positive net EV"
+        )
+
+        inputs = TradeEconomicInputs(
+            why_this_symbol=p.symbol,
+            why_now=f"{p.strategy} in {regime} regime",
+            signal_name=p.strategy,
+            signal_value=p.confidence
+        )
+
+        thesis = build_profit_thesis(
+            inputs=inputs,
+            costs=costs,
+            move=move,
+            gross_expected_edge_bps=gross_expected_edge_bps
+        )
+
+        decision = evaluate_profit_thesis(thesis, live_trading_for_profit=False)
+
+        if decision.status == ProfitThesisStatus.REJECTED:
+            reasons = [r.value for r in decision.reject_reasons]
+            logger.info(f"EV_GATE {p.symbol} | Rejected: {reasons} | edge_bps={thesis.net_expected_edge_bps:.1f} req={thesis.minimum_required_edge_bps:.1f}")
+            return None
+
+        if getattr(p, "meta", None) is None:
+            p.meta = {}
+
+        p.meta["profit_thesis"] = profit_thesis_to_dict(decision)
+        return p
+
     def generate_proposals(
         self, symbol: str, buying_power: float | None = None
     ) -> list[TradeProposal]:
@@ -770,6 +870,8 @@ class CryptoStrategy:
             # 1. Controlled Exploration (P2-001)
             exploration = self._coinbase_exploration(symbol, quote, df, buying_power, regime)
             if exploration is not None:
+                exploration = self._enforce_ev_gate(exploration, quote, regime)
+            if exploration is not None:
                 if _HAS_PREDICTION_TELEMETRY:
                     safe_log_proposal_candidate(
                         exploration, regime=regime, source="strategy_crypto", features=_scan_features, raw_payload=_scan_raw
@@ -778,6 +880,8 @@ class CryptoStrategy:
 
             # 2. Legacy Probe
             probe = self._coinbase_probe(symbol, quote, df, prefer_no_trade, buying_power, regime)
+            if probe is not None:
+                probe = self._enforce_ev_gate(probe, quote, regime)
             if probe is not None:
                 if _HAS_PREDICTION_TELEMETRY:
                     safe_log_proposal_candidate(
@@ -807,12 +911,17 @@ class CryptoStrategy:
                 p = self._mean_reversion(symbol, quote, df, prefer_no_trade, buying_power, regime)
             elif strat_name == "ema_crossover":
                 p = self._ema_crossover(symbol, quote, df, prefer_no_trade, buying_power, regime)
+
+            if p is not None:
+                p = self._enforce_ev_gate(p, quote, regime)
             if p is not None:
                 candidates.append(p)
 
         if not candidates:
-            # Main strategies sat out — try exploration/probe as fallbacks
+            # Main strategies sat out or failed EV gate — try exploration/probe as fallbacks
             exploration = self._coinbase_exploration(symbol, quote, df, buying_power, regime)
+            if exploration is not None:
+                exploration = self._enforce_ev_gate(exploration, quote, regime)
             if exploration is not None:
                 if _HAS_PREDICTION_TELEMETRY:
                     safe_log_proposal_candidate(
@@ -822,6 +931,8 @@ class CryptoStrategy:
 
             probe = self._coinbase_probe(symbol, quote, df, prefer_no_trade, buying_power, regime)
             if probe is not None:
+                probe = self._enforce_ev_gate(probe, quote, regime)
+            if probe is not None:
                 if _HAS_PREDICTION_TELEMETRY:
                     safe_log_proposal_candidate(
                         probe, regime=regime, source="strategy_crypto", features=_scan_features, raw_payload=_scan_raw
@@ -830,7 +941,7 @@ class CryptoStrategy:
             if _HAS_PREDICTION_TELEMETRY:
                 safe_log_skipped_proposal(
                     {"symbol": symbol, "strategy": "none", "product_type": "spot_crypto"},
-                    reason="no_valid_candidate_after_regime_strategies",
+                    reason="no_valid_candidate_after_regime_strategies_and_ev_gate",
                     regime=regime,
                     source="strategy_crypto",
                     features=_scan_features,
@@ -879,7 +990,7 @@ class CryptoStrategy:
     ) -> Optional[TradeProposal]:
         """
         Controlled Coinbase exploration (P2-001B).
-        
+
         Intelligently rotates across the approved Coinbase spot basket to gather
         diverse live shadow data.
         Uses journal-based history to avoid open positions and respect cooldowns.
@@ -891,7 +1002,7 @@ class CryptoStrategy:
             # Reset flag if we are at the start of a new scan cycle
             live_syms = get_cfg("crypto", "live_symbols", default=[])
             is_first_sym = live_syms and symbol == live_syms[0]
-            
+
             if is_first_sym:
                 self._exploration_proposed_this_cycle = False
                 if not enabled:
@@ -908,7 +1019,7 @@ class CryptoStrategy:
             if pilot_cfg["enabled"]:
                 allowed_pilot_symbols = set(pilot_cfg["allowed_symbols"] or ["BTC/USD", "ETH/USD"])
                 approved_symbols = [s for s in approved_symbols if s in allowed_pilot_symbols]
-            
+
             # Only offer exploration if this symbol is in the approved list
             if symbol not in approved_symbols:
                 logger.debug(f"EXPLORE {symbol} | not in approved_symbols")
@@ -917,11 +1028,11 @@ class CryptoStrategy:
             # Use intelligent symbol selection (P2-001B)
             # Select the best candidate among all approved symbols
             selected_symbol = self._select_exploration_symbol(approved_symbols)
-            
+
             if selected_symbol is None:
                 logger.debug("EXPLORE | no eligible symbols found")
                 return None
-            
+
             # Only propose if this is the selected symbol (prevent multiple proposals per cycle)
             if symbol != selected_symbol:
                 logger.debug(f"EXPLORE {symbol} | not selected (target is {selected_symbol})")
@@ -979,7 +1090,7 @@ class CryptoStrategy:
                     )
                     return None
                 notional = float(pilot_eval["notional_usd"])
-            
+
             meta = {
                 "controlled_exploration_enabled": True,
                 "exploration_candidate_symbols": approved_symbols,
@@ -1020,14 +1131,14 @@ class CryptoStrategy:
                     "scaling_mode": "balance_relative_capped_pilot",
                     "risk_increase": "not_approved",
                 })
-            
+
             logger.info(
                 f"SIGNAL coinbase_exploration {selected_symbol} | regime={regime} | "
                 f"notional=${notional:.2f} conf=0.60"
             )
-            
+
             self._exploration_proposed_this_cycle = True
-            
+
             return TradeProposal(
                 symbol=selected_symbol,
                 asset_class="crypto",

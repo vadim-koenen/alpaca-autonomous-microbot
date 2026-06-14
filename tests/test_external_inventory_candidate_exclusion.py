@@ -95,7 +95,7 @@ def _proposal(symbol: str = "BTC/USD") -> TradeProposal:
         quote_time=datetime.now(timezone.utc),
         stop_loss_price=98.0,
         take_profit_price=103.0,
-        meta={"net_expected_edge_pct": 1.0, "worst_case_edge_pct": 0.5, "reward_risk_ratio": 1.5},
+        meta={"net_expected_edge_pct": 1.0, "worst_case_edge_pct": 0.5, "reward_risk_ratio": 1.5, "profit_thesis": {"status": "APPROVED"}},
     )
 
 

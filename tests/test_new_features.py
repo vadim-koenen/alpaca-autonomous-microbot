@@ -62,6 +62,7 @@ def _proposal(**overrides) -> TradeProposal:
             "worst_case_edge_pct": 0.8,
             "reward_risk_ratio": 1.5,
             "spread_pct": 0.04,
+            "profit_thesis": {"status": "APPROVED"},
         },
     )
     base.update(overrides)
@@ -165,6 +166,7 @@ class TestRewardRiskCheck:
             "worst_case_edge_pct": 0.5,
             "reward_risk_ratio": 1.0,   # below 1.4 minimum
             "spread_pct": 0.04,
+            "profit_thesis": {"status": "APPROVED"},
         })
         allowed, reason = rm.check(p, _state())
         assert not allowed
@@ -206,6 +208,7 @@ class TestWorstCaseEdge:
             "worst_case_edge_pct": -0.1,
             "reward_risk_ratio": 2.0,
             "spread_pct": 0.04,
+            "profit_thesis": {"status": "APPROVED"},
         })
         allowed, reason = rm.check(p, _state())
         assert not allowed

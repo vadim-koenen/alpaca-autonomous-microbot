@@ -50,6 +50,7 @@ def _fresh_proposal(**overrides) -> TradeProposal:
         quote_time=datetime.now(timezone.utc),
         stop_loss_price=49000.0,
         take_profit_price=51500.0,
+        meta={"profit_thesis": {"status": "APPROVED"}},
     )
     base.update(overrides)
     return TradeProposal(**base)
@@ -271,7 +272,7 @@ class TestAggregateEquityExposure:
             quote_time=datetime.now(timezone.utc),
             stop_loss_price=496.25,
             take_profit_price=506.0,
-            meta={"spread_pct": 0.004},
+            meta={"spread_pct": 0.004, "profit_thesis": {"status": "APPROVED"}},
         )
         base.update(overrides)
         return TradeProposal(**base)
