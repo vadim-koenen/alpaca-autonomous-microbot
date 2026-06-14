@@ -46,6 +46,28 @@ If, after the exit redesign + fee gate + regime filter, out-of-sample **net-of-f
 ### P2-042E decision
 P2-042E (readiness/report wiring) is inert and tests pass; it may merge as a clean checkpoint **only if** it triggers no live-research activation afterward. Recommendation: **HOLD `MERGE_APPROVED`** and pivot to P2-043A first — do not let "readiness" momentum spend the research budget on a strategy already known to be zero-edge.
 
+### Milestone ladder — the shared definition of "edge" (score against THIS)
+Track progress against milestones, not patch count. Infra ≈36%; **demonstrated net-of-fee edge ≈0%.** Do not conflate them.
+- **M1 — Gate works in code:** P2-043B tests pass; fee-adjusted EV gate rejects negative-EV trades on the live path. *(in progress; tests currently failing — repair first)*
+- **M2 — Exits stop being random:** P2-043C replaces the blind 90-min timer; MFE/MAE exits capture favorable excursion, cut adverse.
+- **M3 — Real-cost backtest GATE (make-or-break):** real OHLCV (not 50–90 synthetic cycles), realistic fees+spread+slippage, **dual fee-schedule (Coinbase + cheaper venue)**, walk-forward, **net-of-fee EV > 0 over ≥100–200 trades**. NOT YET RUN.
+- **M4 — Paper reproduces it:** gated strategy on live data reproduces backtest net-of-fee within tolerance, ≥30–50 trades.
+- **M5 — Bounded live A/B:** live fills ≈ replay (low divergence) and net-of-fee positive over a pre-budgeted sample.
+"Edge" may only be claimed after **M5**. Current position: between M0 and M1.
+
+### GO / NO-GO (capital + accumulation)
+| Decision | Call | Why |
+|---|---|---|
+| Add capital to bot **now** | **NO-GO** | No edge, net-negative; capital only pays % fees faster (fees are %-based — size never dilutes drag). |
+| Add capital **after P2-043C** | **NO-GO** | Better exits ≠ proven edge. |
+| Add capital **after M3 offline + M5 live A/B** | **CONDITIONAL GO** | Only if all scale gates above hold, and only to size a proven edge — never to amplify. |
+| **Accumulate BTC outside the bot** | **GO** (user's call) | Independent of bot edge; DCA/limit, separate bucket, separate from research capital. Not financial advice. |
+
+Capital is the LAST lever, after exits → fewer/longer trades → maker/post-only → (assets). Full reasoning: project root `SENIOR_STRATEGIC_REVIEW_2026-06-14.md`.
+
+### Recommended patch sequence (after P2-043B fixed & merged)
+P2-043C (MFE/MAE exits) → **P2-043D (real-cost backtest GATE = M3; model Coinbase + cheaper venue)** → P2-043E (frequency / maker-post-only / regime filter). No live spend until P2-043D is green.
+
 ### Governance unchanged (still in force)
 `runtime/STOP_TRADING` present — do not remove. No live trading, no restart, no order mutation. Restart still NO_GO (`heartbeat_not_fresh`, `file_alerting_not_active` from P2-034B unresolved). No notional increase, no symbol expansion, no ML live influence, no online learning. Approval phrases (`MERGE_APPROVED`, `LIVE_RESEARCH_APPROVED`, `RESTART_APPROVED`) still required. Never touch `com.vadim.price-path-logger`. Full advisory: project root `SENIOR_ADVISOR_REVIEW_P2-042E.md`.
 
