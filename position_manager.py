@@ -164,6 +164,7 @@ class PositionManager:
         self._mode = get_mode()
         self._dry_run_capture = dry_run_capture
         self._dry_run_captures: list = []  # populated only when dry_run_capture=True; for test inspection only
+        self._mfe_mae_params_cache = None
 
     def restore_state(self, session: SessionState) -> None:
         """
@@ -800,26 +801,65 @@ class PositionManager:
 
         exit_reason: Optional[str] = None
 
-        # 1. Stop-loss
-        if stop_loss > 0:
-            if side == "buy" and current_price <= stop_loss:
-                exit_reason = f"stop-loss hit @ {current_price:.4f} (stop={stop_loss:.4f})"
-            elif side == "short" and current_price >= stop_loss:
-                exit_reason = f"stop-loss hit (short) @ {current_price:.4f} (stop={stop_loss:.4f})"
+        # Exit policy branching
+        if get_cfg("crypto", "mfe_mae_exits_enabled", default=False):
+            if self._mfe_mae_params_cache is None:
+                try:
+                    from mfe_mae_exit_analysis import generate_exit_parameter_cache
+                    price_path = Path("logs/coinbase_price_path.csv").resolve()
+                    journal_path = Path("journal_coinbase_crypto.csv").resolve()
+                    self._mfe_mae_params_cache = generate_exit_parameter_cache(price_path, journal_path)
+                except Exception as e:
+                    logger.error(f"Failed to load MFE/MAE parameters: {e}")
+                    self._mfe_mae_params_cache = {}
 
-        # 2. Take-profit
-        if exit_reason is None and take_profit > 0:
-            if side == "buy" and current_price >= take_profit:
-                exit_reason = f"take-profit hit @ {current_price:.4f} (tp={take_profit:.4f})"
-            elif side == "short" and current_price <= take_profit:
-                exit_reason = f"take-profit hit (short) @ {current_price:.4f} (tp={take_profit:.4f})"
+            # Cache lookup
+            sym_strat = f"{sym}_{strategy}"
+            sym_all = f"{sym}_ALL"
+            all_strat = f"ALL_{strategy}"
 
-        # 3. Max holding time
-        if exit_reason is None and entry_time is not None:
-            max_minutes = get_cfg("crypto", "max_position_minutes", default=90)
-            age_minutes = (now_utc() - entry_time).total_seconds() / 60.0
-            if asset_class == "crypto" and age_minutes >= max_minutes:
-                exit_reason = f"max hold time {max_minutes}min exceeded ({age_minutes:.1f}min held)"
+            if sym_strat in self._mfe_mae_params_cache:
+                params = self._mfe_mae_params_cache[sym_strat]
+            elif sym_all in self._mfe_mae_params_cache:
+                params = self._mfe_mae_params_cache[sym_all]
+            elif all_strat in self._mfe_mae_params_cache:
+                params = self._mfe_mae_params_cache[all_strat]
+            else:
+                params = self._mfe_mae_params_cache.get("GLOBAL_FALLBACK")
+
+            if params and params.is_valid:
+                from exit_policy_mfe_mae import decide_exit
+                elapsed_minutes = (now_utc() - entry_time).total_seconds() / 60.0 if entry_time else 0.0
+
+                # We format the position dict for the policy
+                policy_pos = {
+                    "entry_price": avg_entry,
+                    "side": side,
+                }
+                action, reason = decide_exit(policy_pos, current_price, elapsed_minutes, params)
+                if action and reason:
+                    exit_reason = reason
+        else:
+            # 1. Stop-loss
+            if stop_loss > 0:
+                if side == "buy" and current_price <= stop_loss:
+                    exit_reason = f"stop-loss hit @ {current_price:.4f} (stop={stop_loss:.4f})"
+                elif side == "short" and current_price >= stop_loss:
+                    exit_reason = f"stop-loss hit (short) @ {current_price:.4f} (stop={stop_loss:.4f})"
+
+            # 2. Take-profit
+            if exit_reason is None and take_profit > 0:
+                if side == "buy" and current_price >= take_profit:
+                    exit_reason = f"take-profit hit @ {current_price:.4f} (tp={take_profit:.4f})"
+                elif side == "short" and current_price <= take_profit:
+                    exit_reason = f"take-profit hit (short) @ {current_price:.4f} (tp={take_profit:.4f})"
+
+            # 3. Max holding time
+            if exit_reason is None and entry_time is not None:
+                max_minutes = get_cfg("crypto", "max_position_minutes", default=90)
+                age_minutes = (now_utc() - entry_time).total_seconds() / 60.0
+                if asset_class == "crypto" and age_minutes >= max_minutes:
+                    exit_reason = f"max hold time {max_minutes}min exceeded ({age_minutes:.1f}min held)"
 
         # 4. Options: never hold through expiration (handled upstream, but belt+suspenders)
         if exit_reason is None and asset_class == "option":
