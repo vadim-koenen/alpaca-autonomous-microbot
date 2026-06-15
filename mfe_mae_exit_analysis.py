@@ -125,7 +125,7 @@ def extract_position_analyses(
             continue
 
         strategy = strategy_map.get(key.position_id, "unknown")
-        
+
         analyses.append(
             PositionAnalysis(
                 symbol=key.symbol,
@@ -181,12 +181,16 @@ def derive_parameters_for_group(
     # Apply net-of-fee awareness
     rt_cost = calculate_round_trip_cost_pct(fee_model)
     min_target = rt_cost * 1.5  # Need some margin over costs
-    
-    tp_pct = max(mfe_40, min_target)
-    
+
+    if mfe_40 < min_target:
+        # Rejected: The observed MFE distribution cannot clear round-trip fee + spread/slippage + margin.
+        return DerivedExitParameters(0.0, 0.0, 0.0, len(analyses), False)
+
+    tp_pct = mfe_40
+
     # Cap invalidation to a sane value so we don't hold to -10% just because data says so
     sl_pct = max(mae_20, -5.0)
-    
+
     # Cap hold time at 120 mins max, 10 mins min
     max_hold = max(min(time_80, 120.0), 10.0)
 
@@ -207,25 +211,22 @@ def generate_exit_parameter_cache(
     Includes a fallback "GLOBAL_FALLBACK" key.
     """
     analyses = extract_position_analyses(price_path_csv, journal_csv)
-    
+
     grouped: Dict[str, List[PositionAnalysis]] = {}
     for a in analyses:
         key = f"{a.symbol}_{a.strategy}"
         grouped.setdefault(key, []).append(a)
         grouped.setdefault(f"{a.symbol}_ALL", []).append(a)
         grouped.setdefault(f"ALL_{a.strategy}", []).append(a)
-    
+
     cache: Dict[str, DerivedExitParameters] = {}
     for key, group in grouped.items():
         params = derive_parameters_for_group(group)
         if params.is_valid:
             cache[key] = params
-            
+
     # Global fallback using all available data
     global_params = derive_parameters_for_group(analyses, min_samples=1)
-    if not global_params.is_valid:
-        # Hardcoded extreme safe fallbacks if no data exists
-        global_params = DerivedExitParameters(3.0, -1.5, 90.0, 0, True)
-        
+    # Note: if global_params.is_valid is False, we keep it as False. NO_VIABLE_POLICY support.
     cache["GLOBAL_FALLBACK"] = global_params
     return cache
