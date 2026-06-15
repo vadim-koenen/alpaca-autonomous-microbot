@@ -131,6 +131,7 @@ crypto:
   passive_limit_entries: true
   buying_power_safety_buffer: 0.85
   use_atr_exits: true
+  mfe_mae_exits_enabled: false
   bars_limit: 100
   min_bars_required: 60
   slippage_estimate_pct: 0.05
