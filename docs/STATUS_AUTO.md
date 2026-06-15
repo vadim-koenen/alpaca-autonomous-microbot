@@ -1,6 +1,6 @@
 # Auto Status (machine-generated — do not hand-edit)
 
-Generated: 2026-06-15T15:27:57Z
+Generated: 2026-06-15T16:06:03Z
 Main-tree HEAD: cc03406 P2-043C: fix exit policy annotation portability
 Audit verdict: AUDIT_VERDICT=WARN
 
@@ -9,7 +9,7 @@ status=running  equity=59.4605  open_positions=1  daily_pnl=0.0
 last_trade_at=None  last_loop_time=2026-06-14T09:52:14.114534-05:00  halt_reason=None
 
 ## Alpaca
-status=running  equity=10.0  open_positions=0  last_loop_time=2026-06-15T10:27:52.358193-05:00
+status=running  equity=10.0  open_positions=0  last_loop_time=2026-06-15T11:05:55.656883-05:00
 
 ## Economics digest
 cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
@@ -17,7 +17,7 @@ recent_log_errors(last200 lines)=100
 
 ## Full audit snapshot
 ```
-=== AUDIT SNAPSHOT 2026-06-15T15:27:56Z ===
+=== AUDIT SNAPSHOT 2026-06-15T16:06:01Z ===
 === GIT HEAD ===
 cc03406 P2-043C: fix exit policy annotation portability
 8ceb3d7 P2-043C: harden MFE MAE exit policy economics
