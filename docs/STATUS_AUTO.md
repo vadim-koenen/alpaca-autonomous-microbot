@@ -1,7 +1,7 @@
 # Auto Status (machine-generated — do not hand-edit)
 
-Generated: 2026-06-15T12:31:30Z
-Main-tree HEAD: 8ceb3d7 P2-043C: harden MFE MAE exit policy economics
+Generated: 2026-06-15T15:27:57Z
+Main-tree HEAD: cc03406 P2-043C: fix exit policy annotation portability
 Audit verdict: AUDIT_VERDICT=WARN
 
 ## Coinbase (live)
@@ -9,7 +9,7 @@ status=running  equity=59.4605  open_positions=1  daily_pnl=0.0
 last_trade_at=None  last_loop_time=2026-06-14T09:52:14.114534-05:00  halt_reason=None
 
 ## Alpaca
-status=running  equity=10.0  open_positions=0  last_loop_time=2026-06-15T07:31:18.469271-05:00
+status=running  equity=10.0  open_positions=0  last_loop_time=2026-06-15T10:27:52.358193-05:00
 
 ## Economics digest
 cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
@@ -17,14 +17,14 @@ recent_log_errors(last200 lines)=100
 
 ## Full audit snapshot
 ```
-=== AUDIT SNAPSHOT 2026-06-15T12:31:29Z ===
+=== AUDIT SNAPSHOT 2026-06-15T15:27:56Z ===
 === GIT HEAD ===
+cc03406 P2-043C: fix exit policy annotation portability
 8ceb3d7 P2-043C: harden MFE MAE exit policy economics
 bb1e914 P2-043C: add offline MFE MAE exit policy redesign
 589b4ec P2-043B: repair EV gate test file truncation
 740db3f P2-043B: Wire fee-adjusted EV gate with dedicated tests and defensive meta
 0644aa4 chore(ci): comment pytest results on PRs
-67489be auto-sync handoff 2026-06-14T12:31
 === LIVE P/L TRUTH (mode=live, action=EXIT) ===
 cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
 === EXIT REASONS (live) ===
