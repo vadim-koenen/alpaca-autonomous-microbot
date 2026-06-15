@@ -3,7 +3,7 @@ P2-043C: MFE/MAE Exit Policy
 Deterministic policy applying data-driven MFE/MAE parameters to open positions.
 """
 
-from typing import Tuple, Optional, Any
+from typing import Tuple, Optional, Any, Dict
 from mfe_mae_exit_analysis import DerivedExitParameters
 
 
