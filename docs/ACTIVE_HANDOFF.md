@@ -46,6 +46,26 @@ If, after the exit redesign + fee gate + regime filter, out-of-sample **net-of-f
 ### P2-042E decision
 P2-042E (readiness/report wiring) is inert and tests pass; it may merge as a clean checkpoint **only if** it triggers no live-research activation afterward. Recommendation: **HOLD `MERGE_APPROVED`** and pivot to P2-043A first — do not let "readiness" momentum spend the research budget on a strategy already known to be zero-edge.
 
+### Milestone ladder — the shared definition of "edge" (score against THIS)
+Infra ~36%; **demonstrated net-of-fee edge ~0%.** Do not conflate.
+- **M1 — gate works in code:** ✅ MET (2026-06-14). P2-043B verified (blast-radius 111 passed incl. test_risk_manager; full suite 1483 passed; reds = missing pyarrow/duckdb in venv, env not code). On main at 589b4ec.
+- **M2 — exits stop being random:** P2-043C MFE/MAE exits (review branch cc03406), flag-gated, offline.
+- **M3 — real-cost backtest GATE (make-or-break):** P2-043D, NOT YET RUN.
+- **M4 — paper reproduces M3** (>=30-50 trades). **M5 — bounded live A/B** (live ~ replay, net-of-fee positive).
+"Edge" only after M5.
+
+### GO / NO-GO
+| Decision | Call | Why |
+|---|---|---|
+| Capital to bot now | **NO-GO** | No edge; %-fees, size never dilutes drag. |
+| Capital after P2-043C | **NO-GO** | Better exits != proven edge. |
+| Capital after M3 + M5 | **CONDITIONAL GO** | Only to size a proven edge. |
+| Accumulate BTC outside the bot | **GO** (user's call) | Independent of bot edge. Not financial advice. |
+
+### P2-043D IS THE DECISION GATE — run before any more strategy code (2026-06-15 verdict)
+Current framing (short-horizon 90-min taker-fee Coinbase majors) is **NOT viable**: round-trip cost ~1.2-2.4% > ~0.8% expected 90-min move; gross ~0 across 54 live + ~30 falsified offline candidates. P(durable net-of-fee edge): current taker **2-5%** · maker **5-12%** · longer-horizon **10-20%** · cheaper venue **8-18%** · pivot off short-horizon crypto **10-25%**.
+**P2-043D = multi-scenario real-cost walk-forward backtest**, one harness: { taker 90-min · maker · longer-horizon 4-24h · cheaper-venue }. Real OHLCV, >=100-200 trades/scenario, fees+spread+slippage+fill-prob. **PASS:** net-of-fee EV/trade >0 AND >=2x cost; PF >=1.3; beats no-trade AND buy-and-hold; stable across folds. **FAIL (none clear):** thesis falsified -> pivot or stop. **Freeze P2-043E+ until D returns.** Memo: project root PROFITABILITY_CONSULT_2026-06-15.md.
+
 ### Governance unchanged (still in force)
 `runtime/STOP_TRADING` present — do not remove. No live trading, no restart, no order mutation. Restart still NO_GO (`heartbeat_not_fresh`, `file_alerting_not_active` from P2-034B unresolved). No notional increase, no symbol expansion, no ML live influence, no online learning. Approval phrases (`MERGE_APPROVED`, `LIVE_RESEARCH_APPROVED`, `RESTART_APPROVED`) still required. Never touch `com.vadim.price-path-logger`. Full advisory: project root `SENIOR_ADVISOR_REVIEW_P2-042E.md`.
 
