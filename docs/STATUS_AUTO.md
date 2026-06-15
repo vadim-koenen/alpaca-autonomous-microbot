@@ -1,7 +1,7 @@
 # Auto Status (machine-generated — do not hand-edit)
 
-Generated: 2026-06-15T16:33:30Z
-Main-tree HEAD: cc03406 P2-043C: fix exit policy annotation portability
+Generated: 2026-06-15T20:33:34Z
+Main-tree HEAD: d9fec56 P2-043C: add offline MFE/MAE exit redesign gate
 Audit verdict: AUDIT_VERDICT=WARN
 
 ## Coinbase (live)
@@ -9,7 +9,7 @@ status=running  equity=59.4605  open_positions=1  daily_pnl=0.0
 last_trade_at=None  last_loop_time=2026-06-14T09:52:14.114534-05:00  halt_reason=None
 
 ## Alpaca
-status=running  equity=10.0  open_positions=0  last_loop_time=2026-06-15T11:32:29.986887-05:00
+status=running  equity=10.0  open_positions=0  last_loop_time=2026-06-15T15:32:36.779766-05:00
 
 ## Economics digest
 cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
@@ -17,14 +17,14 @@ recent_log_errors(last200 lines)=100
 
 ## Full audit snapshot
 ```
-=== AUDIT SNAPSHOT 2026-06-15T16:33:29Z ===
+=== AUDIT SNAPSHOT 2026-06-15T20:33:32Z ===
 === GIT HEAD ===
-cc03406 P2-043C: fix exit policy annotation portability
-8ceb3d7 P2-043C: harden MFE MAE exit policy economics
-bb1e914 P2-043C: add offline MFE MAE exit policy redesign
-589b4ec P2-043B: repair EV gate test file truncation
-740db3f P2-043B: Wire fee-adjusted EV gate with dedicated tests and defensive meta
-0644aa4 chore(ci): comment pytest results on PRs
+d9fec56 P2-043C: add offline MFE/MAE exit redesign gate
+a948ef2 P2-043C: fix exit policy annotation portability
+7c9a58b P2-043C: harden MFE MAE exit policy economics
+04443f3 P2-043C: add offline MFE MAE exit policy redesign
+4b498ea chore: consolidate CI workflow + handoff gates (M1-M5, GO/NO-GO, P2-043D decision gate)
+4dbfbc9 chore: consolidate CI + handoff gates (M1-M5, GO/NO-GO, P2-043D decision gate)
 === LIVE P/L TRUTH (mode=live, action=EXIT) ===
 cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
 === EXIT REASONS (live) ===
