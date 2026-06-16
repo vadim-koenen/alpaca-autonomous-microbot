@@ -4,6 +4,30 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046D APP BACKEND + OPERATOR DECISIONS (2026-06-16)
+
+> **Current directive. Author: Claude (senior eng).** Builds on 046A/046B below.
+
+**Operator decisions (2026-06-16):**
+- **Allocation = CONSERVATIVE**: SPY 35 / GLD 25 / SLV 15 / QQQ 15 / BTC 10 (baked into `app_config.py`).
+- **Desktop app = native macOS app in the dock** → stack **pywebview + py2app** (all-Python, real `.app`
+  with dock icon, no Node/Rust). Tauri reserved for a future signed/distributable installer.
+
+**P2-046D built (app backend, +12 tests, 41 total this session):**
+- `app_config.py` — Conservative weights, contribution/cadence, rebalance band, overlay OFF (per 046A).
+- `portfolio_store.py` — local JSON portfolio state + append-only plan/fill history (`runtime/`).
+- `planner_service.py` — `build_plan(portfolio, prices, config)` → one JSON PeriodPlan (snapshot,
+  current-vs-target weights + drift, proposed BUY/SELL orders, summary). Prices injected → fully testable.
+  Verified on real latest prices: first $100 → BUY SPY $35 / GLD $25 / SLV $15 / QQQ $15 / BTC $10.
+
+All proposals only; `authorizes_live=False`; human approval + paper before live; STOP_TRADING gates exec.
+
+**Remaining build:** 046C news advisory/risk module (non-trading) · 046D-exec paper executor
+(Alpaca paper, STOP_TRADING-gated) · 046E FastAPI(localhost) over the planner · 046F web UI +
+pywebview shell + py2app packaging → dock app. Live remains NO-GO.
+
+---
+
 ## Latest Status — P2-046B ENGINE + DESKTOP-APP SCOPE LOCKED (2026-06-16)
 
 > **Current directive. Author: Claude (senior eng).** Builds on the pivot below.
