@@ -4,6 +4,33 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046F RUNNABLE DESKTOP APP (CLI-verified) (2026-06-16)
+
+> **Current directive. Author: Claude (senior eng).** The dock app now runs end-to-end.
+
+**Built (P2-046E/F, +9 tests; 139 total pass):**
+- `paper_executor.py` — applies an APPROVED plan as SIMULATED fills to local state (funds the
+  contribution first, then deploys). Broker mode HARD-GATED (refused while STOP_TRADING present /
+  unauthorized) — no broker is ever contacted now.
+- `app_api.py` — `AccumulatorAPI` bridge (get_status/get_plan/approve_plan_paper/get_history/get_config);
+  injectable price provider → fully headless-testable.
+- `app_main.py` — entrypoint: **GUI** (`python3 app_main.py`, pywebview window) OR **headless CLI**
+  (`--cli`, `--approve`). UI is `app_ui/index.html` (vanilla JS via pywebview `js_api` — no server).
+- `setup_app.py` + `requirements-app.txt` — py2app packaging → native `Accumulator.app` in the dock.
+
+**Architecture refinement:** v1 uses pywebview `js_api` (Python called directly from UI), not FastAPI —
+fewer deps for a single-user dock app. FastAPI remains optional for a future multi-client setup.
+
+**Verified headlessly on REAL prices:** status (STOP_TRADING armed, live disabled) → Conservative plan
+($100 → SPY35/GLD25/SLV15/QQQ15/BTC10) → simulate-approve → $99.90 → second approve accumulates $199.80,
+state persisted to `runtime/accumulator_state.json` (gitignored). No broker contacted.
+
+**To see the dock app (on the Mac):** `pip install -r requirements-app.txt` then `python3 app_main.py`
+(window), and `python3 setup_app.py py2app` → `open dist/Accumulator.app`. Remaining: P2-046C news
+advisory/risk module; equity-curve/history screen; (later, post-gate) real Alpaca paper execution. Live NO-GO.
+
+---
+
 ## Latest Status — P2-046D APP BACKEND + OPERATOR DECISIONS (2026-06-16)
 
 > **Current directive. Author: Claude (senior eng).** Builds on 046A/046B below.

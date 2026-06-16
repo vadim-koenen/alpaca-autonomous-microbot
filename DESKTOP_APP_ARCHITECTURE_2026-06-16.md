@@ -26,7 +26,7 @@ UI over logic that already exists — it adds **zero** new trading authority.
 | Layer | Choice | Why |
 |---|---|---|
 | **Decision logic** | existing `allocator_engine.py`, `accumulator_allocator.py` | already pure, tested, broker-agnostic |
-| **Backend API** | **FastAPI** (local, `127.0.0.1` only) | thin JSON wrapper over the engine; reuses all Python |
+| **Backend API** | **pywebview `js_api`** (v1) — Python methods called directly from the UI | single-user local app needs no server; fewer deps. FastAPI optional later for multi-client |
 | **Frontend** | single-page web UI (plain HTML/JS or lightweight framework) | simple, portable, easy to render orders/charts |
 | **Desktop shell** | **pywebview** for v1 (native window over the local UI) | Python-native, tiny, no Node toolchain; **Tauri** later if a signed installer is wanted |
 | **State** | local JSON/SQLite (portfolio, contributions, plan history) | offline, inspectable, backup-friendly |

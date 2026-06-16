@@ -1,0 +1,11 @@
+# Desktop app (Accumulator) dependencies — install on the Mac.
+#   pip install -r requirements-app.txt
+# The decision logic (allocator_engine, planner_service, etc.) is pure stdlib; these are
+# only for the desktop shell, data fetch, and packaging.
+
+pywebview>=5.0        # native macOS window hosting the UI (js_api bridge)
+alpaca-py>=0.26       # read-only market data / future paper execution (keys from .env)
+
+# Packaging into a dock app (.app):
+#   pip install py2app
+#   python3 setup_app.py py2app

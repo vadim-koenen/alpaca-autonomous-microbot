@@ -38,6 +38,12 @@ class AppConfig:
     cost_bps: float = 10.0           # spread+slippage assumption per side
     overlay_enabled: bool = False    # P2-046A: dip-overlay does NOT beat plain DCA -> OFF
     profile: str = "conservative"
+    # Offline price source for the app/planner: symbol -> daily-OHLCV CSV (last close used).
+    # The live app can swap this for read-only Alpaca quotes; CSVs keep it runnable offline.
+    price_csvs: Dict[str, str] = field(default_factory=lambda: {
+        "SPY": "SPY_clean.csv", "GLD": "GLD_clean.csv", "SLV": "SLV_clean.csv",
+        "QQQ": "QQQ_daily.csv", "BTC": "BTC_daily.csv",
+    })
 
     def validate(self) -> None:
         if not self.weights:

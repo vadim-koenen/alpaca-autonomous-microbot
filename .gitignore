@@ -83,3 +83,8 @@ snapshots/
 docs/completed_patch_requests/*.json
 logs/coinbase_price_path.csv
 .aider*
+
+# accumulator app local state (P2-046)
+runtime/accumulator_state.json
+runtime/accumulator_history.jsonl
+app_config.json
