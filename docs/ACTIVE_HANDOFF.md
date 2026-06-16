@@ -4,6 +4,37 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-045 NEWS-EDGE LANE FALSIFIED (2026-06-16)
+
+> **Supersedes the venue/news framing below for the news lane. Author: Claude (senior eng, local terminal).**
+> Full writeup: project root `P2-045_NEWS_EDGE_FINDING_2026-06-16.md`.
+
+**Verdict: NO_NEWS_EDGE. News/sentiment does NOT predict BTC forward returns net of fees.**
+
+Ran the real pipeline on the Mac: 1826 daily BTC/USD bars (Alpaca) + **110,288 real headlines**
+(Alpaca news, 2021–2026; CryptoCompare's free endpoint now 401s, so we used the Alpaca news API —
+same keys, deeper history). Data is ample and real → this is NOT insufficient-data.
+
+`news_edge_research.py` printed `NEWS_EDGE_SIGNAL` (+38.2 bps/trade, t=5.0) — **a false positive**:
+- **Pseudo-replication:** 3654 "trades" are the same few rally days counted hundreds of times (one
+  per headline). Collapsed to **one obs/entry-day** the result inverts to **−14 bps, t=−0.75**.
+- **Momentum-proxy lexicon:** its positive words (surge/rally/record/jump) describe price that already
+  rose; signal days have +124 bps trailing return — it's the price-only momentum P2-044H already killed,
+  and that momentum mean-reverted OOS (−12.7 bps, t=−5.2).
+- **No-op threshold:** sentiment 0.2 vs 1.0 select the same ~1034 days → "signal" = "long BTC every day"
+  = buy-and-hold. Honest daily-collapsed sweep clears significance at no horizon/threshold.
+
+Bug in `news_edge_research.py`: gates on per-headline `mean>0 & t>1` with no per-day collapse, no
+overlap correction, no buy-and-hold baseline → rubber-stamps any long-only rule on a trending asset.
+Fix before reuse (see memo). **Live remains NO-GO; no gate passed; no paper repro proposed.**
+
+**State now: 2 of 3 signal lanes falsified on real data (price-technical P2-044H, news P2-045).**
+Single best next step = stop predictive-signal mining; instead run the already-built equities-swing
+gate on REAL ETF OHLCV (`run_pivot_gate.py --csv SPY_daily.csv`) — the cheap-execution lane is the
+only untested lever with positive prior. If it FAILS too → strong case to stop trading this account.
+
+---
+
 ## Latest Status — SENIOR ADVISORY: PROFITABILITY RESET (2026-06-14)
 
 > **This block supersedes the prior "Latest Status" and is the current PM directive. Read it before proposing the next patch.**
