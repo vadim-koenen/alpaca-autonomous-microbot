@@ -1,7 +1,7 @@
 # Auto Status (machine-generated — do not hand-edit)
 
-Generated: 2026-06-16T16:28:20Z
-Main-tree HEAD: f8db5d1 P2-043D: add real-cost walk-forward decision gate
+Generated: 2026-06-16T20:28:23Z
+Main-tree HEAD: f1afc77 P2-046A: pivot bot to accumulator/allocator + offline DCA-vs-overlay backtest
 Audit verdict: AUDIT_VERDICT=WARN
 
 ## Coinbase (live)
@@ -9,22 +9,22 @@ status=running  equity=59.4605  open_positions=1  daily_pnl=0.0
 last_trade_at=None  last_loop_time=2026-06-14T09:52:14.114534-05:00  halt_reason=None
 
 ## Alpaca
-status=running  equity=10.0  open_positions=0  last_loop_time=2026-06-16T11:27:50.906286-05:00
+status=running  equity=10.0  open_positions=0  last_loop_time=2026-06-16T13:05:51.671071-05:00
 
 ## Economics digest
 cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
-recent_log_errors(last200 lines)=100
+recent_log_errors(last200 lines)=133
 
 ## Full audit snapshot
 ```
-=== AUDIT SNAPSHOT 2026-06-16T16:28:19Z ===
+=== AUDIT SNAPSHOT 2026-06-16T20:28:22Z ===
 === GIT HEAD ===
+f1afc77 P2-046A: pivot bot to accumulator/allocator + offline DCA-vs-overlay backtest
+252b29b P2-045: lane 3 (equities-swing) NO_GO on real ETF data + edge-discovery framework
+25041e4 P2-045: news-edge lane FALSIFIED on real data (NO_NEWS_EDGE)
 f8db5d1 P2-043D: add real-cost walk-forward decision gate
 fa9a78e P2-043D: Real-cost walk-forward decision gate harness
 d9fec56 P2-043C: add offline MFE/MAE exit redesign gate
-a948ef2 P2-043C: fix exit policy annotation portability
-7c9a58b P2-043C: harden MFE MAE exit policy economics
-04443f3 P2-043C: add offline MFE MAE exit policy redesign
 === LIVE P/L TRUTH (mode=live, action=EXIT) ===
 cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
 === EXIT REASONS (live) ===
