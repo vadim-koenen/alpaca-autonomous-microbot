@@ -4,6 +4,29 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046B ENGINE + DESKTOP-APP SCOPE LOCKED (2026-06-16)
+
+> **Current directive. Author: Claude (senior eng).** Builds on the pivot below.
+
+**Desktop app is in scope** (operator re-confirmed; it had dropped out of the long GPT chat). The bot
+becomes a **local, human-in-the-loop accumulator/allocator app** — a control surface that proposes the
+period's plan; the human approves; paper precedes live; `STOP_TRADING` always wins. Architecture +
+phased build + stack recommendation: `DESKTOP_APP_ARCHITECTURE_2026-06-16.md`. Recommended stack:
+existing pure-Python engine → FastAPI (localhost) → web UI → **pywebview** desktop shell (Tauri later).
+One open decision before UI scaffolding: pywebview vs Tauri vs PyQt; backend work proceeds regardless.
+
+**P2-046B built:** `allocator_engine.py` (+14 tests) — the broker-agnostic decision brain the
+backtester, paper executor, and app all call. `plan_period(portfolio, prices, weights, contribution)`
+returns BUY/SELL `Order`s. Key design: **contribution-funded rebalancing** (steer new DCA money to
+underweight assets; never sell winners unless `allow_sell` + drift band breached → no fees/taxes).
+Plain DCA is the default (overlay OFF per P2-046A). Pure, deterministic, no broker, no network.
+
+Phased build: 046A ✅ basket backtest · 046B ✅ engine · **046C** news advisory/risk module (non-trading)
+· 046D portfolio store + paper executor (STOP_TRADING-gated) · 046E FastAPI · 046F web UI + pywebview.
+Live remains NO-GO. Test count this session: 15 (046A) + 14 (046B) pass.
+
+---
+
 ## Latest Status — PIVOT: BOT BECOMES ACCUMULATOR/ALLOCATOR (P2-046A, 2026-06-16)
 
 > **Current directive. Author: Claude (senior eng). Slice handoff: `P2-046A_HANDOFF_FOR_GPT_2026-06-16.md`.**
