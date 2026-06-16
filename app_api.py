@@ -18,6 +18,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
+import json
+
+import news_risk_monitor as nrm
 import paper_executor
 import planner_service as ps
 import portfolio_store as store
@@ -35,12 +38,16 @@ class AccumulatorAPI:
         history_path: Path = Path("runtime/accumulator_history.jsonl"),
         price_provider: Optional[Callable[[], Dict[str, float]]] = None,
         stop_trading_path: Path = paper_executor.STOP_TRADING_PATH,
+        news_path: Path = Path("crypto_news.jsonl"),
+        news_provider: Optional[Callable[[], list]] = None,
     ) -> None:
         self.config = config or (load_config(config_path) if config_path else default_config())
         self.state_path = Path(state_path)
         self.history_path = Path(history_path)
         self.stop_trading_path = Path(stop_trading_path)
+        self.news_path = Path(news_path)
         self._price_provider = price_provider or self._default_price_provider
+        self._news_provider = news_provider or self._default_news_provider
 
     # --- prices ---------------------------------------------------------------
     def _default_price_provider(self) -> Dict[str, float]:
@@ -48,6 +55,26 @@ class AccumulatorAPI:
 
     def prices(self) -> Dict[str, float]:
         return self._price_provider()
+
+    # --- news (advisory + risk only; never a signal) --------------------------
+    def _default_news_provider(self, max_items: int = 1500) -> list:
+        """Read the most recent news rows from the local JSONL (tail). Empty if absent."""
+        if not self.news_path.exists():
+            return []
+        lines = self.news_path.read_text().splitlines()[-max_items:]
+        out = []
+        for ln in lines:
+            ln = ln.strip()
+            if ln:
+                try:
+                    out.append(json.loads(ln))
+                except json.JSONDecodeError:
+                    continue
+        return out
+
+    def get_news_alerts(self) -> Dict[str, Any]:
+        items = self._news_provider()
+        return nrm.scan_news(items, watch_symbols=list(self.config.weights.keys()))
 
     # --- read endpoints -------------------------------------------------------
     def get_config(self) -> Dict[str, Any]:

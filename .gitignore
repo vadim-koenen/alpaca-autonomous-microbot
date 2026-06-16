@@ -88,3 +88,7 @@ logs/coinbase_price_path.csv
 runtime/accumulator_state.json
 runtime/accumulator_history.jsonl
 app_config.json
+
+# py2app build artifacts (P2-046)
+build/
+dist/

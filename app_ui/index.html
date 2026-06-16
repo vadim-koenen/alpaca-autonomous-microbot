@@ -77,6 +77,11 @@
     </div>
     <div class="note" id="govNote"></div>
   </div>
+
+  <div class="card">
+    <h2>News &amp; risk <span class="sub">(advisory only — never a buy/sell signal)</span></h2>
+    <div id="newsBody" class="sub">…</div>
+  </div>
 </main>
 
 <script>
@@ -119,6 +124,23 @@ async function loadPlan() {
        <td>${money(o.dollars)}</td><td class="sub">${o.reason}</td></tr>`);
   }
   $('govNote').textContent = plan.note;
+  loadNews();
+}
+
+async function loadNews() {
+  const body = $('newsBody');
+  try {
+    const s = await api().get_news_alerts();
+    if (s.should_pause_recommended) {
+      let html = `<div style="color:var(--sell);font-weight:600">⚠ ${s.n_risk_alerts} risk alert(s) — review before next contribution (pause recommended)</div>`;
+      for (const a of s.risk_alerts.slice(0,6))
+        html += `<div style="margin-top:6px">[${a.date}] <b>${a.symbol}</b> — ${a.headline} <span class="sub">(${a.matched})</span></div>`;
+      body.innerHTML = html;
+    } else {
+      body.innerHTML = `Scanned ${s.n_scanned} recent headlines · no critical events for the basket. `
+        + `<span class="sub">${s.n_watches} watch item(s).</span>`;
+    }
+  } catch (e) { body.textContent = 'News feed unavailable (fetch crypto_news.jsonl to enable).'; }
 }
 
 async function approve() {

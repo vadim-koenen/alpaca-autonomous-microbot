@@ -4,6 +4,33 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046C NEWS/RISK PANEL + .app BUNDLE BUILDS (2026-06-16)
+
+> **Current directive. Author: Claude (senior eng).** Operator confirmed the window opens.
+
+**Built (P2-046C, +10 tests; 149 total pass):**
+- `news_risk_monitor.py` — news as ADVISORY + RISK circuit-breaker, NEVER an entry signal (P2-045
+  falsified news-as-predictor). `scan_news()` flags named catastrophic events (hack/depeg/insolvency/
+  fraud/...) for the watched basket and RECOMMENDS pausing contributions; the human decides. No
+  buy/sell output, no auto-action, no auto-sell. Pure + tested. Wired into `app_api.get_news_alerts()`
+  and a "News & risk" panel in the UI.
+
+**Desktop .app:** `python3 setup_app.py py2app` builds `dist/Accumulator.app` (83 MB, UI bundled,
+valid Info.plist) — drag to /Applications, lives in the dock. **Caveat:** the bundle reads prices from
+repo CSVs and writes state into the repo, so launched standalone it opens but has no data. Daily-use
+path = `./run_app.sh` from the repo (fully working, pywebview 6.2.1 in `.venv`).
+
+**Commercialization gap (the real next phase):** to be a standalone/sellable product the app needs
+(a) a live read-only Alpaca price feed (not repo CSVs), (b) in-app API-key entry, (c) a user-data dir
+(`~/Library/Application Support/Accumulator`) for state/config, (d) code-signing + notarization for
+Gatekeeper. HONEST product framing: it sells *discipline/automation/diversification/UX*, NOT alpha
+(none exists for retail — proven). Marketing performance/edge would be false + triggers investment-
+adviser (RIA) regulation. Keep it a non-custodial personal tool unless a regulatory path is chosen.
+
+Build artifacts `build/`, `dist/` gitignored. Live remains NO-GO.
+
+---
+
 ## Latest Status — P2-046F RUNNABLE DESKTOP APP (CLI-verified) (2026-06-16)
 
 > **Current directive. Author: Claude (senior eng).** The dock app now runs end-to-end.
