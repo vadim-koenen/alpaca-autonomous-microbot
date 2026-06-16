@@ -4,6 +4,30 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — ALL 3 SIGNAL LANES DEAD → STRUCTURAL-EDGE FRAMEWORK (2026-06-16)
+
+> **Current directive. Author: Claude (senior eng). Full framework: project root `FRAMEWORK_EDGE_DISCOVERY_2026-06-16.md`.**
+
+Lane 3 (equities-swing) ran on REAL ETF data and is NO_GO: `run_pivot_gate.py` on clean SPY
+(1480 bars, 2020–2026) and QQQ both FAIL. Per-trade EV is *positive* (SPY +40 bps, QQQ +75 bps,
+PF 1.6–1.8) but it **loses to buy-and-hold** (SPY B&H +132%, QQQ +182%) and **0% of parameter
+combos survive OOS** (robustness FALSIFIED). Positive money, no alpha, no generalization.
+
+**All three signal lanes are now falsified on real data: price-technical (P2-044H), news (P2-045),
+equities-swing (P2-044D).** Root cause: all three are the *same* bet — directional prediction on a
+liquid asset from public data — the most-arbitraged, lowest-edge corner. The category is the problem.
+
+**New framework: stop hunting predictive edge; hunt STRUCTURAL edge** (carry/risk-premium, where you're
+paid for bearing risk or providing a service, not for forecasting). Ranked next tests: **#1 crypto
+funding-rate/basis carry (market-neutral, recommended)** → #2 multi-asset momentum *portfolio* (monthly,
+not single-asset) → #3 defined-risk options premium selling → else STOP. Every candidate must clear a
+universal gate (de-overlap, beat the *right* benchmark, OOS robustness, full real costs, pre-registered
+thresholds) to avoid repeating the P2-045 false positive. Live remains NO-GO; no gate passed.
+
+**Next build:** offline funding-rate carry gate (#1). Terminal "stop / don't run a bot" branch is valid.
+
+---
+
 ## Latest Status — P2-045 NEWS-EDGE LANE FALSIFIED (2026-06-16)
 
 > **Supersedes the venue/news framing below for the news lane. Author: Claude (senior eng, local terminal).**
