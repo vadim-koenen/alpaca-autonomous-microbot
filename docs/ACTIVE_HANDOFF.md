@@ -4,6 +4,35 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — PIVOT: BOT BECOMES ACCUMULATOR/ALLOCATOR (P2-046A, 2026-06-16)
+
+> **Current directive. Author: Claude (senior eng). Slice handoff: `P2-046A_HANDOFF_FOR_GPT_2026-06-16.md`.**
+
+Operator decision this session: with no accessible directional edge, the bot's JOB changes from
+**trader** to **systematic accumulator/allocator** — DCA into a diversified basket, hold, rebalance.
+Honesty guard: "buy at lows" allowed only as a MECHANICAL rule (more cheap units vs trailing MA), never
+prediction; "jump into upswings via news" = the FALSIFIED P2-045 hypothesis, NOT built; news = advisory +
+risk-alert only, never an entry signal.
+
+First deliverable `accumulator_allocator.py` (+15 tests) backtests plain DCA vs the valuation overlay,
+capital-neutral, on the REAL 5-asset basket (BTC, SPY, QQQ, GLD, SLV; equal weight; 2021–2026):
+
+| Strategy | Multiple | Max DD |
+|---|---:|---:|
+| **plain_dca** | **1.85x (~13%/yr)** | **15.7%** |
+| overlay_dca | 1.77x (−4.5%) | 14.3% |
+
+**Verdict NO_BENEFIT.** (1) The pivot WORKS — plain DCA on the basket = 1.85x with only 15.7% max DD
+(vs BTC-alone ~70%): steady growth, gentle drawdowns, compounds as capital is added. (2) The dip-overlay
+does NOT beat plain DCA (idle dry powder costs more than cheaper entries in a rising market); lab caught
+it before live. **Build plain DCA + diversification + rebalance; keep the overlay OFF/optional.**
+
+Next (GPT): robustness-check the NO_BENEFIT across folds/weights → P2-046B alloc+rebalance design (risk-
+adjusted) → P2-046C news as a separate non-trading advisory/risk service → paper → bounded live.
+Live remains NO-GO. Data files not committed (regenerate via fetch_alpaca_bars.py).
+
+---
+
 ## Latest Status — ALL 3 SIGNAL LANES DEAD → STRUCTURAL-EDGE FRAMEWORK (2026-06-16)
 
 > **Current directive. Author: Claude (senior eng). Full framework: project root `FRAMEWORK_EDGE_DISCOVERY_2026-06-16.md`.**
