@@ -84,51 +84,59 @@ PLAN = {"contribution": 35.0, "orders": [{"symbol": "SPY", "side": "BUY",
                                           "dollars": 35.0, "est_units": 0.7}]}
 
 
-def test_broker_mode_blocked_when_live_paper_disabled(tmp_path):
+def test_paper_mode_blocked_when_live_paper_disabled(tmp_path):
     c = app_config.default_config()  # live_paper defaults False
     try:
         paper_executor.execute_plan(Portfolio(), PLAN, PRICES, c, approved=True,
-                                    mode="broker", broker=FakeTradingClient(),
-                                    stop_trading_path=tmp_path / "absent")
+                                    mode="paper", broker=AlpacaPaperBroker(FakeTradingClient()))
         assert False, "expected ExecutionBlocked"
     except paper_executor.ExecutionBlocked as e:
         assert "live_paper" in str(e)
 
 
-def test_broker_mode_blocked_without_broker(tmp_path):
+def test_paper_mode_blocked_without_broker(tmp_path):
     c = app_config.default_config()
     c.live_paper = True
     try:
         paper_executor.execute_plan(Portfolio(), PLAN, PRICES, c, approved=True,
-                                    mode="broker", broker=None,
-                                    stop_trading_path=tmp_path / "absent")
+                                    mode="paper", broker=None)
         assert False, "expected ExecutionBlocked"
     except paper_executor.ExecutionBlocked as e:
         assert "no broker" in str(e)
 
 
-def test_broker_mode_blocked_when_stop_trading_present(tmp_path):
+def test_paper_mode_runs_regardless_of_stop_trading(tmp_path):
+    # paper = fake money via a paper-only broker, so the global STOP_TRADING does NOT block it
     c = app_config.default_config()
     c.live_paper = True
     stop = tmp_path / "STOP_TRADING"
     stop.write_text("")
+    fake = FakeTradingClient()
+    result, _ = paper_executor.execute_plan(
+        Portfolio(), PLAN, PRICES, c, approved=True, mode="paper",
+        broker=AlpacaPaperBroker(fake), stop_trading_path=stop)
+    assert result["mode"] == "broker_paper" and len(fake.submitted) == 1
+
+
+def test_live_mode_always_blocked(tmp_path):
+    # real-money live is never authorized in this build
+    c = app_config.default_config()
+    c.live_paper = True
     try:
         paper_executor.execute_plan(Portfolio(), PLAN, PRICES, c, approved=True,
-                                    mode="broker", broker=AlpacaPaperBroker(FakeTradingClient()),
-                                    stop_trading_path=stop)
+                                    mode="live", broker=AlpacaPaperBroker(FakeTradingClient()))
         assert False, "expected ExecutionBlocked"
     except paper_executor.ExecutionBlocked as e:
-        assert "STOP_TRADING" in str(e)
+        assert "live" in str(e)
 
 
-def test_broker_mode_executes_when_all_gates_open(tmp_path):
-    # all gates satisfied -> submits to the (fake) paper account
+def test_paper_mode_executes_when_all_gates_open(tmp_path):
     c = app_config.default_config()
     c.live_paper = True
     fake = FakeTradingClient()
     result, pf = paper_executor.execute_plan(
-        Portfolio(), PLAN, PRICES, c, approved=True, mode="broker",
-        broker=AlpacaPaperBroker(fake), stop_trading_path=tmp_path / "absent")
+        Portfolio(), PLAN, PRICES, c, approved=True, mode="paper",
+        broker=AlpacaPaperBroker(fake))
     assert result["mode"] == "broker_paper" and result["n_fills"] == 1
     assert result["authorizes_live"] is False
     assert len(fake.submitted) == 1

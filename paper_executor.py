@@ -50,22 +50,27 @@ def execute_plan(
 
     - `approved` must be True (the human clicked Approve).
     - mode='simulate' updates local state only (no broker).
-    - mode='broker' is refused here (STOP_TRADING present / not authorized) — by design.
+    - mode='paper' submits to a paper-only broker (fake money); gated by config.live_paper + broker.
+    - mode='live' (real money) is always refused in this build.
     """
     if not approved:
         raise ExecutionBlocked("plan not approved by operator")
 
     orders = _orders_from_plan(plan)
 
-    if mode == "broker":
-        # Multi-gate: STOP_TRADING must be absent, a broker (Alpaca PAPER) must be supplied,
-        # and config.live_paper must be explicitly enabled. Defense-in-depth for M4.
-        if stop_trading_path.exists():
-            raise ExecutionBlocked("STOP_TRADING present — broker execution refused")
+    if mode == "live":
+        # Real-money LIVE is not built. It would additionally require STOP_TRADING absent and a
+        # separate explicit live authorization. Always refused for now.
+        raise ExecutionBlocked("real-money live execution is not authorized")
+
+    if mode == "paper":
+        # PAPER = fake money via a paper-only broker (paper endpoint + dedicated paper keys), so it
+        # is INDEPENDENT of the global STOP_TRADING switch (that guards real money / the old bot).
+        # Gates: config.live_paper enabled AND a (paper-only) broker supplied AND operator approval.
         if not getattr(config, "live_paper", False):
             raise ExecutionBlocked("config.live_paper is False — paper execution not enabled")
         if broker is None:
-            raise ExecutionBlocked("no broker supplied for broker mode")
+            raise ExecutionBlocked("no broker supplied for paper mode")
         fills = broker.submit_orders(orders)
         return {
             "mode": "broker_paper",

@@ -22,6 +22,7 @@ import sys
 from pathlib import Path
 
 import planner_service as ps
+import app_config as cfg
 from app_api import AccumulatorAPI
 
 UI_INDEX = Path(__file__).parent / "app_ui" / "index.html"
@@ -61,11 +62,29 @@ def run_gui() -> int:
     return 0
 
 
+def set_paper(enabled: bool) -> int:
+    c = cfg.load_config(CONFIG_PATH) if CONFIG_PATH.exists() else cfg.default_config()
+    c.live_paper = enabled
+    cfg.save_config(c, CONFIG_PATH)
+    print(f"paper mode {'ENABLED' if enabled else 'disabled'} in {CONFIG_PATH}.")
+    if enabled:
+        print("Add ALPACA_PAPER_API_KEY / ALPACA_PAPER_SECRET_KEY to .env "
+              "(generate at app.alpaca.markets → Paper Trading → API Keys).")
+        print("STOP_TRADING must be absent for paper to activate.")
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="Accumulator/Allocator desktop app")
     p.add_argument("--cli", action="store_true", help="Headless: print status + plan.")
-    p.add_argument("--approve", action="store_true", help="(with --cli) simulate-approve one period.")
+    p.add_argument("--approve", action="store_true", help="(with --cli) approve one period.")
+    p.add_argument("--enable-paper", action="store_true", help="Switch to Alpaca paper mode.")
+    p.add_argument("--disable-paper", action="store_true", help="Switch back to simulate mode.")
     args = p.parse_args(argv)
+    if args.enable_paper:
+        return set_paper(True)
+    if args.disable_paper:
+        return set_paper(False)
     return run_cli(args.approve) if args.cli else run_gui()
 
 

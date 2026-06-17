@@ -41,6 +41,7 @@ class AccumulatorAPI:
         stop_trading_path: Path = paper_executor.STOP_TRADING_PATH,
         news_path: Path = Path("crypto_news.jsonl"),
         news_provider: Optional[Callable[[], list]] = None,
+        broker_factory: Optional[Callable[[], Any]] = None,
     ) -> None:
         self.config = config or (load_config(config_path) if config_path else default_config())
         self.state_path = Path(state_path)
@@ -49,6 +50,44 @@ class AccumulatorAPI:
         self.news_path = Path(news_path)
         self._price_provider = price_provider or self._default_price_provider
         self._news_provider = news_provider or self._default_news_provider
+        self._broker_factory = broker_factory
+        self._broker = None
+        self._broker_error: Optional[str] = None
+
+    # --- paper broker (only built when live_paper is on) ----------------------
+    def _get_broker(self):
+        if self._broker is not None:
+            return self._broker
+        try:
+            if self._broker_factory is not None:
+                self._broker = self._broker_factory()
+            else:
+                from alpaca_paper_broker import AlpacaPaperBroker
+                self._broker = AlpacaPaperBroker.from_env()
+            self._broker_error = None
+        except Exception as e:  # missing keys / network — surfaced to the UI, never crashes
+            self._broker = None
+            self._broker_error = str(e)
+        return self._broker
+
+    def _paper_active(self) -> bool:
+        # Paper is fake money via a paper-only endpoint, so it does NOT depend on the global
+        # STOP_TRADING switch (which guards real money / the retired Coinbase bot).
+        return bool(self.config.live_paper)
+
+    def _current_portfolio(self) -> Portfolio:
+        """Source of truth: the Alpaca paper account when paper is active, else local state.
+        In paper mode we track ONLY our basket positions (ignore the paper account's house cash)."""
+        if self._paper_active():
+            broker = self._get_broker()
+            if broker is not None:
+                try:
+                    snap = broker.account_snapshot()
+                    basket = {s: float(snap["holdings"].get(s, 0.0)) for s in self.config.weights}
+                    return Portfolio(holdings=basket, cash=0.0)
+                except Exception as e:
+                    self._broker_error = str(e)
+        return store.load_portfolio(self.state_path)
 
     # --- prices ---------------------------------------------------------------
     def _default_price_provider(self) -> Dict[str, float]:
@@ -90,12 +129,18 @@ class AccumulatorAPI:
         }
 
     def get_status(self) -> Dict[str, Any]:
-        pf = store.load_portfolio(self.state_path)
+        paper = self._paper_active()
+        if paper:
+            self._get_broker()  # warm + capture any connection error for the UI
+        pf = self._current_portfolio()
         prices = self.prices()
         priced = {s: pf.holdings.get(s, 0.0) * prices[s] for s in prices}
         return {
+            "mode": "paper" if paper else "simulate",
             "stop_trading_armed": self.stop_trading_path.exists(),
-            "live_enabled": False,
+            "live_enabled": False,  # real-money live is never enabled here
+            "broker_connected": bool(paper and self._broker is not None),
+            "broker_error": self._broker_error if paper else None,
             "portfolio_value": round(pf.value(prices), 4),
             "cash": round(pf.cash, 4),
             "holdings_units": {s: round(u, 8) for s, u in pf.holdings.items()},
@@ -104,8 +149,8 @@ class AccumulatorAPI:
         }
 
     def get_plan(self, contribution: Optional[float] = None) -> Dict[str, Any]:
-        pf = store.load_portfolio(self.state_path)
-        return ps.build_plan(pf, self.prices(), self.config, contribution=contribution)
+        return ps.build_plan(self._current_portfolio(), self.prices(), self.config,
+                             contribution=contribution)
 
     def get_history(self) -> list:
         return store.load_history(self.history_path)
@@ -113,13 +158,30 @@ class AccumulatorAPI:
     def get_equity_curve(self) -> Dict[str, Any]:
         return app_analytics.equity_curve(store.load_history(self.history_path))
 
-    # --- action (simulate paper) ---------------------------------------------
+    # --- action ---------------------------------------------------------------
     def approve_plan_paper(self, contribution: Optional[float] = None) -> Dict[str, Any]:
-        """Operator approved: execute the current plan as SIMULATED paper fills, persist
-        new state, and log it. No broker is contacted."""
-        pf = store.load_portfolio(self.state_path)
+        """Operator approved the plan. Routes to the Alpaca PAPER account when paper is active
+        (live_paper on + STOP_TRADING absent + broker reachable), else SIMULATES locally.
+        Real-money LIVE is never reached here. Logs the period for the equity curve."""
         prices = self.prices()
+        pf = self._current_portfolio()
         plan = ps.build_plan(pf, prices, self.config, contribution=contribution)
+        contrib = float(plan.get("contribution", 0.0))
+
+        if self._paper_active() and self._get_broker() is not None:
+            result, _ = paper_executor.execute_plan(
+                pf, plan, prices, self.config, approved=True, mode="paper",
+                stop_trading_path=self.stop_trading_path, broker=self._broker,
+            )
+            # broker is source of truth; record contribution + post-submit basket value
+            after = self._current_portfolio()
+            value = round(after.value(prices), 4)
+            store.append_history({"event": "paper_fill", "plan": plan,
+                                  "result": {**result, "portfolio_value": value}},
+                                 self.history_path)
+            return {**result, "portfolio_value": value}
+
+        # simulated fallback (default until paper is enabled)
         result, new_pf = paper_executor.execute_plan(
             pf, plan, prices, self.config, approved=True, mode="simulate",
             stop_trading_path=self.stop_trading_path,

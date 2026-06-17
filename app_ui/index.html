@@ -40,7 +40,10 @@
 <body>
 <header>
   <h1>Accumulator · <span id="profile" class="sub"></span></h1>
-  <span id="govBadge" class="badge">…</span>
+  <div class="row" style="gap:8px">
+    <span id="modeBadge" class="badge">…</span>
+    <span id="govBadge" class="badge">…</span>
+  </div>
 </header>
 <main>
   <div class="row">
@@ -116,6 +119,12 @@ async function refresh() {
   const armed = st.stop_trading_armed;
   $('govBadge').textContent = armed ? 'STOP_TRADING armed · no live' : 'live disabled';
   $('govBadge').className = 'badge' + (armed ? '' : ' ok');
+  // mode badge: simulate vs paper, with broker connection state
+  const mb = $('modeBadge');
+  if (st.mode === 'paper') {
+    if (st.broker_connected) { mb.textContent = 'PAPER · Alpaca connected'; mb.className = 'badge ok'; }
+    else { mb.textContent = 'PAPER · add paper keys'; mb.className = 'badge'; mb.title = st.broker_error || ''; }
+  } else { mb.textContent = 'SIMULATE (local)'; mb.className = 'badge ok'; }
   await loadPlan();
 }
 

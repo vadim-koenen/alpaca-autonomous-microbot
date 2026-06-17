@@ -4,6 +4,33 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046I PAPER MODE WIRED (operator setup pending) (2026-06-16)
+
+> **Current directive. Author: Claude (senior eng).** Operator chose: start on Alpaca PAPER (fake money).
+
+**Built (P2-046I, +6 tests; 165 total pass):** the app now executes against the Alpaca **paper**
+account when enabled. `app_api` routes Approve to `mode="paper"` (broker) when `live_paper` is on and
+a paper broker is reachable, else SIMULATES; the paper account is the source of truth for holdings/value
+(basket positions only, ignoring house cash). `get_status` reports `mode`, `broker_connected`,
+`broker_error`. UI shows a PAPER/SIMULATE badge. Toggle via `./run_app.sh --enable-paper|--disable-paper`.
+
+**SAFETY MODEL CORRECTED (important):** paper = fake money via a **paper-only broker** (paper endpoint +
+DEDICATED `ALPACA_PAPER_API_KEY/SECRET` — the live `ALPACA_API_KEY` is NEVER used for paper). Paper is
+therefore **decoupled from `runtime/STOP_TRADING`**: the operator does NOT remove STOP_TRADING to
+paper-trade (that switch guards real money / the retired Coinbase bot — it stays present). Execution
+modes: `simulate` (local), `paper` (gated by `live_paper`+broker), `live` (real money) = **always
+hard-blocked** in code.
+
+**Operator setup (pending, on the Mac):** generate Alpaca PAPER keys → add `ALPACA_PAPER_API_KEY/SECRET`
+to `.env` → `./run_app.sh --enable-paper` → launch. Full steps: `PAPER_SETUP_2026-06-16.md`. The repo's
+live keys are LIVE (prefix AK, ALPACA_PAPER=false) — that's why dedicated paper keys are required.
+
+**"B proven" → A:** app paper-executes reliably and the Performance panel matches the Alpaca paper
+account over several weeks. THEN consider real money (separate explicit step; `live` mode still blocked)
++ commercialization (standalone data/keys/signing) + securities-lawyer review.
+
+---
+
 ## Latest Status — P2-046G/H PERFORMANCE TRACKING + PAPER BRIDGE (2026-06-16)
 
 > **Current directive. Author: Claude (senior eng).** Operator chose: harden the personal tool

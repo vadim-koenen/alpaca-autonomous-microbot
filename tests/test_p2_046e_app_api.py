@@ -37,27 +37,25 @@ def test_executor_simulate_updates_portfolio():
     assert pf.holdings["SPY"] > 0
 
 
-def test_executor_broker_mode_blocked_when_stop_trading_present(tmp_path):
+def test_executor_live_mode_always_blocked(tmp_path):
+    # real-money live execution is never authorized in this build
     c = app_config.default_config()
-    stop = tmp_path / "STOP_TRADING"
-    stop.write_text("")
+    c.live_paper = True
     plan = {"orders": []}
     try:
-        paper_executor.execute_plan(Portfolio(), plan, PRICES, c, approved=True,
-                                    mode="broker", stop_trading_path=stop)
+        paper_executor.execute_plan(Portfolio(), plan, PRICES, c, approved=True, mode="live")
         assert False, "expected ExecutionBlocked"
     except paper_executor.ExecutionBlocked as e:
-        assert "STOP_TRADING" in str(e)
+        assert "live" in str(e)
 
 
-def test_executor_broker_mode_blocked_even_without_stop_trading(tmp_path):
-    # broker path stays gated until M4: live_paper defaults False, so it's refused even
-    # when STOP_TRADING is absent.
+def test_executor_paper_mode_blocked_when_live_paper_disabled(tmp_path):
+    # paper path stays gated until the operator enables it: live_paper defaults False
     c = app_config.default_config()
     plan = {"orders": []}
     try:
         paper_executor.execute_plan(Portfolio(), plan, PRICES, c, approved=True,
-                                    mode="broker", stop_trading_path=tmp_path / "absent")
+                                    mode="paper", broker=object())
         assert False, "expected ExecutionBlocked"
     except paper_executor.ExecutionBlocked as e:
         assert "live_paper" in str(e)
