@@ -38,6 +38,8 @@ class AppConfig:
     cost_bps: float = 10.0           # spread+slippage assumption per side
     overlay_enabled: bool = False    # P2-046A: dip-overlay does NOT beat plain DCA -> OFF
     live_paper: bool = False         # M4 gate: must be explicitly enabled to submit Alpaca PAPER orders
+    live_trading_enabled: bool = False   # M5 gate: REAL money. Off until the operator deliberately enables.
+    live_max_contribution: float = 100.0  # fat-finger cap on a single live contribution ($)
     profile: str = "conservative"
     # Offline price source for the app/planner: symbol -> daily-OHLCV CSV (last close used).
     # The live app can swap this for read-only Alpaca quotes; CSVs keep it runnable offline.

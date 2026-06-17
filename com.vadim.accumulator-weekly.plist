@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Weekly accumulator reminder (Level 2). Sends a macOS notification every Monday 09:00 to
+  review & approve the contribution. It does NOT trade — it only notifies.
+
+  Install:
+    cp com.vadim.accumulator-weekly.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.vadim.accumulator-weekly.plist
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.vadim.accumulator-weekly.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.vadim.accumulator-weekly</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/.venv/bin/python3</string>
+    <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/app_main.py</string>
+    <string>--notify</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key><integer>1</integer>
+    <key>Hour</key><integer>9</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/tmp/accumulator-notify.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/accumulator-notify.log</string>
+</dict>
+</plist>

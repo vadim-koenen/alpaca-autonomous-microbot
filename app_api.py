@@ -42,28 +42,50 @@ class AccumulatorAPI:
         news_path: Path = Path("crypto_news.jsonl"),
         news_provider: Optional[Callable[[], list]] = None,
         broker_factory: Optional[Callable[[], Any]] = None,
+        live_broker_factory: Optional[Callable[[], Any]] = None,
+        accumulator_stop_path: Path = Path("runtime/ACCUMULATOR_STOP"),
     ) -> None:
         self.config = config or (load_config(config_path) if config_path else default_config())
         self.state_path = Path(state_path)
         self.history_path = Path(history_path)
         self.stop_trading_path = Path(stop_trading_path)
+        self.accumulator_stop_path = Path(accumulator_stop_path)
         self.news_path = Path(news_path)
         self._price_provider = price_provider or self._default_price_provider
         self._news_provider = news_provider or self._default_news_provider
         self._broker_factory = broker_factory
+        self._live_broker_factory = live_broker_factory
         self._broker = None
         self._broker_error: Optional[str] = None
 
-    # --- paper broker (only built when live_paper is on) ----------------------
+    # --- execution mode + brokers --------------------------------------------
+    def _mode(self) -> str:
+        if self.config.live_trading_enabled:
+            return "live"
+        if self.config.live_paper:
+            return "paper"
+        return "simulate"
+
     def _get_broker(self):
+        """Build the broker for the ACTIVE mode (live or paper). Cached. Errors surfaced, not raised."""
         if self._broker is not None:
             return self._broker
+        mode = self._mode()
+        if mode == "simulate":
+            return None
         try:
-            if self._broker_factory is not None:
-                self._broker = self._broker_factory()
-            else:
-                from alpaca_paper_broker import AlpacaPaperBroker
-                self._broker = AlpacaPaperBroker.from_env()
+            if mode == "live":
+                if self._live_broker_factory is not None:
+                    self._broker = self._live_broker_factory()
+                else:
+                    from alpaca_live_broker import AlpacaLiveBroker
+                    self._broker = AlpacaLiveBroker.from_env()
+            else:  # paper
+                if self._broker_factory is not None:
+                    self._broker = self._broker_factory()
+                else:
+                    from alpaca_paper_broker import AlpacaPaperBroker
+                    self._broker = AlpacaPaperBroker.from_env()
             self._broker_error = None
         except Exception as e:  # missing keys / network — surfaced to the UI, never crashes
             self._broker = None
@@ -71,14 +93,15 @@ class AccumulatorAPI:
         return self._broker
 
     def _paper_active(self) -> bool:
-        # Paper is fake money via a paper-only endpoint, so it does NOT depend on the global
-        # STOP_TRADING switch (which guards real money / the retired Coinbase bot).
-        return bool(self.config.live_paper)
+        return self._mode() == "paper"
+
+    def _broker_active(self) -> bool:
+        return self._mode() in ("paper", "live")
 
     def _current_portfolio(self) -> Portfolio:
-        """Source of truth: the Alpaca paper account when paper is active, else local state.
-        In paper mode we track ONLY our basket positions (ignore the paper account's house cash)."""
-        if self._paper_active():
+        """Source of truth: the Alpaca account (paper or live) when a broker mode is active, else
+        local state. We track ONLY our basket positions (ignore the account's house cash)."""
+        if self._broker_active():
             broker = self._get_broker()
             if broker is not None:
                 try:
@@ -129,18 +152,21 @@ class AccumulatorAPI:
         }
 
     def get_status(self) -> Dict[str, Any]:
-        paper = self._paper_active()
-        if paper:
+        mode = self._mode()
+        broker_mode = self._broker_active()
+        if broker_mode:
             self._get_broker()  # warm + capture any connection error for the UI
         pf = self._current_portfolio()
         prices = self.prices()
         priced = {s: pf.holdings.get(s, 0.0) * prices[s] for s in prices}
         return {
-            "mode": "paper" if paper else "simulate",
+            "mode": mode,
             "stop_trading_armed": self.stop_trading_path.exists(),
-            "live_enabled": False,  # real-money live is never enabled here
-            "broker_connected": bool(paper and self._broker is not None),
-            "broker_error": self._broker_error if paper else None,
+            "accumulator_stopped": self.accumulator_stop_path.exists(),
+            "live_enabled": mode == "live",
+            "live_max_contribution": self.config.live_max_contribution,
+            "broker_connected": bool(broker_mode and self._broker is not None),
+            "broker_error": self._broker_error if broker_mode else None,
             "portfolio_value": round(pf.value(prices), 4),
             "cash": round(pf.cash, 4),
             "holdings_units": {s: round(u, 8) for s, u in pf.holdings.items()},
@@ -190,3 +216,38 @@ class AccumulatorAPI:
         store.append_history({"event": "paper_fill", "plan": plan, "result": result},
                              self.history_path)
         return result
+
+    def approve_plan_live(self, confirm: bool = False,
+                          contribution: Optional[float] = None) -> Dict[str, Any]:
+        """REAL MONEY. Submits the plan to the LIVE Alpaca account. Requires live mode enabled,
+        an explicit confirm=True, a reachable live broker, and passes execute_plan's gates
+        (dollar cap, ACCUMULATOR_STOP). Never auto-called; the operator triggers this deliberately."""
+        if self._mode() != "live":
+            raise paper_executor.ExecutionBlocked("live mode not enabled (config.live_trading_enabled)")
+        broker = self._get_broker()
+        if broker is None:
+            raise paper_executor.ExecutionBlocked(self._broker_error or "live broker unavailable")
+        prices = self.prices()
+        pf = self._current_portfolio()
+        plan = ps.build_plan(pf, prices, self.config, contribution=contribution)
+        result, _ = paper_executor.execute_plan(
+            pf, plan, prices, self.config, approved=True, mode="live",
+            broker=broker, confirm_live=confirm,
+            accumulator_stop_path=self.accumulator_stop_path,
+        )
+        value = round(self._current_portfolio().value(prices), 4)
+        store.append_history({"event": "live_fill", "plan": plan,
+                              "result": {**result, "portfolio_value": value}}, self.history_path)
+        return {**result, "portfolio_value": value}
+
+    # --- safety controls ------------------------------------------------------
+    def halt_live(self) -> Dict[str, Any]:
+        """Create the dedicated accumulator kill-switch (blocks live execution immediately)."""
+        self.accumulator_stop_path.parent.mkdir(parents=True, exist_ok=True)
+        self.accumulator_stop_path.write_text("")
+        return {"accumulator_stopped": True}
+
+    def resume_live(self) -> Dict[str, Any]:
+        if self.accumulator_stop_path.exists():
+            self.accumulator_stop_path.unlink()
+        return {"accumulator_stopped": False}

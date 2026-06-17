@@ -45,6 +45,8 @@ def execute_plan(
     mode: str = "simulate",
     stop_trading_path: Path = STOP_TRADING_PATH,
     broker: Any = None,
+    confirm_live: bool = False,
+    accumulator_stop_path: Path = Path("runtime/ACCUMULATOR_STOP"),
 ) -> Tuple[Dict[str, Any], Portfolio]:
     """Apply an approved plan. Returns a result dict incl. the new portfolio.
 
@@ -59,9 +61,34 @@ def execute_plan(
     orders = _orders_from_plan(plan)
 
     if mode == "live":
-        # Real-money LIVE is not built. It would additionally require STOP_TRADING absent and a
-        # separate explicit live authorization. Always refused for now.
-        raise ExecutionBlocked("real-money live execution is not authorized")
+        # REAL MONEY. Multi-gate, all required:
+        #  - config.live_trading_enabled explicitly True
+        #  - confirm_live token passed by the caller (deliberate operator confirmation)
+        #  - a live broker supplied
+        #  - per-contribution dollar cap not exceeded (fat-finger guard)
+        #  - dedicated kill-switch runtime/ACCUMULATOR_STOP absent
+        if not getattr(config, "live_trading_enabled", False):
+            raise ExecutionBlocked("config.live_trading_enabled is False — real-money live disabled")
+        if not confirm_live:
+            raise ExecutionBlocked("live execution requires explicit confirm_live=True")
+        if broker is None:
+            raise ExecutionBlocked("no live broker supplied")
+        if accumulator_stop_path.exists():
+            raise ExecutionBlocked("ACCUMULATOR_STOP present — live execution halted")
+        cap = float(getattr(config, "live_max_contribution", 100.0))
+        contribution = float(plan.get("contribution", 0.0))
+        if contribution > cap:
+            raise ExecutionBlocked(f"contribution ${contribution} exceeds live cap ${cap}")
+        fills = broker.submit_orders(orders)
+        return {
+            "mode": "broker_live",
+            "executed_utc": datetime.now(timezone.utc).isoformat(),
+            "fills": fills,
+            "n_fills": len(fills),
+            "real_money": True,
+            "authorizes_live": False,  # an execution result never re-authorizes anything
+            "note": "Submitted to Alpaca LIVE account (REAL money). Reconcile state from broker.",
+        }, portfolio
 
     if mode == "paper":
         # PAPER = fake money via a paper-only broker (paper endpoint + dedicated paper keys), so it

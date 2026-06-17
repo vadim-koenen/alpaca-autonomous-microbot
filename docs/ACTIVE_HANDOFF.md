@@ -4,6 +4,35 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046J/K GATED LIVE MODE + NOTIFICATIONS (2026-06-16)
+
+> **Current directive. Author: Claude (senior eng).** Operator: paper connected; building Level-2 +
+> gated real-money live. Guide: `GO_LIVE_2026-06-16.md`.
+
+**Asset selection clarified (core principle):** the bot does NOT pick assets/equities from research or
+news — that's the falsified edge-chasing game. It runs a FIXED human-chosen basket (Conservative) with
+fixed weights; only mechanical decisions (split by weight, steer underweights, rebalance). Changing the
+basket is a deliberate human config edit. News stays advisory/risk-only.
+
+**Built (P2-046J/K, +13 tests; 178 total pass):**
+- Gated LIVE mode. `paper_executor` mode="live" (real money) requires ALL: `config.live_trading_enabled`
+  + `confirm_live=True` + a live broker + per-contribution `live_max_contribution` cap ($100 default) +
+  no `runtime/ACCUMULATOR_STOP`. `alpaca_live_broker.AlpacaLiveBroker` (live keys, paper=False) shares a
+  refactored `AlpacaBrokerBase` with the paper broker. `app_api.approve_plan_live(confirm)` + `halt_live`/
+  `resume_live`. CLI: `--enable-live --i-understand-real-money`, `--go-live --i-understand-real-money`.
+- Level-2 notifications. `notifier.py` (native macOS, no deps) + `app_main --notify` +
+  `com.vadim.accumulator-weekly.plist` (Mon 09:00). Sends a contribution reminder + any news risk alert;
+  never trades. Verified: a real notification fired.
+
+**Safety model:** simulate / paper (fake money, own keys) / live (real money, multi-gated). `STOP_TRADING`
+(retired Coinbase bot) stays present + untouched; the accumulator's own kill-switch is `ACCUMULATOR_STOP`.
+Live default OFF. Verified: `--go-live` refuses without confirmation and is blocked when live disabled.
+
+**Operator next:** confirm a couple clean paper fills → `--enable-live --i-understand-real-money` →
+`--go-live --i-understand-real-money` for the real $10. Fund Alpaca yourself (bot never pulls from bank).
+
+---
+
 ## Latest Status — P2-046I PAPER MODE WIRED (operator setup pending) (2026-06-16)
 
 > **Current directive. Author: Claude (senior eng).** Operator chose: start on Alpaca PAPER (fake money).
