@@ -100,6 +100,33 @@ def set_live(enabled: bool, understood: bool) -> int:
     return 0
 
 
+def set_auto(enabled: bool, understood: bool) -> int:
+    if enabled and not understood:
+        print("REAL MONEY ON AUTOPILOT. Re-run with --i-understand-real-money to enable auto-invest.")
+        return 2
+    c = cfg.load_config(CONFIG_PATH) if CONFIG_PATH.exists() else cfg.default_config()
+    c.auto_invest = enabled
+    if enabled:
+        c.live_trading_enabled = True
+        c.live_paper = False
+    cfg.save_config(c, CONFIG_PATH)
+    state = "ENABLED (real money, no per-run approval)" if enabled else "disabled"
+    print(f"Auto-invest {state}. Cap ${c.live_max_contribution:.0f}/run, "
+          f"contribution ${c.contribution:.0f}. Auto-pauses on a news risk alert.")
+    if enabled:
+        print("The weekly scheduler will now invest automatically. Kill switch: touch runtime/ACCUMULATOR_STOP")
+    return 0
+
+
+def run_auto() -> int:
+    """Scheduler entrypoint (launchd). Auto-invests live if enabled, else notifies. Safety-railed."""
+    api = build_api()
+    r = api.auto_run()
+    notifier.macos_notify("Accumulator", r["message"], subtitle=r["action"].replace("_", " "))
+    print(f"[auto-run] {r['action']}: {r['message']}")
+    return 0
+
+
 def run_go_live(understood: bool) -> int:
     """Place ONE real-money live contribution. Deliberate, gated, operator-triggered."""
     if not understood:
@@ -122,8 +149,11 @@ def main(argv=None) -> int:
     p.add_argument("--enable-paper", action="store_true", help="Switch to Alpaca paper mode.")
     p.add_argument("--disable-paper", action="store_true", help="Switch back to simulate mode.")
     p.add_argument("--notify", action="store_true", help="Send the weekly macOS notification.")
+    p.add_argument("--auto-run", action="store_true", help="Scheduler entrypoint: auto-invest (if on) or notify.")
     p.add_argument("--enable-live", action="store_true", help="Enable REAL-money live mode.")
     p.add_argument("--disable-live", action="store_true", help="Disable live mode.")
+    p.add_argument("--enable-auto", action="store_true", help="Enable Level-3 auto-invest (real money).")
+    p.add_argument("--disable-auto", action="store_true", help="Disable auto-invest.")
     p.add_argument("--go-live", action="store_true", help="Place ONE real-money live contribution.")
     p.add_argument("--i-understand-real-money", action="store_true",
                    help="Required confirmation for live actions.")
@@ -136,8 +166,14 @@ def main(argv=None) -> int:
         return set_live(True, args.i_understand_real_money)
     if args.disable_live:
         return set_live(False, True)
+    if args.enable_auto:
+        return set_auto(True, args.i_understand_real_money)
+    if args.disable_auto:
+        return set_auto(False, True)
     if args.go_live:
         return run_go_live(args.i_understand_real_money)
+    if args.auto_run:
+        return run_auto()
     if args.notify:
         return run_notify()
     return run_cli(args.approve) if args.cli else run_gui()

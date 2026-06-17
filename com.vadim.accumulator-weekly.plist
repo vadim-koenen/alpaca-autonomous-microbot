@@ -17,7 +17,7 @@
   <array>
     <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/.venv/bin/python3</string>
     <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/app_main.py</string>
-    <string>--notify</string>
+    <string>--auto-run</string>
   </array>
   <key>WorkingDirectory</key>
   <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot</string>

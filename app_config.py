@@ -40,6 +40,8 @@ class AppConfig:
     live_paper: bool = False         # M4 gate: must be explicitly enabled to submit Alpaca PAPER orders
     live_trading_enabled: bool = False   # M5 gate: REAL money. Off until the operator deliberately enables.
     live_max_contribution: float = 100.0  # fat-finger cap on a single live contribution ($)
+    auto_invest: bool = False            # Level 3: scheduler auto-executes live (no per-run approval).
+                                         # Auto-pauses on a news risk alert; respects cap + ACCUMULATOR_STOP.
     profile: str = "conservative"
     # Offline price source for the app/planner: symbol -> daily-OHLCV CSV (last close used).
     # The live app can swap this for read-only Alpaca quotes; CSVs keep it runnable offline.

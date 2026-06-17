@@ -240,6 +240,54 @@ class AccumulatorAPI:
                               "result": {**result, "portfolio_value": value}}, self.history_path)
         return {**result, "portfolio_value": value}
 
+    # --- Level 3: scheduled auto-run -----------------------------------------
+    def auto_run(self) -> Dict[str, Any]:
+        """The scheduler entrypoint. Decides what to do this period and (if auto-invest is on)
+        executes a live contribution — with safety rails. Returns an action summary for a
+        notification. Order of checks is deliberate:
+          1. ACCUMULATOR_STOP kill-switch -> do nothing.
+          2. News RISK alert on the basket -> PAUSE (never trade into a catastrophe), notify.
+          3. Not auto-invest -> notify-to-approve (Level 2).
+          4. Insufficient account cash -> skip (never fail mid-order), notify to deposit.
+          5. Otherwise -> execute the live contribution and notify the result.
+        """
+        if self.accumulator_stop_path.exists():
+            return {"action": "halted", "message": "ACCUMULATOR_STOP present — no action taken."}
+
+        news = self.get_news_alerts()
+        if news.get("should_pause_recommended"):
+            syms = ", ".join(sorted(news.get("alerts_by_symbol", {}).keys())) or "basket"
+            return {"action": "paused_risk", "n_alerts": int(news.get("n_risk_alerts", 0)),
+                    "message": f"PAUSED: {news.get('n_risk_alerts')} risk alert(s) ({syms}). "
+                               "No auto-contribution — review before resuming."}
+
+        auto_live = bool(self.config.auto_invest and self.config.live_trading_enabled)
+        if not auto_live:
+            plan = self.get_plan()
+            return {"action": "notify_only",
+                    "message": f"${plan['contribution']:.0f} contribution ready across "
+                               f"{len(plan['orders'])} assets — open the app to approve."}
+
+        broker = self._get_broker()
+        if broker is None:
+            return {"action": "error", "message": self._broker_error or "live broker unavailable"}
+        try:
+            cash = float(broker.account_snapshot().get("cash", 0.0))
+        except Exception as e:
+            return {"action": "error", "message": str(e)[:160]}
+        if cash < float(self.config.contribution):
+            return {"action": "skipped_funding", "cash": round(cash, 2),
+                    "message": f"Insufficient cash (${cash:.2f}); deposit to auto-invest "
+                               f"${self.config.contribution:.0f}."}
+        try:
+            res = self.approve_plan_live(confirm=True)
+            return {"action": "executed_live", "n_fills": res.get("n_fills", 0),
+                    "value": res.get("portfolio_value"),
+                    "message": f"Auto-invested ${self.config.contribution:.0f}: "
+                               f"{res.get('n_fills', 0)} live orders submitted."}
+        except Exception as e:
+            return {"action": "error", "message": str(e)[:160]}
+
     # --- safety controls ------------------------------------------------------
     def halt_live(self) -> Dict[str, Any]:
         """Create the dedicated accumulator kill-switch (blocks live execution immediately)."""
