@@ -1,6 +1,6 @@
 # Auto Status (machine-generated — do not hand-edit)
 
-Generated: 2026-06-17T19:45:23Z
+Generated: 2026-06-17T23:45:30Z
 Main-tree HEAD: bf90c47 P2-046Q: fix $0-balance-on-relaunch (working-directory bug)
 Audit verdict: AUDIT_VERDICT=WARN
 
@@ -17,7 +17,7 @@ recent_log_errors(last200 lines)=50
 
 ## Full audit snapshot
 ```
-=== AUDIT SNAPSHOT 2026-06-17T19:45:22Z ===
+=== AUDIT SNAPSHOT 2026-06-17T23:45:26Z ===
 === GIT HEAD ===
 bf90c47 P2-046Q: fix $0-balance-on-relaunch (working-directory bug)
 77d5fdd P2-046P: in-app key entry via macOS Keychain — commercialization #2
