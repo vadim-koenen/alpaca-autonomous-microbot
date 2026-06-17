@@ -4,6 +4,34 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046M CAPITAL-ADAPTIVE ALLOCATION + DASHBOARD (2026-06-17)
+
+> **Current directive. Author: Claude (senior eng).** Allocation reset to fit the operator's stated
+> goal (short horizon, preservation+income, untested risk) + capital-adaptive glide + Coinbase-style UI.
+
+**Allocation review (honest):** prior basket (40% metals, 0% bonds, SPY+QQQ overlap, 100% US) was
+mismatched to the operator's profile. Reset to a preservation/income core with bonds + T-bills.
+
+**P2-046M — capital-adaptive allocation (+9 tests; 193 total pass):** `capital_allocation.py` defines a
+principled glide path keyed to TOTAL CAPITAL (not signals — still no asset picking):
+- **Seed** (<$1k): SGOV 70 / SPY 20 / GLD 10 — preservation while small + learning.
+- **Build** ($1k–5k): SGOV 55 / SPY 20 / BND 10 / GLD 10 / BTC 5.
+- **Grow** (>$5k): SGOV 40 / SPY 30 / BND 10 / GLD 10 / BTC 10.
+`planner_service.build_plan` uses `weights_for_capital(total)` when `config.adaptive_allocation`. New ETFs
+fetched: SGOV, BND. UI rebuilt Coinbase-style (big balance, gradient area chart of value-vs-contributions,
+holdings with allocation bars, tier progress badge).
+
+**Operator config applied (app_config.json, gitignored):** adaptive ON, universe SGOV/SPY/BND/GLD/BTC,
+contribution $10, live cap $15, PAPER on, live OFF. Verified: $139.53 → Seed tier → $10 plan buys SGOV
+(filling the 70% T-bill target the account lacks). Old paper SLV/QQQ positions are untracked now (ignored;
+allow_sell off, so not force-sold — fine for paper).
+
+**Roadmap (agreed):** Phase 0 reset allocation (done) → Phase 1 build habit + calibrate risk on small
+stakes → Phase 2 raise contributions (the dominant lever) → Phase 3 glide safer toward the <3yr goal.
+Honest expectation: at $10–50/wk over <3yr this is a learning + modest-savings vehicle, not a wealth engine.
+
+---
+
 ## Latest Status — P2-046J/K GATED LIVE MODE + NOTIFICATIONS (2026-06-16)
 
 > **Current directive. Author: Claude (senior eng).** Operator: paper connected; building Level-2 +

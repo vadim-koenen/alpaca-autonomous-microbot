@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import allocator_engine as eng
+import capital_allocation as cap
 from allocator_engine import Portfolio
 from app_config import AppConfig
 
@@ -46,9 +47,18 @@ def build_plan(
     """Produce the period plan. Pure: no I/O, no network, no side effects."""
     config.validate()
     contrib = config.contribution if contribution is None else contribution
+    total = portfolio.value(prices)
+
+    # Capital-adaptive: the target weights shift with total capital (a deliberate glide path).
+    tier = None
+    if getattr(config, "adaptive_allocation", False):
+        tier = cap.tier_info(total)
+        base_weights = tier["weights"]
+    else:
+        base_weights = config.weights
 
     # only act on symbols that have both a target weight and a price
-    weights = {s: w for s, w in config.weights.items() if s in prices and prices[s] > 0}
+    weights = {s: w for s, w in base_weights.items() if s in prices and prices[s] > 0}
     if not weights:
         raise ValueError("no priced symbols overlap the target weights")
 
@@ -57,7 +67,6 @@ def build_plan(
         band=config.rebalance_band, allow_sell=config.allow_sell,
     )
 
-    total = portfolio.value(prices)
     cur = eng.current_weights(portfolio, prices)
     tgt = eng.normalize_weights(weights)
     drift = {s: round(cur.get(s, 0.0) - tgt[s], 4) for s in tgt}
@@ -80,6 +89,10 @@ def build_plan(
         ],
         "summary": eng.summarize_plan(orders),
         "overlay_enabled": config.overlay_enabled,
+        "adaptive": tier is not None,
+        "tier": ({"label": tier["label"], "note": tier["note"],
+                  "upgrade_at": tier["upgrade_at"], "next_label": tier["next_label"]}
+                 if tier else None),
         "authorizes_live": False,
         "note": "Proposal only. Human approval + paper before any live; STOP_TRADING gates execution.",
     }
