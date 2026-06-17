@@ -288,6 +288,20 @@ class AccumulatorAPI:
         except Exception as e:
             return {"action": "error", "message": str(e)[:160]}
 
+    def reset_paper(self) -> Dict[str, Any]:
+        """Clean slate: liquidate the PAPER account and clear local history/state. Paper-only —
+        refuses in live mode so it can never touch real money."""
+        if self._mode() != "paper":
+            raise paper_executor.ExecutionBlocked("reset_paper only allowed in paper mode")
+        broker = self._get_broker()
+        if broker is None:
+            raise paper_executor.ExecutionBlocked(self._broker_error or "paper broker unavailable")
+        broker.close_all()
+        for p in (self.state_path, self.history_path):
+            if Path(p).exists():
+                Path(p).unlink()
+        return {"reset": True, "message": "Paper account liquidated; local history cleared."}
+
     # --- safety controls ------------------------------------------------------
     def halt_live(self) -> Dict[str, Any]:
         """Create the dedicated accumulator kill-switch (blocks live execution immediately)."""

@@ -88,6 +88,10 @@ class AlpacaBrokerBase:
             })
         return fills
 
+    def close_all(self) -> Any:
+        """Liquidate ALL positions and cancel open orders. (Used only for a paper reset.)"""
+        return self._client.close_all_positions(cancel_orders=True)
+
     def account_snapshot(self) -> Dict[str, Any]:
         """Read the account as source of truth: cash, equity, and per-root holdings (units)."""
         acct = self._client.get_account()

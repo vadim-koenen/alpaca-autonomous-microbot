@@ -148,6 +148,7 @@ def main(argv=None) -> int:
     p.add_argument("--approve", action="store_true", help="(with --cli) approve one period (paper/sim).")
     p.add_argument("--enable-paper", action="store_true", help="Switch to Alpaca paper mode.")
     p.add_argument("--disable-paper", action="store_true", help="Switch back to simulate mode.")
+    p.add_argument("--reset-paper", action="store_true", help="Liquidate paper account + clear history (clean slate).")
     p.add_argument("--notify", action="store_true", help="Send the weekly macOS notification.")
     p.add_argument("--auto-run", action="store_true", help="Scheduler entrypoint: auto-invest (if on) or notify.")
     p.add_argument("--enable-live", action="store_true", help="Enable REAL-money live mode.")
@@ -162,6 +163,10 @@ def main(argv=None) -> int:
         return set_paper(True)
     if args.disable_paper:
         return set_paper(False)
+    if args.reset_paper:
+        r = build_api().reset_paper()
+        print(f"[reset-paper] {r['message']}")
+        return 0
     if args.enable_live:
         return set_live(True, args.i_understand_real_money)
     if args.disable_live:

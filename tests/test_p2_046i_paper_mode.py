@@ -14,6 +14,7 @@ class FakeBroker:
     def __init__(self, positions=None):
         self.submitted = []
         self.positions = dict(positions or {})  # root -> qty
+        self.closed = False
 
     def submit_orders(self, orders):
         self.submitted.extend(orders)
@@ -22,6 +23,10 @@ class FakeBroker:
 
     def account_snapshot(self):
         return {"cash": 100000.0, "equity": 100000.0, "holdings": dict(self.positions)}
+
+    def close_all(self):
+        self.closed = True
+        self.positions = {}
 
 
 def make_api(tmp_path, *, live_paper, broker=None, factory=None):
@@ -89,3 +94,26 @@ def test_approve_falls_back_to_simulate_when_broker_unavailable(tmp_path):
     api = make_api(tmp_path, live_paper=True, factory=boom)
     res = api.approve_plan_paper(contribution=100.0)
     assert res["mode"] == "simulate"  # safe fallback, no broker
+
+
+def test_reset_paper_liquidates_and_clears(tmp_path):
+    broker = FakeBroker(positions={"SPY": 2.0})
+    api = make_api(tmp_path, live_paper=True, broker=broker)
+    api.approve_plan_paper(contribution=100.0)  # create some history
+    r = api.reset_paper()
+    assert r["reset"] is True and broker.closed is True
+    assert not (tmp_path / "h.jsonl").exists()  # history cleared
+
+
+def test_reset_paper_refused_in_live(tmp_path):
+    import app_config
+    from app_api import AccumulatorAPI
+    c = app_config.default_config(); c.live_trading_enabled = True  # live mode
+    api = AccumulatorAPI(config=c, state_path=tmp_path / "s.json", history_path=tmp_path / "h.jsonl",
+                         price_provider=lambda: dict(PRICES),
+                         live_broker_factory=lambda: FakeBroker())
+    try:
+        api.reset_paper()
+        assert False, "reset must be refused in live mode"
+    except Exception as e:
+        assert "paper mode" in str(e)
