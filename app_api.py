@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict, Optional
 
 import json
 
+import app_analytics
 import news_risk_monitor as nrm
 import paper_executor
 import planner_service as ps
@@ -108,6 +109,9 @@ class AccumulatorAPI:
 
     def get_history(self) -> list:
         return store.load_history(self.history_path)
+
+    def get_equity_curve(self) -> Dict[str, Any]:
+        return app_analytics.equity_curve(store.load_history(self.history_path))
 
     # --- action (simulate paper) ---------------------------------------------
     def approve_plan_paper(self, contribution: Optional[float] = None) -> Dict[str, Any]:

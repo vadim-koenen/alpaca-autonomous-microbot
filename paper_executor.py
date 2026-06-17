@@ -44,6 +44,7 @@ def execute_plan(
     approved: bool = False,
     mode: str = "simulate",
     stop_trading_path: Path = STOP_TRADING_PATH,
+    broker: Any = None,
 ) -> Tuple[Dict[str, Any], Portfolio]:
     """Apply an approved plan. Returns a result dict incl. the new portfolio.
 
@@ -54,17 +55,30 @@ def execute_plan(
     if not approved:
         raise ExecutionBlocked("plan not approved by operator")
 
+    orders = _orders_from_plan(plan)
+
     if mode == "broker":
-        # Defense-in-depth: never reachable without removing STOP_TRADING AND wiring a
-        # real client AND explicit live-research approval — none of which exist now.
+        # Multi-gate: STOP_TRADING must be absent, a broker (Alpaca PAPER) must be supplied,
+        # and config.live_paper must be explicitly enabled. Defense-in-depth for M4.
         if stop_trading_path.exists():
             raise ExecutionBlocked("STOP_TRADING present — broker execution refused")
-        raise ExecutionBlocked("broker mode not authorized (paper/live gated until M4)")
+        if not getattr(config, "live_paper", False):
+            raise ExecutionBlocked("config.live_paper is False — paper execution not enabled")
+        if broker is None:
+            raise ExecutionBlocked("no broker supplied for broker mode")
+        fills = broker.submit_orders(orders)
+        return {
+            "mode": "broker_paper",
+            "executed_utc": datetime.now(timezone.utc).isoformat(),
+            "fills": fills,
+            "n_fills": len(fills),
+            "authorizes_live": False,
+            "note": "Submitted to Alpaca PAPER account (fake money). Reconcile state from broker.",
+        }, portfolio
 
     if mode != "simulate":
         raise ExecutionBlocked(f"unknown execution mode '{mode}'")
 
-    orders = _orders_from_plan(plan)
     # Fund the period's contribution as new cash BEFORE deploying it (the operator is
     # depositing this money this period). Leftover stays as cash in the portfolio.
     contribution = float(plan.get("contribution", 0.0))

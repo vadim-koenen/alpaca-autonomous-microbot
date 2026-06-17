@@ -51,7 +51,8 @@ def test_executor_broker_mode_blocked_when_stop_trading_present(tmp_path):
 
 
 def test_executor_broker_mode_blocked_even_without_stop_trading(tmp_path):
-    # broker path is unconditionally gated until M4, even if STOP_TRADING is absent
+    # broker path stays gated until M4: live_paper defaults False, so it's refused even
+    # when STOP_TRADING is absent.
     c = app_config.default_config()
     plan = {"orders": []}
     try:
@@ -59,7 +60,7 @@ def test_executor_broker_mode_blocked_even_without_stop_trading(tmp_path):
                                     mode="broker", stop_trading_path=tmp_path / "absent")
         assert False, "expected ExecutionBlocked"
     except paper_executor.ExecutionBlocked as e:
-        assert "not authorized" in str(e)
+        assert "live_paper" in str(e)
 
 
 # --- AccumulatorAPI -----------------------------------------------------------

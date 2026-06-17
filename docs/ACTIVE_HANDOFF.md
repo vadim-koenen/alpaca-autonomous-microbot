@@ -4,6 +4,33 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046G/H PERFORMANCE TRACKING + PAPER BRIDGE (2026-06-16)
+
+> **Current directive. Author: Claude (senior eng).** Operator chose: harden the personal tool
+> toward paper→live (B); once B is proven, productize/commercialize (A).
+
+**Built (P2-046G/H, +9 tests; 158 total pass):**
+- `app_analytics.py` — `equity_curve(history)` reconstructs value-vs-contributions over time from the
+  approved-fill log. Wired to `app_api.get_equity_curve()` + a **Performance** panel (SVG sparkline:
+  value vs contributions) in the UI. This is how "B gets proven" — watch it accumulate over weeks.
+- `alpaca_paper_broker.py` — the bridge to REAL Alpaca **paper** execution (M4). Dormant/gated:
+  dependency-injected client (fake-tested, no network), `from_env()` builds a paper-only client on the
+  Mac. `paper_executor` broker-mode now requires ALL of: STOP_TRADING absent AND `config.live_paper=True`
+  AND a broker supplied AND approved — else refused. Defaults OFF; nothing runs unattended.
+
+**To graduate from simulated → real Alpaca paper (operator's explicit step, when ready):**
+1. Run the simulated app for a few weeks; confirm the Performance panel tracks correctly.
+2. Set `live_paper: true` in `app_config.json` (create it via save_config) AND remove `runtime/STOP_TRADING`.
+3. Wire `AlpacaPaperBroker.from_env()` into the approve flow (small follow-up) — submits to the Alpaca
+   PAPER account (fake money). Watch live-vs-sim divergence. This is M4; bounded live (M5) only after.
+
+**"B proven" criteria before touching A:** app reliably proposes + (paper-)executes the Conservative
+plan, Performance panel matches Alpaca paper account over ≥several weeks, no execution bugs. THEN
+productize (standalone data feed, in-app keys, user-data dir, code-signing) + securities-lawyer review.
+Live (real money) remains NO-GO; STOP_TRADING armed.
+
+---
+
 ## Latest Status — P2-046C NEWS/RISK PANEL + .app BUNDLE BUILDS (2026-06-16)
 
 > **Current directive. Author: Claude (senior eng).** Operator confirmed the window opens.
