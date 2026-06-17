@@ -1,7 +1,7 @@
 # Auto Status (machine-generated — do not hand-edit)
 
-Generated: 2026-06-17T02:00:28Z
-Main-tree HEAD: c1f5246 P2-046C: news as advisory + risk circuit-breaker (never a signal) + UI panel
+Generated: 2026-06-17T11:45:05Z
+Main-tree HEAD: 73d922a P2-046I: wire Alpaca PAPER execution (fake money) + correct the safety model
 Audit verdict: AUDIT_VERDICT=WARN
 
 ## Coinbase (live)
@@ -13,18 +13,18 @@ status=running  equity=10.0  open_positions=0  last_loop_time=2026-06-16T13:05:5
 
 ## Economics digest
 cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
-recent_log_errors(last200 lines)=133
+recent_log_errors(last200 lines)=104
 
 ## Full audit snapshot
 ```
-=== AUDIT SNAPSHOT 2026-06-17T02:00:27Z ===
+=== AUDIT SNAPSHOT 2026-06-17T11:44:57Z ===
 === GIT HEAD ===
+73d922a P2-046I: wire Alpaca PAPER execution (fake money) + correct the safety model
+2bea0ef P2-046G/H: performance tracking (equity curve) + gated Alpaca paper bridge
 c1f5246 P2-046C: news as advisory + risk circuit-breaker (never a signal) + UI panel
 7f11e6d P2-046F: add run_app.sh launcher (uses repo .venv; one-command app start)
 5b31dcc P2-046F: runnable desktop app (pywebview) + paper executor, CLI-verified
 27bdb74 P2-046D: app backend (config, portfolio store, planner service) + operator decisions
-4bda26b P2-046B: allocator decision engine + desktop-app architecture
-f1afc77 P2-046A: pivot bot to accumulator/allocator + offline DCA-vs-overlay backtest
 === LIVE P/L TRUTH (mode=live, action=EXIT) ===
 cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
 === EXIT REASONS (live) ===
