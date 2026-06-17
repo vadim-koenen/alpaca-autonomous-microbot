@@ -19,15 +19,21 @@ from __future__ import annotations
 
 import argparse
 import sys
+import os
 from pathlib import Path
+
+# Resolve everything relative to THIS file. main() chdir's here so the app finds app_config.json /
+# runtime state / CSVs / .env no matter how it's launched (terminal, dock, .app). Without this, a
+# dock launch with the wrong CWD silently falls back to simulate mode (shows $0).
+APP_DIR = Path(__file__).resolve().parent
 
 import planner_service as ps
 import app_config as cfg
 import notifier
 from app_api import AccumulatorAPI
 
-UI_INDEX = Path(__file__).parent / "app_ui" / "index.html"
-CONFIG_PATH = Path("app_config.json")          # optional; falls back to Conservative default
+UI_INDEX = APP_DIR / "app_ui" / "index.html"
+CONFIG_PATH = APP_DIR / "app_config.json"      # absolute; falls back to Conservative default
 
 
 def build_api() -> AccumulatorAPI:
@@ -143,6 +149,7 @@ def run_go_live(understood: bool) -> int:
 
 
 def main(argv=None) -> int:
+    os.chdir(APP_DIR)  # make all relative paths (config, runtime, csv, .env) resolve to the app dir
     p = argparse.ArgumentParser(description="Accumulator/Allocator desktop app")
     p.add_argument("--cli", action="store_true", help="Headless: print status + plan.")
     p.add_argument("--approve", action="store_true", help="(with --cli) approve one period (paper/sim).")
