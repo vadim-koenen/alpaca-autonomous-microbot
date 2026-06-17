@@ -1,7 +1,7 @@
 # Auto Status (machine-generated — do not hand-edit)
 
-Generated: 2026-06-16T20:28:23Z
-Main-tree HEAD: f1afc77 P2-046A: pivot bot to accumulator/allocator + offline DCA-vs-overlay backtest
+Generated: 2026-06-17T02:00:28Z
+Main-tree HEAD: c1f5246 P2-046C: news as advisory + risk circuit-breaker (never a signal) + UI panel
 Audit verdict: AUDIT_VERDICT=WARN
 
 ## Coinbase (live)
@@ -17,14 +17,14 @@ recent_log_errors(last200 lines)=133
 
 ## Full audit snapshot
 ```
-=== AUDIT SNAPSHOT 2026-06-16T20:28:22Z ===
+=== AUDIT SNAPSHOT 2026-06-17T02:00:27Z ===
 === GIT HEAD ===
+c1f5246 P2-046C: news as advisory + risk circuit-breaker (never a signal) + UI panel
+7f11e6d P2-046F: add run_app.sh launcher (uses repo .venv; one-command app start)
+5b31dcc P2-046F: runnable desktop app (pywebview) + paper executor, CLI-verified
+27bdb74 P2-046D: app backend (config, portfolio store, planner service) + operator decisions
+4bda26b P2-046B: allocator decision engine + desktop-app architecture
 f1afc77 P2-046A: pivot bot to accumulator/allocator + offline DCA-vs-overlay backtest
-252b29b P2-045: lane 3 (equities-swing) NO_GO on real ETF data + edge-discovery framework
-25041e4 P2-045: news-edge lane FALSIFIED on real data (NO_NEWS_EDGE)
-f8db5d1 P2-043D: add real-cost walk-forward decision gate
-fa9a78e P2-043D: Real-cost walk-forward decision gate harness
-d9fec56 P2-043C: add offline MFE/MAE exit redesign gate
 === LIVE P/L TRUTH (mode=live, action=EXIT) ===
 cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
 === EXIT REASONS (live) ===
