@@ -42,22 +42,12 @@ def _from_alpaca_symbol(sym: str) -> str:
 
 
 def _read_keys(key_var: str, secret_var: str, env_path: str = ".env") -> Dict[str, str]:
-    """Read a named key/secret pair from env or .env, without printing. Raises if missing."""
-    key = os.getenv(key_var)
-    secret = os.getenv(secret_var)
-    if (not key or not secret) and Path(env_path).exists():
-        for line in Path(env_path).read_text().splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            k, v = k.strip(), v.strip().strip('"').strip("'")
-            if k == key_var and not key:
-                key = v
-            elif k == secret_var and not secret:
-                secret = v
+    """Read a named key/secret pair via env → Keychain → .env, without printing. Raises if missing."""
+    from secrets_store import get_credential
+    key = get_credential(key_var, env_path=env_path)
+    secret = get_credential(secret_var, env_path=env_path)
     if not key or not secret:
-        raise RuntimeError(f"{key_var}/{secret_var} not found in env or .env.")
+        raise RuntimeError(f"{key_var}/{secret_var} not found in env, Keychain, or .env.")
     return {"key": key, "secret": secret}
 
 

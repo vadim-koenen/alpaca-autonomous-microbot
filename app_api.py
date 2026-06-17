@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 import json
+import subprocess
 
 import app_analytics
 import news_risk_monitor as nrm
@@ -44,7 +45,9 @@ class AccumulatorAPI:
         broker_factory: Optional[Callable[[], Any]] = None,
         live_broker_factory: Optional[Callable[[], Any]] = None,
         accumulator_stop_path: Path = Path("runtime/ACCUMULATOR_STOP"),
+        secrets_runner: Callable[..., Any] = subprocess.run,
     ) -> None:
+        self._secrets_runner = secrets_runner
         self.config = config or (load_config(config_path) if config_path else default_config())
         self.state_path = Path(state_path)
         self.history_path = Path(history_path)
@@ -150,6 +153,40 @@ class AccumulatorAPI:
         return nrm.scan_news(items, watch_symbols=list(self.config.weights.keys()))
 
     # --- read endpoints -------------------------------------------------------
+    # --- settings / key entry (Keychain-backed) -------------------------------
+    KEY_FIELDS = {"paper_api": "ALPACA_PAPER_API_KEY", "paper_secret": "ALPACA_PAPER_SECRET_KEY",
+                  "live_api": "ALPACA_API_KEY", "live_secret": "ALPACA_SECRET_KEY"}
+
+    def get_settings(self) -> Dict[str, Any]:
+        """Settings + which credentials are present (booleans only — never the secret values)."""
+        from secrets_store import get_credential
+        keys = {field: bool(get_credential(var, runner=self._secrets_runner))
+                for field, var in self.KEY_FIELDS.items()}
+        return {
+            "mode": self._mode(),
+            "contribution": self.config.contribution,
+            "adaptive_allocation": self.config.adaptive_allocation,
+            "live_max_contribution": self.config.live_max_contribution,
+            "auto_invest": self.config.auto_invest,
+            "keys": keys,
+        }
+
+    def save_keys(self, paper_api: str = "", paper_secret: str = "",
+                  live_api: str = "", live_secret: str = "") -> Dict[str, Any]:
+        """Save provided (non-empty) keys to the macOS Keychain and force a reconnect.
+        Values never logged. Returns which fields were saved."""
+        from secrets_store import set_secret
+        provided = {"paper_api": paper_api, "paper_secret": paper_secret,
+                    "live_api": live_api, "live_secret": live_secret}
+        saved = []
+        for field, value in provided.items():
+            if value and value.strip():
+                if set_secret(self.KEY_FIELDS[field], value.strip(), runner=self._secrets_runner):
+                    saved.append(field)
+        self._broker = None          # rebuild broker with the new credentials on next call
+        self._broker_error = None
+        return {"saved": saved, "count": len(saved)}
+
     def get_config(self) -> Dict[str, Any]:
         return {
             "profile": self.config.profile,

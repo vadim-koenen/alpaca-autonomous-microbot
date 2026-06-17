@@ -4,6 +4,24 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046P IN-APP KEY ENTRY / Keychain (commercialization #2) (2026-06-17)
+
+> **Current directive. Author: Claude (senior eng).** 2 of 3 commercialization items now automated.
+
+In-app key entry done. `secrets_store.py` stores Alpaca keys in the **macOS Keychain** via the native
+`security` CLI; credential resolution is env → Keychain → `.env` (so existing setups still work). The
+broker/data key loader (`_read_keys`, used by paper + live brokers and `live_prices`) now goes through it.
+`app_api.get_settings()` reports which keys are present (booleans only, never values); `save_keys()` writes
+to Keychain and forces a broker reconnect. UI: a ⚙ Settings panel with masked paper/live key fields +
+"✓ set" indicators — no more `nano .env`. Injectable `secrets_runner` → fully tested without the real
+Keychain; real round-trip verified (set/read/delete). (+7 tests, 211 total pass.)
+
+Commercialization scorecard: (1) live prices ✅ · (2) in-app key entry ✅ · (3) **code-signing** — the only
+remaining item, blocked on an Apple Developer cert ($99/yr); once obtained, automatable via codesign +
+notarytool in `setup_app.py`. Live/auto trading still OFF; STOP_TRADING present; clean-slate paper.
+
+---
+
 ## Latest Status — P2-046O LIVE PRICE FEED (commercialization #1) (2026-06-17)
 
 > **Current directive. Author: Claude (senior eng).** First of the 3 commercialization items done.
