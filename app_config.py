@@ -19,6 +19,12 @@ from typing import Dict
 
 # Operator-selected CONSERVATIVE allocation (2026-06-16): lower drawdown, metals ballast,
 # small crypto sleeve. Weights sum to 1.0.
+# Plain-English names for a stupid-simple, commercial-grade dashboard.
+ASSET_NAMES: Dict[str, str] = {
+    "SGOV": "Cash (T-Bills)", "BND": "Bonds", "SPY": "US Stocks",
+    "QQQ": "Tech Stocks", "GLD": "Gold", "SLV": "Silver", "BTC": "Bitcoin",
+}
+
 CONSERVATIVE_WEIGHTS: Dict[str, float] = {
     "SPY": 0.35,
     "GLD": 0.25,

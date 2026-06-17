@@ -93,17 +93,33 @@ class AlpacaBrokerBase:
         return self._client.close_all_positions(cancel_orders=True)
 
     def account_snapshot(self) -> Dict[str, Any]:
-        """Read the account as source of truth: cash, equity, and per-root holdings (units)."""
+        """Read the account as source of truth: cash, equity, per-root holdings (units), and
+        per-root P&L detail (market value, total + intraday unrealized P&L) for the dashboard."""
         acct = self._client.get_account()
         positions = self._client.get_all_positions()
         holdings: Dict[str, float] = {}
+        detail: Dict[str, Dict[str, float]] = {}
+
+        def f(p, attr):
+            try:
+                return float(getattr(p, attr, 0.0) or 0.0)
+            except (TypeError, ValueError):
+                return 0.0
+
         for p in positions:
             root = _from_alpaca_symbol(str(getattr(p, "symbol", "")))
-            holdings[root] = holdings.get(root, 0.0) + float(getattr(p, "qty", 0.0))
+            holdings[root] = holdings.get(root, 0.0) + f(p, "qty")
+            d = detail.setdefault(root, {"market_value": 0.0, "total_pl": 0.0,
+                                         "today_pl": 0.0, "plpc": 0.0})
+            d["market_value"] += f(p, "market_value")
+            d["total_pl"] += f(p, "unrealized_pl")
+            d["today_pl"] += f(p, "unrealized_intraday_pl")
+            d["plpc"] = f(p, "unrealized_plpc")
         return {
             "cash": float(getattr(acct, "cash", 0.0)),
             "equity": float(getattr(acct, "equity", 0.0)),
             "holdings": holdings,
+            "positions": detail,
         }
 
 

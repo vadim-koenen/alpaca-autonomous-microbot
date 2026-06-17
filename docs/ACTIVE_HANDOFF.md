@@ -4,6 +4,25 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046N STUPID-SIMPLE DASHBOARD (commercial UX) (2026-06-17)
+
+> **Current directive. Author: Claude (senior eng).** Dashboard redesigned for instant, at-a-glance read.
+
+Goal: commercial-grade "am I up or down, and why?" in under a second. `app_api.get_dashboard()` is ONE
+call returning total value, profit/loss ($ + %), today's move, the single biggest **leader** and
+**laggard** (plain-English names via `ASSET_NAMES`: SGOV→"Cash (T-Bills)", SPY→"US Stocks", BTC→"Bitcoin"…),
+per-asset rows, and sparkline points. P&L comes from the broker (`account_snapshot` now returns per-position
+market_value / unrealized total + intraday P&L) in paper/live; from contributions-vs-value in simulate.
+UI rebuilt: a big **color-driven hero** (green/red/flat background) with the balance + P&L huge, a
+"What's moving it" leader/dragging pair, ONE big **Invest $X** button, a risk-alert banner only when it
+matters, and simple holdings rows. (+4 tests, 199 total pass.) Verified against the real clean-slate paper
+account (empty → flat state). `--reset-paper` clean slate already done.
+
+Paper-only `reset_paper()` liquidated the old basket; account is at $0, ready to build the adaptive Seed
+tier from the first Invest. Live/auto still OFF; STOP_TRADING present.
+
+---
+
 ## Latest Status — P2-046M CAPITAL-ADAPTIVE ALLOCATION + DASHBOARD (2026-06-17)
 
 > **Current directive. Author: Claude (senior eng).** Allocation reset to fit the operator's stated

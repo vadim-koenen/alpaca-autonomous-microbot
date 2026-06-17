@@ -5,195 +5,159 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Accumulator</title>
 <style>
-  :root { --bg:#0a0b0d; --card:#16181d; --line:#23262e; --txt:#ececf1; --dim:#8a909c;
-          --up:#27c08a; --down:#f6465d; --accent:#3b7cff; }
-  * { box-sizing:border-box; }
-  body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  :root { --bg:#0a0b0d; --card:#16181d; --line:#23262e; --txt:#f4f5f8; --dim:#8a909c;
+          --up:#27c08a; --upbg:#0e2a22; --down:#f6465d; --downbg:#2c1418; --accent:#3b7cff; }
+  * { box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+  body { margin:0; font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
          background:var(--bg); color:var(--txt); }
-  header { display:flex; align-items:center; justify-content:space-between; padding:16px 24px; }
-  header h1 { font-size:15px; margin:0; font-weight:600; letter-spacing:.2px; }
-  .badges { display:flex; gap:8px; }
-  .badge { font-size:11px; padding:4px 10px; border-radius:20px; background:#23262e; color:var(--dim); }
-  .badge.ok { background:#15302a; color:var(--up); } .badge.warn { background:#3a2a2a; color:#ffb4b4; }
-  .badge.live { background:#3a1f24; color:var(--down); }
-  main { padding:8px 24px 40px; max-width:760px; margin:0 auto; }
-  .hero { padding:8px 0 4px; }
-  .hero .val { font-size:42px; font-weight:700; letter-spacing:-.5px; }
-  .hero .chg { font-size:14px; margin-top:2px; }
-  .up { color:var(--up); } .down { color:var(--down); }
-  .chart { margin:10px 0 4px; }
-  svg { display:block; width:100%; }
-  .tline { display:flex; justify-content:space-between; align-items:center; font-size:12px;
-           color:var(--dim); margin:6px 0 18px; }
-  .prog { height:5px; background:#23262e; border-radius:3px; overflow:hidden; flex:1; margin:0 12px; }
-  .prog > i { display:block; height:100%; background:var(--accent); }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:14px;
-          padding:16px 18px; margin:12px 0; }
-  .card h2 { font-size:11px; text-transform:uppercase; letter-spacing:.7px; color:var(--dim); margin:0 0 12px; }
-  .hold { display:flex; align-items:center; gap:12px; padding:9px 0; border-bottom:1px solid var(--line); }
-  .hold:last-child { border-bottom:0; }
-  .sym { width:46px; font-weight:600; }
-  .alloc { flex:1; }
-  .alloc .bar { height:6px; background:#23262e; border-radius:3px; overflow:hidden; margin-top:5px; }
-  .alloc .bar > i { display:block; height:100%; background:var(--accent); }
-  .alloc .lbl { font-size:11px; color:var(--dim); display:flex; justify-content:space-between; }
-  .hval { text-align:right; min-width:90px; font-variant-numeric:tabular-nums; }
-  .hval .sub { font-size:11px; color:var(--dim); }
-  table { width:100%; border-collapse:collapse; }
-  th,td { text-align:right; padding:6px 4px; font-size:13px; }
-  th:first-child,td:first-child { text-align:left; }
-  th { color:var(--dim); font-weight:500; font-size:10px; text-transform:uppercase; }
-  .side-BUY { color:var(--up); } .side-SELL { color:var(--down); }
-  .row { display:flex; gap:10px; align-items:center; }
-  button { font:inherit; border:0; border-radius:10px; padding:12px 18px; cursor:pointer;
-           background:var(--accent); color:#fff; font-weight:600; }
-  button:disabled { opacity:.45; }
-  input { background:#0e1014; border:1px solid var(--line); color:var(--txt);
-          border-radius:9px; padding:9px 11px; width:90px; font:inherit; }
-  .sub { color:var(--dim); font-size:12px; } .note { color:var(--dim); font-size:11px; margin-top:8px; }
+  .wrap { max-width:480px; margin:0 auto; padding:14px 16px 40px; }
+  .top { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .pill { font-size:11px; padding:4px 10px; border-radius:20px; background:#23262e; color:var(--dim); }
+  .pill.ok { background:#15302a; color:var(--up); } .pill.live { background:#3a1f24; color:var(--down); }
+
+  /* HERO — the one-glance answer */
+  .hero { border-radius:22px; padding:26px 22px 24px; text-align:center; margin:6px 0 16px;
+          border:1px solid var(--line); transition:background .4s; }
+  .hero.up { background:linear-gradient(180deg,var(--upbg),#0d1417); border-color:#1d4a3b; }
+  .hero.down { background:linear-gradient(180deg,var(--downbg),#0d1417); border-color:#4a1d24; }
+  .hero.flat { background:var(--card); }
+  .hero .cap { font-size:12px; letter-spacing:1.5px; text-transform:uppercase; color:var(--dim); }
+  .hero .big { font-size:52px; font-weight:800; letter-spacing:-1.5px; margin:4px 0 8px; }
+  .hero .pl { font-size:22px; font-weight:700; }
+  .hero .today { font-size:13px; color:var(--dim); margin-top:8px; }
+  .up { color:var(--up); } .down { color:var(--down); } .flatc { color:var(--dim); }
+
+  /* WHAT'S MOVING IT */
+  .move { display:flex; gap:10px; margin:0 0 16px; }
+  .move .box { flex:1; background:var(--card); border:1px solid var(--line); border-radius:16px;
+               padding:13px 14px; }
+  .move .lbl { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.6px; }
+  .move .nm { font-size:15px; font-weight:600; margin-top:3px; }
+  .move .amt { font-size:14px; font-weight:700; margin-top:2px; }
+
+  /* ACTION */
+  .invest { width:100%; border:0; border-radius:16px; padding:17px; font:inherit; font-size:17px;
+            font-weight:700; color:#fff; background:var(--accent); cursor:pointer; margin:2px 0 8px; }
+  .invest:disabled { opacity:.5; }
+  .actnote { text-align:center; font-size:12px; color:var(--dim); min-height:16px; margin-bottom:18px; }
+
+  /* HOLDINGS */
+  .sect { font-size:12px; text-transform:uppercase; letter-spacing:.8px; color:var(--dim);
+          margin:6px 4px 8px; }
+  .hold { display:flex; align-items:center; justify-content:space-between; background:var(--card);
+          border:1px solid var(--line); border-radius:14px; padding:13px 15px; margin-bottom:8px; }
+  .hold .nm { font-weight:600; } .hold .qty { font-size:12px; color:var(--dim); }
+  .hold .rt { text-align:right; } .hold .v { font-weight:600; font-variant-numeric:tabular-nums; }
+  .hold .ch { font-size:12px; font-weight:600; }
+
+  .alert { background:var(--downbg); border:1px solid #4a1d24; color:#ffc9c9; border-radius:14px;
+           padding:12px 14px; font-size:13px; margin-bottom:14px; }
+  .empty { text-align:center; color:var(--dim); padding:18px; font-size:14px; }
+  .spark { height:54px; width:100%; margin-top:6px; }
 </style>
 </head>
 <body>
-<header>
-  <h1>Accumulator</h1>
-  <div class="badges">
-    <span id="tierBadge" class="badge">…</span>
-    <span id="modeBadge" class="badge">…</span>
-  </div>
-</header>
-<main>
-  <div class="hero">
-    <div class="val" id="pv">$0.00</div>
-    <div class="chg" id="chg">—</div>
+<div class="wrap">
+  <div class="top">
+    <span id="tierPill" class="pill">…</span>
+    <span id="modePill" class="pill">…</span>
   </div>
 
-  <div class="chart">
-    <svg id="chart" viewBox="0 0 700 200" preserveAspectRatio="none" style="height:180px"></svg>
-  </div>
-  <div class="tline">
-    <span id="tierLabel">—</span>
-    <span class="prog"><i id="tierProg" style="width:0%"></i></span>
-    <span id="tierNext">—</span>
+  <div id="alert" class="alert" style="display:none"></div>
+
+  <div id="hero" class="hero flat">
+    <div class="cap">Your money</div>
+    <div class="big" id="big">$0.00</div>
+    <div class="pl" id="pl">—</div>
+    <div class="today" id="today"></div>
+    <svg id="spark" class="spark" viewBox="0 0 460 54" preserveAspectRatio="none"></svg>
   </div>
 
-  <div class="card">
-    <h2>Holdings</h2>
-    <div id="holdings"></div>
-  </div>
+  <div class="move" id="move"></div>
 
-  <div class="card">
-    <h2>This period</h2>
-    <div class="row" style="margin-bottom:12px">
-      <span class="sub">Contribution&nbsp;$</span>
-      <input id="contrib" type="number" value="10" min="0" step="5"/>
-      <button id="planBtn" style="background:#23262e">Preview</button>
-      <button id="approveBtn">Approve</button>
-    </div>
-    <table id="planTbl"><thead>
-      <tr><th>Side</th><th>Asset</th><th>Amount</th><th>Reason</th></tr></thead><tbody></tbody></table>
-    <div class="note" id="approveNote"></div>
-    <div class="note" id="govNote"></div>
-  </div>
+  <button class="invest" id="invest">Invest</button>
+  <div class="actnote" id="actnote"></div>
 
-  <div class="card">
-    <h2>News &amp; risk <span class="sub">(advisory — never a buy/sell signal)</span></h2>
-    <div id="newsBody" class="sub">…</div>
-  </div>
-</main>
+  <div class="sect">What you own</div>
+  <div id="holds"></div>
+</div>
 
 <script>
 const api = () => window.pywebview.api;
 const $ = (id) => document.getElementById(id);
-const money = (x) => '$' + Number(x||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
-const pct = (x) => (x*100).toFixed(1) + '%';
+const money = (x) => '$' + Math.abs(Number(x||0)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const signed = (x) => (Number(x)>=0?'+':'−') + money(x);
 
 async function refresh() {
-  const [st, plan, ec] = await Promise.all([api().get_status(), api().get_plan(Number($('contrib').value)||0), api().get_equity_curve()]);
+  const [d, cfg, plan, news] = await Promise.all([
+    api().get_dashboard(), api().get_config(), api().get_plan(), api().get_news_alerts()]);
+
   // hero
-  $('pv').textContent = money(st.portfolio_value);
-  const gain = ec.total_gain || 0, rp = ec.total_return_pct || 0;
-  $('chg').innerHTML = `<span class="${gain>=0?'up':'down'}">${gain>=0?'▲':'▼'} ${money(Math.abs(gain))} (${rp>=0?'+':''}${rp}%)</span>`
-    + ` <span class="sub">· invested ${money(ec.total_invested)}</span>`;
-  // mode badge
-  const mb = $('modeBadge');
-  if (st.mode==='live'){ mb.textContent='LIVE · real money'; mb.className='badge live'; }
-  else if (st.mode==='paper'){ mb.textContent = st.broker_connected?'PAPER · connected':'PAPER · add keys'; mb.className='badge '+(st.broker_connected?'ok':'warn'); }
-  else { mb.textContent='SIMULATE'; mb.className='badge'; }
-  // tier
-  if (plan.tier){
-    $('tierBadge').textContent = 'Tier: ' + plan.tier.label;
-    $('tierLabel').textContent = plan.tier.label + ' — ' + plan.tier.note;
-    if (plan.tier.upgrade_at){
-      const frac = Math.max(0, Math.min(1, st.portfolio_value / plan.tier.upgrade_at));
-      $('tierProg').style.width = (frac*100).toFixed(0)+'%';
-      $('tierNext').textContent = '→ ' + (plan.tier.next_label||'') + ' at ' + money(plan.tier.upgrade_at);
-    } else { $('tierProg').style.width='100%'; $('tierNext').textContent='top tier'; }
-  } else { $('tierBadge').textContent='Fixed allocation'; $('tierLabel').textContent='—'; $('tierNext').textContent=''; }
-  drawChart(ec.points);
-  drawHoldings(plan, st);
-  drawPlan(plan);
-  $('govNote').textContent = plan.note;
-  loadNews();
-}
+  $('hero').className = 'hero ' + d.direction;
+  $('big').textContent = money(d.total_value);
+  const cls = d.direction==='up'?'up':(d.direction==='down'?'down':'flatc');
+  const arrow = d.direction==='up'?'▲':(d.direction==='down'?'▼':'•');
+  $('pl').innerHTML = `<span class="${cls}">${arrow} ${signed(d.total_pl)} (${d.total_pl_pct>=0?'+':''}${d.total_pl_pct}%)</span> <span class="flatc" style="font-size:13px">all time</span>`;
+  $('today').innerHTML = d.today_pl ? `Today <span class="${d.today_pl>=0?'up':'down'}">${signed(d.today_pl)}</span>` : `You've put in ${money(d.invested)}`;
+  drawSpark(d.points, d.direction);
 
-function drawChart(pts){
-  const svg = $('chart'); const W=700, H=200, pad=8;
-  if(!pts || !pts.length){ svg.innerHTML='<text x="12" y="100" fill="#8a909c" font-size="13">No history yet — approve a contribution to start the curve.</text>'; return; }
-  const vals = pts.map(p=>p.value); const max=Math.max(...vals,...pts.map(p=>p.invested),1), min=Math.min(...vals,...pts.map(p=>p.invested),0);
-  const X=i=> pad + (W-2*pad)*(pts.length===1?0.5:i/(pts.length-1));
-  const Y=v=> H-pad-(H-2*pad)*((v-min)/(max-min||1));
-  const line=(k)=> pts.map((p,i)=>`${X(i).toFixed(1)},${Y(p[k]).toFixed(1)}`).join(' ');
-  const area = `${X(0).toFixed(1)},${(H-pad).toFixed(1)} ` + line('value') + ` ${X(pts.length-1).toFixed(1)},${(H-pad).toFixed(1)}`;
-  const up = pts[pts.length-1].value >= pts[0].invested;
-  const col = up ? '#27c08a' : '#f6465d';
-  svg.innerHTML = `
-    <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="${col}" stop-opacity="0.28"/>
-      <stop offset="100%" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
-    <polygon points="${area}" fill="url(#g)"/>
-    <polyline points="${line('invested')}" fill="none" stroke="#8a909c" stroke-width="1.5" stroke-dasharray="4 4"/>
-    <polyline points="${line('value')}" fill="none" stroke="${col}" stroke-width="2.5"/>`;
-}
+  // what's moving it
+  const mv = $('move'); mv.innerHTML='';
+  if (d.leader || d.laggard) {
+    if (d.leader) mv.insertAdjacentHTML('beforeend',
+      `<div class="box"><div class="lbl">🟢 Leading</div><div class="nm">${d.leader.name}</div><div class="amt up">${signed(d.leader.amount)}</div></div>`);
+    if (d.laggard) mv.insertAdjacentHTML('beforeend',
+      `<div class="box"><div class="lbl">🔴 Dragging</div><div class="nm">${d.laggard.name}</div><div class="amt down">${signed(d.laggard.amount)}</div></div>`);
+  }
 
-function drawHoldings(plan, st){
-  const box=$('holdings'); box.innerHTML='';
-  const syms=Object.keys(plan.target_weights);
-  if(!syms.length){ box.innerHTML='<span class="sub">No target assets priced.</span>'; return; }
-  for(const s of syms){
-    const cur=plan.current_weights[s]||0, tgt=plan.target_weights[s]||0;
-    const val=(st.holdings_value||{})[s]||0;
-    box.insertAdjacentHTML('beforeend',
-      `<div class="hold"><div class="sym">${s}</div>
-       <div class="alloc"><div class="lbl"><span>${pct(cur)} <span class="sub">/ ${pct(tgt)} target</span></span></div>
-       <div class="bar"><i style="width:${(Math.min(1,tgt)*100).toFixed(0)}%"></i></div></div>
-       <div class="hval">${money(val)}</div></div>`);
+  // tier + mode pills
+  $('tierPill').textContent = plan.tier ? ('Plan: ' + plan.tier.label) : 'Plan';
+  const mp = $('modePill');
+  if (d.mode==='live'){ mp.textContent='LIVE'; mp.className='pill live'; }
+  else if (d.mode==='paper'){ mp.textContent = d.broker_connected?'Paper':'Paper · setup'; mp.className='pill '+(d.broker_connected?'ok':''); }
+  else { mp.textContent='Practice'; mp.className='pill'; }
+
+  // one big action
+  $('invest').textContent = `Invest ${money(cfg.contribution)}`;
+
+  // risk alert (only when it matters)
+  if (news.should_pause_recommended){ $('alert').style.display='block';
+    $('alert').textContent = `⚠ ${news.n_risk_alerts} risk alert — consider waiting before you invest.`; }
+  else $('alert').style.display='none';
+
+  // holdings
+  const h = $('holds'); h.innerHTML='';
+  if (!d.holdings.length){ h.innerHTML='<div class="empty">Nothing yet — tap Invest to start building.</div>'; return; }
+  for (const a of d.holdings){
+    const up = a.plpc>=0;
+    h.insertAdjacentHTML('beforeend',
+      `<div class="hold"><div><div class="nm">${a.name}</div><div class="qty">${a.symbol}</div></div>
+       <div class="rt"><div class="v">${money(a.value)}</div>
+       <div class="ch ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(a.plpc)}%</div></div></div>`);
   }
 }
 
-function drawPlan(plan){
-  const tb=$('planTbl').querySelector('tbody'); tb.innerHTML='';
-  if(!plan.orders.length){ tb.innerHTML='<tr><td colspan="4" class="sub">No orders.</td></tr>'; return; }
-  for(const o of plan.orders) tb.insertAdjacentHTML('beforeend',
-    `<tr><td class="side-${o.side}">${o.side}</td><td>${o.symbol}</td><td>${money(o.dollars)}</td><td class="sub">${o.reason}</td></tr>`);
+function drawSpark(pts, dir){
+  const s=$('spark'), W=460, H=54, pad=3;
+  if(!pts || pts.length<2){ s.innerHTML=''; return; }
+  const v=pts.map(p=>p.value), mx=Math.max(...v,1), mn=Math.min(...v,0);
+  const X=i=>pad+(W-2*pad)*i/(pts.length-1), Y=val=>H-pad-(H-2*pad)*((val-mn)/(mx-mn||1));
+  const line=pts.map((p,i)=>`${X(i).toFixed(1)},${Y(p.value).toFixed(1)}`).join(' ');
+  const col=dir==='down'?'#f6465d':'#27c08a';
+  s.innerHTML=`<defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="${col}" stop-opacity="0.25"/><stop offset="100%" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+    <polygon points="${X(0).toFixed(1)},${H-pad} ${line} ${X(pts.length-1).toFixed(1)},${H-pad}" fill="url(#sg)"/>
+    <polyline points="${line}" fill="none" stroke="${col}" stroke-width="2"/>`;
 }
 
-async function loadNews(){
-  try{ const s=await api().get_news_alerts();
-    $('newsBody').innerHTML = s.should_pause_recommended
-      ? `<span class="down">⚠ ${s.n_risk_alerts} risk alert(s) — review before contributing</span>`
-      : `Scanned ${s.n_scanned} headlines · no critical events for the basket.`;
-  }catch(e){ $('newsBody').textContent='News feed unavailable.'; }
-}
-
-async function approve(){ $('approveBtn').disabled=true;
-  const r=await api().approve_plan_paper(Number($('contrib').value)||0);
-  $('approveNote').textContent=`Submitted ${r.n_fills||0} order(s) · ${r.mode}.`;
-  await refresh(); $('approveBtn').disabled=false; }
+async function invest(){ $('invest').disabled=true; $('actnote').textContent='Investing…';
+  try { const r=await api().approve_plan_paper(); $('actnote').textContent=`Done · ${r.n_fills||0} order(s) placed.`; }
+  catch(e){ $('actnote').textContent='Could not invest — check connection.'; }
+  await refresh(); $('invest').disabled=false; }
 
 window.addEventListener('pywebviewready', refresh);
-$('planBtn').addEventListener('click', refresh);
-$('approveBtn').addEventListener('click', approve);
-setTimeout(()=>{ if(!window.pywebview) $('modeBadge').textContent='open via app'; }, 1200);
+$('invest').addEventListener('click', invest);
+setTimeout(()=>{ if(!window.pywebview) $('modePill').textContent='open via app'; }, 1200);
 </script>
 </body>
 </html>

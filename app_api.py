@@ -184,6 +184,81 @@ class AccumulatorAPI:
     def get_equity_curve(self) -> Dict[str, Any]:
         return app_analytics.equity_curve(store.load_history(self.history_path))
 
+    def get_dashboard(self) -> Dict[str, Any]:
+        """One call with everything the stupid-simple UI needs: total value, profit/loss ($ and %),
+        today's move, the single biggest mover (leader) and drag (laggard), per-asset rows in plain
+        English, and the value-over-time points. Honest: P&L comes from the broker when live/paper,
+        else from contributions-vs-value in simulate."""
+        from app_config import ASSET_NAMES
+        prices = self.prices()
+        mode = self._mode()
+        ec = app_analytics.equity_curve(store.load_history(self.history_path))
+        detail: Dict[str, Dict[str, Any]] = {}
+        total_value = 0.0
+        total_pl = 0.0
+        today_pl = 0.0
+
+        if self._broker_active() and self._get_broker() is not None:
+            try:
+                pos = self._broker.account_snapshot().get("positions", {})
+            except Exception as e:
+                self._broker_error = str(e)
+                pos = {}
+            for s in self.config.weights:
+                d = pos.get(s)
+                if d and d.get("market_value"):
+                    detail[s] = {"value": round(d["market_value"], 2),
+                                 "pl": round(d.get("total_pl", 0.0), 2),
+                                 "today": round(d.get("today_pl", 0.0), 2),
+                                 "plpc": round(d.get("plpc", 0.0) * 100, 2)}
+            total_value = round(sum(d["value"] for d in detail.values()), 2)
+            total_pl = round(sum(d["pl"] for d in detail.values()), 2)
+            today_pl = round(sum(d["today"] for d in detail.values()), 2)
+        else:
+            pf = store.load_portfolio(self.state_path)
+            for s, u in pf.holdings.items():
+                if u:
+                    v = u * prices.get(s, 0.0)
+                    detail[s] = {"value": round(v, 2), "pl": 0.0, "today": 0.0, "plpc": 0.0}
+            total_value = round(pf.value(prices), 2)
+            total_pl = ec["total_gain"]  # value - contributions
+
+        invested = ec["total_invested"]
+        pl_pct = round((total_pl / invested * 100), 2) if invested > 0 else 0.0
+        # leader / laggard: rank by the most relevant move (today if any moved, else total P&L)
+        use_today = any(abs(d["today"]) > 0 for d in detail.values())
+        key = (lambda kv: kv[1]["today"]) if use_today else (lambda kv: kv[1]["pl"])
+        rows = sorted(detail.items(), key=key, reverse=True)
+
+        def named(item):
+            if not item:
+                return None
+            s, d = item
+            return {"symbol": s, "name": ASSET_NAMES.get(s, s),
+                    "amount": d["today"] if use_today else d["pl"], **d}
+
+        leader = named(rows[0]) if rows and key(rows[0]) > 0 else None
+        laggard = named(rows[-1]) if rows and key(rows[-1]) < 0 else None
+        holdings = [{"symbol": s, "name": ASSET_NAMES.get(s, s), **d}
+                    for s, d in sorted(detail.items(), key=lambda kv: kv[1]["value"], reverse=True)]
+
+        return {
+            "mode": mode,
+            "broker_connected": bool(self._broker_active() and self._broker is not None),
+            "broker_error": self._broker_error if self._broker_active() else None,
+            "total_value": total_value,
+            "total_pl": total_pl,
+            "total_pl_pct": pl_pct,
+            "today_pl": today_pl,
+            "invested": invested,
+            "direction": "up" if total_pl > 0.005 else ("down" if total_pl < -0.005 else "flat"),
+            "leader": leader,
+            "laggard": laggard,
+            "holdings": holdings,
+            "points": ec["points"],
+            "authorizes_live": False,
+        }
+
     # --- action ---------------------------------------------------------------
     def approve_plan_paper(self, contribution: Optional[float] = None) -> Dict[str, Any]:
         """Operator approved the plan. Routes to the Alpaca PAPER account when paper is active
