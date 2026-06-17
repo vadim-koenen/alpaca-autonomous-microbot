@@ -4,6 +4,22 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046O LIVE PRICE FEED (commercialization #1) (2026-06-17)
+
+> **Current directive. Author: Claude (senior eng).** First of the 3 commercialization items done.
+
+The app now uses **live Alpaca quotes** instead of stale CSV closes. `live_prices.py` `LivePriceProvider`
+fetches latest trades (equities via IEX with account keys; crypto real-time, no keys), with a 20s TTL
+cache and automatic **CSV fallback** so it never breaks offline. Wired as the default price source in
+`app_api` (config flag `live_prices=True`; injected providers in tests bypass it → no network in pytest).
+Verified live: SGOV $100.55 / SPY $749.79 / BND $73.42 / GLD $399 / BTC $65,297. (+5 tests, 204 total pass.)
+
+Remaining commercialization: (2) **in-app key entry** — a Settings screen writing keys to local config
+or macOS Keychain (no .env editing); (3) **code-signing/notarization** — needs an Apple Developer cert
+($99/yr) then automatable in `setup_app.py`. Live/auto still OFF; STOP_TRADING present; clean-slate paper.
+
+---
+
 ## Latest Status — P2-046N STUPID-SIMPLE DASHBOARD (commercial UX) (2026-06-17)
 
 > **Current directive. Author: Claude (senior eng).** Dashboard redesigned for instant, at-a-glance read.

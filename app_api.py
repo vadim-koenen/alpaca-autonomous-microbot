@@ -51,7 +51,7 @@ class AccumulatorAPI:
         self.stop_trading_path = Path(stop_trading_path)
         self.accumulator_stop_path = Path(accumulator_stop_path)
         self.news_path = Path(news_path)
-        self._price_provider = price_provider or self._default_price_provider
+        self._price_provider = price_provider or self._make_price_provider()
         self._news_provider = news_provider or self._default_news_provider
         self._broker_factory = broker_factory
         self._live_broker_factory = live_broker_factory
@@ -113,6 +113,16 @@ class AccumulatorAPI:
         return store.load_portfolio(self.state_path)
 
     # --- prices ---------------------------------------------------------------
+    def _make_price_provider(self) -> Callable[[], Dict[str, float]]:
+        """Live Alpaca quotes (with CSV fallback) when config.live_prices, else CSV closes."""
+        if getattr(self.config, "live_prices", True):
+            try:
+                from live_prices import LivePriceProvider
+                return LivePriceProvider(list(self.config.weights), self.config.price_csvs)
+            except Exception:
+                pass
+        return self._default_price_provider
+
     def _default_price_provider(self) -> Dict[str, float]:
         return ps.latest_prices_from_csvs(self.config.price_csvs)
 
