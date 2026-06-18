@@ -19,19 +19,51 @@ from typing import Any, Dict, List
 
 # Each tier: applies while total capital < `max_value`. Weights must sum to 1.0.
 # Symbols: SGOV (T-bills/cash), SCHD (dividend-income index), VTI (total-market index),
-# BND (bonds), GLD (gold), BTC (crypto sleeve). Income-tilted for the operator's goal; dividends
-# + interest auto-reinvest (config.reinvest_dividends).
-TIERS: List[Dict[str, Any]] = [
-    {"max_value": 1_000.0, "label": "Seed",
-     "note": "tiny + learning → preservation + income (cash, dividends, gold)",
-     "weights": {"SGOV": 0.60, "SCHD": 0.25, "GLD": 0.15}},
-    {"max_value": 5_000.0, "label": "Build",
-     "note": "base established → add a broad index, bonds + a small crypto sleeve",
-     "weights": {"SGOV": 0.45, "SCHD": 0.25, "VTI": 0.10, "BND": 0.10, "GLD": 0.07, "BTC": 0.03}},
-    {"max_value": float("inf"), "label": "Grow",
-     "note": "base can absorb more volatility → more index growth, keep the income core",
-     "weights": {"SGOV": 0.30, "SCHD": 0.25, "VTI": 0.20, "BND": 0.10, "GLD": 0.10, "BTC": 0.05}},
-]
+# BND (bonds), GLD (gold), BTC (crypto sleeve). Each PRESET is a capital-adaptive glide; the operator
+# picks one (config.preset). Dividends + interest auto-reinvest (config.reinvest_dividends).
+PRESETS: Dict[str, Dict[str, Any]] = {
+    "preservation": {
+        "label": "Preservation", "description": "Lowest risk. Mostly cash + bonds; tiny equity.",
+        "tiers": [
+            {"max_value": 1_000.0, "label": "Seed", "note": "capital first",
+             "weights": {"SGOV": 0.80, "SCHD": 0.10, "GLD": 0.10}},
+            {"max_value": 5_000.0, "label": "Build", "note": "add bonds",
+             "weights": {"SGOV": 0.65, "SCHD": 0.15, "BND": 0.15, "GLD": 0.05}},
+            {"max_value": float("inf"), "label": "Grow", "note": "a little index",
+             "weights": {"SGOV": 0.55, "SCHD": 0.20, "VTI": 0.05, "BND": 0.15, "GLD": 0.05}},
+        ],
+    },
+    "income": {
+        "label": "Income", "description": "Preservation + dividend income. Balanced, modest growth.",
+        "tiers": [
+            {"max_value": 1_000.0, "label": "Seed", "note": "preservation + income",
+             "weights": {"SGOV": 0.60, "SCHD": 0.25, "GLD": 0.15}},
+            {"max_value": 5_000.0, "label": "Build", "note": "add index, bonds, small crypto",
+             "weights": {"SGOV": 0.45, "SCHD": 0.25, "VTI": 0.10, "BND": 0.10, "GLD": 0.07, "BTC": 0.03}},
+            {"max_value": float("inf"), "label": "Grow", "note": "more index, keep income core",
+             "weights": {"SGOV": 0.30, "SCHD": 0.25, "VTI": 0.20, "BND": 0.10, "GLD": 0.10, "BTC": 0.05}},
+        ],
+    },
+    "growth": {
+        "label": "Growth", "description": "Higher risk/return. Equity-heavy with a crypto sleeve.",
+        "tiers": [
+            {"max_value": 1_000.0, "label": "Seed", "note": "equity + income core",
+             "weights": {"SGOV": 0.40, "SCHD": 0.25, "VTI": 0.25, "GLD": 0.10}},
+            {"max_value": 5_000.0, "label": "Build", "note": "index-led growth",
+             "weights": {"SGOV": 0.20, "SCHD": 0.20, "VTI": 0.40, "GLD": 0.10, "BTC": 0.10}},
+            {"max_value": float("inf"), "label": "Grow", "note": "max index growth",
+             "weights": {"SGOV": 0.10, "SCHD": 0.15, "VTI": 0.55, "GLD": 0.10, "BTC": 0.10}},
+        ],
+    },
+}
+
+DEFAULT_PRESET = "income"
+# Back-compat: TIERS is the default preset's glide.
+TIERS: List[Dict[str, Any]] = PRESETS[DEFAULT_PRESET]["tiers"]
+
+
+def tiers_for_preset(preset: str = DEFAULT_PRESET) -> List[Dict[str, Any]]:
+    return PRESETS.get(preset, PRESETS[DEFAULT_PRESET])["tiers"]
 
 
 def validate_tiers(tiers: List[Dict[str, Any]] = TIERS) -> None:
@@ -45,20 +77,22 @@ def validate_tiers(tiers: List[Dict[str, Any]] = TIERS) -> None:
         last = t["max_value"]
 
 
-def tier_for_capital(value: float, tiers: List[Dict[str, Any]] = TIERS) -> Dict[str, Any]:
+def tier_for_capital(value: float, preset: str = DEFAULT_PRESET) -> Dict[str, Any]:
     """Return the tier whose band contains `value` (first tier with value < max_value)."""
+    tiers = tiers_for_preset(preset)
     for t in tiers:
         if value < t["max_value"]:
             return t
     return tiers[-1]
 
 
-def weights_for_capital(value: float, tiers: List[Dict[str, Any]] = TIERS) -> Dict[str, float]:
-    return dict(tier_for_capital(value, tiers)["weights"])
+def weights_for_capital(value: float, preset: str = DEFAULT_PRESET) -> Dict[str, float]:
+    return dict(tier_for_capital(value, preset)["weights"])
 
 
-def tier_info(value: float, tiers: List[Dict[str, Any]] = TIERS) -> Dict[str, Any]:
-    t = tier_for_capital(value, tiers)
+def tier_info(value: float, preset: str = DEFAULT_PRESET) -> Dict[str, Any]:
+    tiers = tiers_for_preset(preset)
+    t = tier_for_capital(value, preset)
     nxt = None
     for cand in tiers:
         if cand["max_value"] > t["max_value"] - 1e-9 and cand is not t and cand["max_value"] > value:
@@ -74,4 +108,11 @@ def tier_info(value: float, tiers: List[Dict[str, Any]] = TIERS) -> Dict[str, An
     }
 
 
-validate_tiers()  # fail fast at import if a tier is misconfigured
+def list_presets() -> List[Dict[str, str]]:
+    """Names + labels + descriptions for the UI preset picker."""
+    return [{"key": k, "label": v["label"], "description": v["description"]}
+            for k, v in PRESETS.items()]
+
+
+for _name, _p in PRESETS.items():       # fail fast at import if any preset is misconfigured
+    validate_tiers(_p["tiers"])

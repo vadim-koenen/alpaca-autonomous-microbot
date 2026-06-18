@@ -44,6 +44,7 @@ class AppConfig:
     cost_bps: float = 10.0           # spread+slippage assumption per side
     overlay_enabled: bool = False    # P2-046A: dip-overlay does NOT beat plain DCA -> OFF
     adaptive_allocation: bool = False  # P2-046M: target weights glide with total capital (capital_allocation.TIERS)
+    preset: str = "income"            # P2-046T: capital-glide preset (preservation|income|growth)
     reinvest_dividends: bool = True   # P2-046R: redeploy dividend + interest income on the next run (DRIP)
     live_prices: bool = True          # P2-046O: pull live Alpaca quotes (CSV fallback). False = CSV only.
     live_paper: bool = False         # M4 gate: must be explicitly enabled to submit Alpaca PAPER orders

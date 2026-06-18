@@ -55,7 +55,7 @@ def build_plan(
     # Capital-adaptive: the target weights shift with total capital (a deliberate glide path).
     tier = None
     if getattr(config, "adaptive_allocation", False):
-        tier = cap.tier_info(total)
+        tier = cap.tier_info(total, getattr(config, "preset", cap.DEFAULT_PRESET))
         base_weights = tier["weights"]
     else:
         base_weights = config.weights

@@ -4,6 +4,25 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046T SELECTABLE ALLOCATION PRESETS (2026-06-17)
+
+> **Current directive. Author: Claude (senior eng).** Operator asked which "basket" feature fits the
+> goal best → recommended + built selectable risk presets (commercial table-stakes, calibrates the
+> operator's untested risk tolerance, zero new risk surface). Carry basket deferred as a separate
+> offline-first experiment.
+
+`capital_allocation.PRESETS`: three capital-adaptive glides the user switches between —
+**preservation** (SGOV/bond heavy), **income** (default; preservation + dividends), **growth**
+(equity-led + crypto sleeve). `weights_for_capital(value, preset)` / `tier_info(value, preset)` take a
+preset; all presets validated at import. `config.preset` selects it; `planner_service.build_plan` uses it.
+`app_api.get_presets()` / `set_preset(name)` (persists to config). UI: a risk-preset dropdown in the
+Settings (⚙) panel with descriptions, switches live. (+7 tests, 231 total pass.)
+
+Seed-tier example: preservation SGOV80/SCHD10/GLD10 · income SGOV60/SCHD25/GLD15 · growth
+SGOV40/SCHD25/VTI25/GLD10. Real money still OFF; PAPER; STOP_TRADING present. Branch pushed to GitHub.
+
+---
+
 ## Latest Status — P2-046S PROACTIVE CHECK-INS ("today's suggestion") (2026-06-17)
 
 > **Current directive. Author: Claude (senior eng).** Operator wanted proactive nudges so an idle

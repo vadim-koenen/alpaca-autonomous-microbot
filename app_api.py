@@ -49,6 +49,7 @@ class AccumulatorAPI:
     ) -> None:
         self._secrets_runner = secrets_runner
         self.config = config or (load_config(config_path) if config_path else default_config())
+        self._config_path = Path(config_path) if config_path else Path("app_config.json")
         self.state_path = Path(state_path)
         self.history_path = Path(history_path)
         self.stop_trading_path = Path(stop_trading_path)
@@ -187,9 +188,24 @@ class AccumulatorAPI:
         self._broker_error = None
         return {"saved": saved, "count": len(saved)}
 
+    def get_presets(self) -> Dict[str, Any]:
+        import capital_allocation as cap
+        return {"current": self.config.preset, "available": cap.list_presets()}
+
+    def set_preset(self, name: str) -> Dict[str, Any]:
+        """Switch the allocation preset (preservation|income|growth) and persist it."""
+        import capital_allocation as cap
+        from app_config import save_config
+        if name not in cap.PRESETS:
+            raise ValueError(f"unknown preset '{name}'")
+        self.config.preset = name
+        save_config(self.config, self._config_path)
+        return {"preset": name}
+
     def get_config(self) -> Dict[str, Any]:
         return {
             "profile": self.config.profile,
+            "preset": self.config.preset,
             "weights": self.config.weights,
             "contribution": self.config.contribution,
             "cadence_days": self.config.cadence_days,

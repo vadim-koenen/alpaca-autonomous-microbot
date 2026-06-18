@@ -83,7 +83,13 @@
   </div>
 
   <div id="settings" class="settings" style="display:none">
-    <h3>Settings — API keys</h3>
+    <h3>Settings</h3>
+    <div class="grp">Strategy — risk preset</div>
+    <div class="fld">
+      <select id="presetSel" style="width:100%;background:#0e1014;border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:10px;font:inherit"></select>
+      <div class="hint" id="presetDesc" style="margin-top:6px"></div>
+    </div>
+    <div class="grp" style="margin-top:14px">API keys</div>
     <div class="hint">Stored securely in your macOS Keychain. Values are never shown or saved to disk.</div>
     <div class="grp">Paper (practice — free, fake money)</div>
     <div class="fld"><label>Paper API key <span id="s_pa" class="set"></span></label><input id="paper_api" type="password" autocomplete="off" placeholder="PK…"/></div>
@@ -207,7 +213,18 @@ async function toggleSettings(){
   const st=await api().get_settings();
   $('s_pa').textContent = st.keys.paper_api?'✓ set':''; $('s_ps').textContent = st.keys.paper_secret?'✓ set':'';
   $('s_la').textContent = st.keys.live_api?'✓ set':''; $('s_ls').textContent = st.keys.live_secret?'✓ set':'';
+  // preset picker
+  const pr=await api().get_presets(); const sel=$('presetSel'); sel.innerHTML='';
+  for(const p of pr.available){ const o=document.createElement('option');
+    o.value=p.key; o.textContent=p.label; o.dataset.desc=p.description;
+    if(p.key===pr.current) o.selected=true; sel.appendChild(o); }
+  const cur=pr.available.find(p=>p.key===pr.current); $('presetDesc').textContent=cur?cur.description:'';
   s.style.display='block';
+}
+async function changePreset(){
+  const sel=$('presetSel'); const key=sel.value;
+  $('presetDesc').textContent=sel.options[sel.selectedIndex].dataset.desc||'';
+  await api().set_preset(key); await refresh();
 }
 async function saveKeys(){
   $('saveK').disabled=true; $('kNote').textContent='Saving to Keychain…';
@@ -221,6 +238,7 @@ async function saveKeys(){
 window.addEventListener('pywebviewready', refresh);
 $('invest').addEventListener('click', invest);
 $('gear').addEventListener('click', toggleSettings);
+$('presetSel').addEventListener('change', changePreset);
 $('saveK').addEventListener('click', saveKeys);
 setTimeout(()=>{ if(!window.pywebview) $('modePill').textContent='open via app'; }, 1200);
 </script>
