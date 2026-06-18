@@ -124,6 +124,16 @@
 
   <div class="sect">What you own</div>
   <div id="holds"></div>
+
+  <div class="sect">Research an asset</div>
+  <div class="card" style="margin-top:0">
+    <div class="row" style="gap:8px">
+      <input id="rSym" placeholder="Ticker — e.g. SCHD, VTI, AAPL" style="flex:1" autocomplete="off"/>
+      <button id="rBtn" style="background:#23262e">Look up</button>
+    </div>
+    <div id="rOut" style="margin-top:12px"></div>
+    <div class="note">Educational only — facts &amp; portfolio fit, never a buy/sell call or prediction.</div>
+  </div>
 </div>
 
 <script>
@@ -235,8 +245,30 @@ async function saveKeys(){
   $('saveK').disabled=false; await toggleSettings();
 }
 
+async function doResearch(){
+  const sym=$('rSym').value.trim(); if(!sym) return;
+  $('rOut').innerHTML='<span class="sub">Pulling real data…</span>';
+  try{
+    const r=await api().research(sym);
+    if(r.error){ $('rOut').innerHTML=`<span class="sub">Couldn't research ${sym} (${r.error}).</span>`; return; }
+    const corr = r.correlation_to_basket===null?'n/a':r.correlation_to_basket;
+    $('rOut').innerHTML =
+      `<div style="font-weight:700;font-size:15px">${r.name} · $${r.last_price}</div>
+       <table style="margin-top:8px"><tbody>
+       <tr><td>Return (annualized)</td><td>${r.annualized_return_pct}%/yr</td></tr>
+       <tr><td>Volatility</td><td>${r.annualized_volatility_pct}%</td></tr>
+       <tr><td>Worst drop (max drawdown)</td><td class="down">${r.max_drawdown_pct}%</td></tr>
+       <tr><td>Correlation to your basket</td><td>${corr}</td></tr>
+       <tr><td>Type</td><td>${r.role}</td></tr></tbody></table>
+       <div style="margin-top:8px">${r.fit}</div>
+       <div class="note">${r.disclaimer}</div>`;
+  }catch(e){ $('rOut').innerHTML='<span class="sub">Research unavailable.</span>'; }
+}
+
 window.addEventListener('pywebviewready', refresh);
 $('invest').addEventListener('click', invest);
+$('rBtn').addEventListener('click', doResearch);
+$('rSym').addEventListener('keydown', e=>{ if(e.key==='Enter') doResearch(); });
 $('gear').addEventListener('click', toggleSettings);
 $('presetSel').addEventListener('change', changePreset);
 $('saveK').addEventListener('click', saveKeys);

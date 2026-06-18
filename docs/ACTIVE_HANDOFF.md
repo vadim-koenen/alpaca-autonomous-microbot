@@ -4,6 +4,26 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046U HONEST RESEARCH ASSISTANT (no predictions) (2026-06-17)
+
+> **Current directive. Author: Claude (senior eng).** Operator wanted a "researcher" — built the HONEST
+> version (educate + diagnose), explicitly NOT a winner-predictor (that's the falsified alpha lane).
+
+`research_assistant.py` (pure analytics, +9 tests): given a ticker, pulls REAL history and reports
+annualized return, volatility, max drawdown, and **correlation to the current basket**, plus a plain-
+English role + portfolio-fit assessment. HARD RULE: `is_recommendation=False` always, never a buy/sell or
+prediction; every output carries a disclaimer. `app_api.research(symbol)` fetches via `fetch_alpaca_bars`
+and builds a weighted basket-index series for correlation. UI: a "Research an asset" card (ticker input →
+briefing). Wired `app_api.get_presets/set_preset` earlier (P2-046T) unchanged.
+
+**Data-quality fix:** `fetch_stock_daily`/`fetch_daily` gained an `adjustment` param; research uses
+`adjustment="all"` (split+dividend adjusted) — raw bars had made SCHD look like −15.9%/yr, 71% DD (its
+2024 3:1 split). Adjusted: SCHD 8.7%/yr, 14.4% vol, 16.9% DD (correct). Verified AAPL/JEPI too.
+
+240 tests pass. Real money OFF; PAPER; STOP_TRADING present. Pushed to GitHub.
+
+---
+
 ## Latest Status — P2-046T SELECTABLE ALLOCATION PRESETS (2026-06-17)
 
 > **Current directive. Author: Claude (senior eng).** Operator asked which "basket" feature fits the

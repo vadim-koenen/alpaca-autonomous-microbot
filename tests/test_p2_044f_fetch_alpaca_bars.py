@@ -44,7 +44,8 @@ def test_is_crypto_symbol_routing():
 def test_fetch_daily_dispatches_on_symbol(monkeypatch):
     calls = {}
     monkeypatch.setattr(fa, "fetch_crypto_daily", lambda s, y: calls.setdefault("crypto", (s, y)) or [])
-    monkeypatch.setattr(fa, "fetch_stock_daily", lambda s, y, feed="iex": calls.setdefault("stock", (s, y)) or [])
+    monkeypatch.setattr(fa, "fetch_stock_daily",
+                        lambda s, y, feed="iex", adjustment="raw": calls.setdefault("stock", (s, y)) or [])
     fa.fetch_daily("BTC/USD", 3)
     fa.fetch_daily("SPY", 3)
     assert calls["crypto"] == ("BTC/USD", 3)

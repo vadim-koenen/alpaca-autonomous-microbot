@@ -188,6 +188,50 @@ class AccumulatorAPI:
         self._broker_error = None
         return {"saved": saved, "count": len(saved)}
 
+    # --- honest research (educational, never a prediction) --------------------
+    def _basket_index_series(self) -> Dict[str, float]:
+        """A weighted 'basket index' close series (start=100) from the basket CSVs, for correlation."""
+        import csv as _csv
+        from pathlib import Path as _P
+        per_asset = {}
+        for sym, path in self.config.price_csvs.items():
+            if not _P(path).exists():
+                continue
+            rows = {r["date"]: float(r["close"]) for r in _csv.DictReader(_P(path).read_text().splitlines())
+                    if r.get("close")}
+            if rows:
+                per_asset[sym] = rows
+        if not per_asset:
+            return {}
+        common = sorted(set.intersection(*(set(v) for v in per_asset.values())))
+        w = self.config.weights
+        wsum = sum(w.get(s, 0) for s in per_asset) or 1.0
+        index = {}
+        base = {s: per_asset[s][common[0]] for s in per_asset} if common else {}
+        for d in common:
+            val = sum((w.get(s, 0) / wsum) * (per_asset[s][d] / base[s]) for s in per_asset)
+            index[d] = val * 100.0
+        return index
+
+    def research(self, symbol: str, years: int = 5) -> Dict[str, Any]:
+        """Fetch a ticker's real history and return an honest briefing (no predictions)."""
+        import research_assistant as ra
+        from app_config import ASSET_NAMES
+        symbol = (symbol or "").strip().upper()
+        if not symbol:
+            return {"error": "no_symbol", "is_recommendation": False}
+        try:
+            import fetch_alpaca_bars as fab
+            recs = fab.fetch_daily(symbol if symbol not in ("BTC", "ETH", "SOL") else f"{symbol}/USD",
+                                   years, adjustment="all")  # split/dividend-adjusted for accuracy
+            asset_series = {str(r.get("date") or r.get("timestamp"))[:10]: float(r["close"])
+                            for r in recs if r.get("close")}
+        except Exception as e:
+            return {"symbol": symbol, "error": f"fetch_failed: {str(e)[:120]}",
+                    "is_recommendation": False, "disclaimer": ra.DISCLAIMER}
+        name = ASSET_NAMES.get(symbol, symbol)
+        return ra.research_asset(symbol, name, asset_series, self._basket_index_series())
+
     def get_presets(self) -> Dict[str, Any]:
         import capital_allocation as cap
         return {"current": self.config.preset, "available": cap.list_presets()}

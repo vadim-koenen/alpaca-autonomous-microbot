@@ -84,8 +84,11 @@ def fetch_crypto_daily(symbol: str, years: int) -> List[Dict[str, Any]]:
     return _df_to_records(client.get_crypto_bars(req).df, f"{symbol} (crypto)")
 
 
-def fetch_stock_daily(symbol: str, years: int, feed: str = "iex") -> List[Dict[str, Any]]:
-    """Equity daily bars — Mac only. Uses your Alpaca keys; free IEX feed by default."""
+def fetch_stock_daily(symbol: str, years: int, feed: str = "iex",
+                      adjustment: str = "raw") -> List[Dict[str, Any]]:
+    """Equity daily bars — Mac only. Uses your Alpaca keys; free IEX feed by default.
+    `adjustment`: 'raw' | 'split' | 'dividend' | 'all'. Use 'all' for analysis (splits/dividends
+    corrupt raw price history — e.g. SCHD's 2024 3:1 split)."""
     try:
         from alpaca.data.historical import StockHistoricalDataClient
         from alpaca.data.requests import StockBarsRequest
@@ -96,17 +99,25 @@ def fetch_stock_daily(symbol: str, years: int, feed: str = "iex") -> List[Dict[s
     client = StockHistoricalDataClient(keys["key"], keys["secret"])
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=int(years * 365.25))
-    req = StockBarsRequest(symbol_or_symbols=symbol, timeframe=TimeFrame.Day,
-                           start=start, end=end, feed=feed)
-    return _df_to_records(client.get_stock_bars(req).df, f"{symbol} (feed={feed})")
+    kwargs = dict(symbol_or_symbols=symbol, timeframe=TimeFrame.Day, start=start, end=end, feed=feed)
+    try:  # adjustment is optional/version-dependent; ignore if unsupported
+        from alpaca.data.enums import Adjustment
+        kwargs["adjustment"] = {"raw": Adjustment.RAW, "split": Adjustment.SPLIT,
+                                "dividend": Adjustment.DIVIDEND, "all": Adjustment.ALL}.get(
+                                    adjustment, Adjustment.RAW)
+    except Exception:
+        pass
+    req = StockBarsRequest(**kwargs)
+    return _df_to_records(client.get_stock_bars(req).df, f"{symbol} (feed={feed},adj={adjustment})")
 
 
-def fetch_daily(symbol: str, years: int, feed: str = "iex") -> List[Dict[str, Any]]:
+def fetch_daily(symbol: str, years: int, feed: str = "iex",
+                adjustment: str = "raw") -> List[Dict[str, Any]]:
     """Dispatch to the right Alpaca client based on the symbol (crypto vs equity).
     THIS is the correct entry point for a crypto bot: BTC/USD -> crypto client."""
     if is_crypto_symbol(symbol):
         return fetch_crypto_daily(symbol, years)
-    return fetch_stock_daily(symbol, years, feed)
+    return fetch_stock_daily(symbol, years, feed, adjustment)
 
 
 # Back-compat alias.
