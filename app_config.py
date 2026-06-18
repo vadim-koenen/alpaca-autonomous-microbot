@@ -21,8 +21,8 @@ from typing import Dict
 # small crypto sleeve. Weights sum to 1.0.
 # Plain-English names for a stupid-simple, commercial-grade dashboard.
 ASSET_NAMES: Dict[str, str] = {
-    "SGOV": "Cash (T-Bills)", "BND": "Bonds", "SPY": "US Stocks",
-    "QQQ": "Tech Stocks", "GLD": "Gold", "SLV": "Silver", "BTC": "Bitcoin",
+    "SGOV": "Cash (T-Bills)", "BND": "Bonds", "SPY": "US Stocks", "VTI": "US Stocks (Total Market)",
+    "SCHD": "Dividend Stocks", "QQQ": "Tech Stocks", "GLD": "Gold", "SLV": "Silver", "BTC": "Bitcoin",
 }
 
 CONSERVATIVE_WEIGHTS: Dict[str, float] = {
@@ -44,6 +44,7 @@ class AppConfig:
     cost_bps: float = 10.0           # spread+slippage assumption per side
     overlay_enabled: bool = False    # P2-046A: dip-overlay does NOT beat plain DCA -> OFF
     adaptive_allocation: bool = False  # P2-046M: target weights glide with total capital (capital_allocation.TIERS)
+    reinvest_dividends: bool = True   # P2-046R: redeploy dividend + interest income on the next run (DRIP)
     live_prices: bool = True          # P2-046O: pull live Alpaca quotes (CSV fallback). False = CSV only.
     live_paper: bool = False         # M4 gate: must be explicitly enabled to submit Alpaca PAPER orders
     live_trading_enabled: bool = False   # M5 gate: REAL money. Off until the operator deliberately enables.

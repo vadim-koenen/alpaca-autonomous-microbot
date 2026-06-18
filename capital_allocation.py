@@ -18,17 +18,19 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 # Each tier: applies while total capital < `max_value`. Weights must sum to 1.0.
-# Symbols: SGOV (T-bills), SPY (equity), BND (bonds), GLD (gold), BTC (crypto sleeve).
+# Symbols: SGOV (T-bills/cash), SCHD (dividend-income index), VTI (total-market index),
+# BND (bonds), GLD (gold), BTC (crypto sleeve). Income-tilted for the operator's goal; dividends
+# + interest auto-reinvest (config.reinvest_dividends).
 TIERS: List[Dict[str, Any]] = [
     {"max_value": 1_000.0, "label": "Seed",
-     "note": "tiny + learning → capital preservation first",
-     "weights": {"SGOV": 0.70, "SPY": 0.20, "GLD": 0.10}},
+     "note": "tiny + learning → preservation + income (cash, dividends, gold)",
+     "weights": {"SGOV": 0.60, "SCHD": 0.25, "GLD": 0.15}},
     {"max_value": 5_000.0, "label": "Build",
-     "note": "base established → add bonds + a small crypto sleeve",
-     "weights": {"SGOV": 0.55, "SPY": 0.20, "BND": 0.10, "GLD": 0.10, "BTC": 0.05}},
+     "note": "base established → add a broad index, bonds + a small crypto sleeve",
+     "weights": {"SGOV": 0.45, "SCHD": 0.25, "VTI": 0.10, "BND": 0.10, "GLD": 0.07, "BTC": 0.03}},
     {"max_value": float("inf"), "label": "Grow",
-     "note": "base can absorb more volatility → tilt toward equity",
-     "weights": {"SGOV": 0.40, "SPY": 0.30, "BND": 0.10, "GLD": 0.10, "BTC": 0.10}},
+     "note": "base can absorb more volatility → more index growth, keep the income core",
+     "weights": {"SGOV": 0.30, "SCHD": 0.25, "VTI": 0.20, "BND": 0.10, "GLD": 0.10, "BTC": 0.05}},
 ]
 
 

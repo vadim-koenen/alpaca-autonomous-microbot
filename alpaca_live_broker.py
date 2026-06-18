@@ -20,6 +20,9 @@ class AlpacaLiveBroker(AlpacaBrokerBase):
     """Binds the broker to the LIVE account (REAL money). Use only behind execute_plan's gates."""
 
     is_paper = False
+    _rest_base = "https://api.alpaca.markets"
+    _key_var = "ALPACA_API_KEY"
+    _secret_var = "ALPACA_SECRET_KEY"
 
     @classmethod
     def from_env(cls) -> "AlpacaLiveBroker":

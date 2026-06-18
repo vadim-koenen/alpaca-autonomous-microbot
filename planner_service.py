@@ -43,10 +43,13 @@ def build_plan(
     config: AppConfig,
     *,
     contribution: Optional[float] = None,
+    extra_cash: float = 0.0,
 ) -> Dict[str, Any]:
-    """Produce the period plan. Pure: no I/O, no network, no side effects."""
+    """Produce the period plan. Pure: no I/O, no network, no side effects.
+    `extra_cash` (e.g. reinvested dividends/interest) is deployed alongside the contribution."""
     config.validate()
-    contrib = config.contribution if contribution is None else contribution
+    base_contrib = config.contribution if contribution is None else contribution
+    contrib = base_contrib + max(0.0, extra_cash)
     total = portfolio.value(prices)
 
     # Capital-adaptive: the target weights shift with total capital (a deliberate glide path).
@@ -82,6 +85,8 @@ def build_plan(
         "target_weights": {s: round(tgt[s], 4) for s in tgt},
         "drift": drift,
         "contribution": round(contrib, 4),
+        "base_contribution": round(base_contrib, 4),
+        "reinvested": round(max(0.0, extra_cash), 4),
         "orders": [
             {"symbol": o.symbol, "side": o.side, "dollars": o.dollars,
              "est_units": o.est_units, "reason": o.reason}

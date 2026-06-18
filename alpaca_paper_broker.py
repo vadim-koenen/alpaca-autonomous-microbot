@@ -21,6 +21,18 @@ from typing import Any, Dict, List
 
 from allocator_engine import BUY, Order
 
+
+def sum_income(activities) -> float:
+    """Pure: sum the net_amount of DIV/INT activity records. Clamped to >= 0."""
+    total = 0.0
+    for a in activities or []:
+        try:
+            total += float(a.get("net_amount", 0.0) or 0.0)
+        except (TypeError, ValueError, AttributeError):
+            continue
+    return round(max(0.0, total), 4)
+
+
 # Roots we trade as crypto on Alpaca (need "<ROOT>/USD" symbols + GTC). Our basket: BTC.
 CRYPTO_ROOTS = {"BTC", "ETH", "SOL", "LTC", "DOGE", "AVAX", "LINK", "DOT", "MATIC", "ADA"}
 
@@ -81,6 +93,28 @@ class AlpacaBrokerBase:
     def close_all(self) -> Any:
         """Liquidate ALL positions and cancel open orders. (Used only for a paper reset.)"""
         return self._client.close_all_positions(cancel_orders=True)
+
+    # Subclasses set the REST base URL + key-var names for the activities endpoint.
+    _rest_base = "https://paper-api.alpaca.markets"
+    _key_var = "ALPACA_PAPER_API_KEY"
+    _secret_var = "ALPACA_PAPER_SECRET_KEY"
+
+    def income_since(self, after_iso: str) -> float:
+        """Sum dividend (DIV) + interest (INT) cash received on/after `after_iso` (YYYY-MM-DD), via
+        the Alpaca account-activities REST endpoint. Used for auto-reinvestment (DRIP). 0.0 on any
+        failure (offline, no income, endpoint unavailable)."""
+        try:
+            import json
+            import urllib.request
+            keys = _read_keys(self._key_var, self._secret_var)
+            url = f"{self._rest_base}/v2/account/activities?activity_types=DIV,INT&after={after_iso}"
+            req = urllib.request.Request(url, headers={
+                "APCA-API-KEY-ID": keys["key"], "APCA-API-SECRET-KEY": keys["secret"]})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                activities = json.loads(resp.read().decode("utf-8"))
+            return sum_income(activities)
+        except Exception:
+            return 0.0
 
     def account_snapshot(self) -> Dict[str, Any]:
         """Read the account as source of truth: cash, equity, per-root holdings (units), and

@@ -231,6 +231,22 @@ class AccumulatorAPI:
     def get_equity_curve(self) -> Dict[str, Any]:
         return app_analytics.equity_curve(store.load_history(self.history_path))
 
+    def _reinvest_cash(self) -> float:
+        """Dividend + interest income to redeploy this run (DRIP). 0 unless reinvest is on, a broker
+        is active, and the activities API returns income within the cadence window."""
+        if not getattr(self.config, "reinvest_dividends", False) or not self._broker_active():
+            return 0.0
+        broker = self._get_broker()
+        if broker is None or not hasattr(broker, "income_since"):
+            return 0.0
+        from datetime import datetime, timedelta, timezone
+        after = (datetime.now(timezone.utc)
+                 - timedelta(days=max(1, self.config.cadence_days))).strftime("%Y-%m-%d")
+        try:
+            return float(broker.income_since(after))
+        except Exception:
+            return 0.0
+
     def get_dashboard(self) -> Dict[str, Any]:
         """One call with everything the stupid-simple UI needs: total value, profit/loss ($ and %),
         today's move, the single biggest mover (leader) and drag (laggard), per-asset rows in plain
@@ -313,7 +329,8 @@ class AccumulatorAPI:
         Real-money LIVE is never reached here. Logs the period for the equity curve."""
         prices = self.prices()
         pf = self._current_portfolio()
-        plan = ps.build_plan(pf, prices, self.config, contribution=contribution)
+        plan = ps.build_plan(pf, prices, self.config, contribution=contribution,
+                             extra_cash=self._reinvest_cash())
         contrib = float(plan.get("contribution", 0.0))
 
         if self._paper_active() and self._get_broker() is not None:
@@ -351,7 +368,8 @@ class AccumulatorAPI:
             raise paper_executor.ExecutionBlocked(self._broker_error or "live broker unavailable")
         prices = self.prices()
         pf = self._current_portfolio()
-        plan = ps.build_plan(pf, prices, self.config, contribution=contribution)
+        plan = ps.build_plan(pf, prices, self.config, contribution=contribution,
+                             extra_cash=self._reinvest_cash())
         result, _ = paper_executor.execute_plan(
             pf, plan, prices, self.config, approved=True, mode="live",
             broker=broker, confirm_live=confirm,

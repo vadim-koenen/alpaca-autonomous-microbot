@@ -4,6 +4,27 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046R INCOME/INDEX FUNDS + AUTO-REINVEST (2026-06-17)
+
+> **Current directive. Author: Claude (senior eng).** Operator chose to add income/index funds (paper).
+
+Added dividend/income + total-market index ETFs and dividend/interest auto-reinvestment (DRIP). Also
+fixed the $0-on-relaunch working-directory bug (P2-046Q: `app_main` now chdir's to its own dir).
+- New funds: **SCHD** (dividend-income index), **VTI** (total-market index). Names: SCHD→"Dividend
+  Stocks", VTI→"US Stocks (Total Market)". (Alpaca trades ETFs not mutual funds — these are equivalents.)
+- Adaptive tiers re-tilted to income: Seed SGOV60/SCHD25/GLD15 · Build SGOV45/SCHD25/VTI10/BND10/GLD7/BTC3
+  · Grow SGOV30/SCHD25/VTI20/BND10/GLD10/BTC5. SCHD income core in every tier.
+- **Auto-reinvest (DRIP):** `config.reinvest_dividends` (default ON). `build_plan(extra_cash=...)` deploys
+  DIV+INT income on top of the contribution; `income_since()` reads the Alpaca activities REST endpoint
+  (alpaca-py 0.43 lacks the typed method); pure `sum_income()` tested. Wired into approve_plan_paper/live +
+  auto_run. Verified: income endpoint OK ($0 on fresh account); $10 Seed → SGOV $6/SCHD $2.50/GLD $1.50.
+- Operator config (gitignored): universe SGOV/SCHD/VTI/BND/GLD/BTC, reinvest ON, $10 contribution, $15 cap.
+  Dashboard shows $23.94 (SGOV+GLD; old SPY position now untracked — optional `--reset-paper` for clean view).
+
++11 tests, 215 total pass. PAPER mode, real money OFF, STOP_TRADING present.
+
+---
+
 ## Latest Status — P2-046P IN-APP KEY ENTRY / Keychain (commercialization #2) (2026-06-17)
 
 > **Current directive. Author: Claude (senior eng).** 2 of 3 commercialization items now automated.
