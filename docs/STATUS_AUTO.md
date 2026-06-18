@@ -1,7 +1,7 @@
 # Auto Status (machine-generated — do not hand-edit)
 
-Generated: 2026-06-18T19:45:52Z
-Main-tree HEAD: ea86948 P2-046R: income/index funds (SCHD, VTI) + dividend auto-reinvestment (DRIP)
+Generated: 2026-06-18T23:45:55Z
+Main-tree HEAD: aec4f42 Add course-correction summary for GPT (PM review)
 Audit verdict: AUDIT_VERDICT=WARN
 
 ## Coinbase (live)
@@ -17,14 +17,14 @@ recent_log_errors(last200 lines)=50
 
 ## Full audit snapshot
 ```
-=== AUDIT SNAPSHOT 2026-06-18T19:45:51Z ===
+=== AUDIT SNAPSHOT 2026-06-18T23:45:54Z ===
 === GIT HEAD ===
+aec4f42 Add course-correction summary for GPT (PM review)
+06d3d69 P2-046U: honest research assistant (educate + diagnose, never predict)
+b012d37 P2-046T: selectable allocation presets (preservation / income / growth)
+5232115 P2-046S: proactive check-ins — "today's suggested action"
+4e41fb2 Add BACKLOG.md — finite next-steps + honest money-generation landscape
 ea86948 P2-046R: income/index funds (SCHD, VTI) + dividend auto-reinvestment (DRIP)
-bf90c47 P2-046Q: fix $0-balance-on-relaunch (working-directory bug)
-77d5fdd P2-046P: in-app key entry via macOS Keychain — commercialization #2
-37289d3 P2-046O: live Alpaca price feed (CSV fallback) — commercialization #1
-6258193 P2-046N: stupid-simple, commercial-grade dashboard (instant up/down read)
-2cd5b89 P2-046M: add paper-only --reset-paper (clean slate)
 === LIVE P/L TRUTH (mode=live, action=EXIT) ===
 cycles=54 wins=2 win_rate=3.7% cumulative_net_usd=-1.6117
 === EXIT REASONS (live) ===
