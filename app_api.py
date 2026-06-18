@@ -380,6 +380,58 @@ class AccumulatorAPI:
                               "result": {**result, "portfolio_value": value}}, self.history_path)
         return {**result, "portfolio_value": value}
 
+    # --- proactive check-ins --------------------------------------------------
+    def get_suggestions(self) -> Dict[str, Any]:
+        """Assemble current state and return the prioritized 'today's suggested action' list."""
+        import suggestion_engine as se
+        from datetime import datetime, timezone
+
+        prices = self.prices()
+        pf = self._current_portfolio()
+        plan = ps.build_plan(pf, prices, self.config)
+        news = self.get_news_alerts()
+
+        # days since last contribution (from history)
+        days = None
+        hist = store.load_history(self.history_path)
+        stamps = [r.get("logged_utc") or r.get("result", {}).get("executed_utc")
+                  for r in hist if r.get("event") in ("paper_fill", "live_fill")]
+        stamps = [s for s in stamps if s]
+        if stamps:
+            try:
+                last = max(datetime.fromisoformat(s.replace("Z", "+00:00")) for s in stamps)
+                days = (datetime.now(timezone.utc) - last).days
+            except Exception:
+                days = None
+
+        drift = plan.get("drift", {})
+        max_drift = max((abs(v) for v in drift.values()), default=0.0)
+
+        # live funding check (only meaningful in live mode)
+        funded = None
+        if self._mode() == "live" and self._get_broker() is not None:
+            try:
+                cash = float(self._broker.account_snapshot().get("cash", 0.0))
+                funded = cash >= float(self.config.contribution)
+            except Exception:
+                funded = None
+
+        state = {
+            "mode": self._mode(),
+            "total_value": plan["portfolio_value"],
+            "contribution": self.config.contribution,
+            "cadence_days": self.config.cadence_days,
+            "days_since_contribution": days,
+            "reinvest_amount": self._reinvest_cash(),
+            "max_drift": max_drift,
+            "rebalance_band": self.config.rebalance_band,
+            "risk_alerts": int(news.get("n_risk_alerts", 0)),
+            "tier": plan.get("tier"),
+            "funded": funded,
+        }
+        items = se.suggest(state)
+        return {"top": items[0], "suggestions": items, "authorizes_live": False}
+
     # --- Level 3: scheduled auto-run -----------------------------------------
     def auto_run(self) -> Dict[str, Any]:
         """The scheduler entrypoint. Decides what to do this period and (if auto-invest is on)

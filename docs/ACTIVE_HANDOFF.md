@@ -4,6 +4,26 @@
 > [docs/NORTH_STAR.md](NORTH_STAR.md) — project goal, standing strategic verdicts (2026-06-11),
 > roadmap order P2-038C → 039A → 038D → 039B/C/D/E → P2-040, and governance gates.
 
+## Latest Status — P2-046S PROACTIVE CHECK-INS ("today's suggestion") (2026-06-17)
+
+> **Current directive. Author: Claude (senior eng).** Operator wanted proactive nudges so an idle
+> account/stalled workflow prompts the user instead of the reverse. Branch now PUSHED to GitHub.
+
+`suggestion_engine.py` (pure, +9 tests) surfaces the single most useful action right now, prioritized:
+risk-event > underfunded(live) > income-to-reinvest > contribute(idle/overdue) > rebalance-drift >
+tier-progress > all-on-track. HONESTY GUARDRAIL: discipline/housekeeping only — never "buy/sell X by a
+signal" (the dead alpha lane). `app_api.get_suggestions()` assembles state (days-since-contribution from
+history, drift, reinvest income, risk alerts, tier, live funding). `app_main --checkin` sends the top
+suggestion as a macOS notification; daily launchd `com.vadim.accumulator-checkin.plist` (09:30) installed.
+Dashboard shows a "Today's suggestion" card (hidden when on-track to avoid noise). Verified: real check-in
+fired "Your account is idle — add your $10 to start building." 224 tests pass.
+
+GitHub: branch `review/p2-045-news-edge-research` pushed to origin (was local-only before). `BACKLOG.md`
+added — finite next-steps + honest beta/carry/alpha money-generation landscape (carry = the one untested
+edge-like lane). Real money still OFF; STOP_TRADING present; PAPER mode.
+
+---
+
 ## Latest Status — P2-046R INCOME/INDEX FUNDS + AUTO-REINVEST (2026-06-17)
 
 > **Current directive. Author: Claude (senior eng).** Operator chose to add income/index funds (paper).

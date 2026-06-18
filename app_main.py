@@ -124,6 +124,16 @@ def set_auto(enabled: bool, understood: bool) -> int:
     return 0
 
 
+def run_checkin() -> int:
+    """Proactive daily check-in: send the top suggested action as a notification. No trading."""
+    api = build_api()
+    s = api.get_suggestions()
+    top = s["top"]
+    notifier.macos_notify(f"Accumulator — {top['title']}", top["message"])
+    print(f"[checkin] {top['type']}: {top['message']}")
+    return 0
+
+
 def run_auto() -> int:
     """Scheduler entrypoint (launchd). Auto-invests live if enabled, else notifies. Safety-railed."""
     api = build_api()
@@ -157,6 +167,7 @@ def main(argv=None) -> int:
     p.add_argument("--disable-paper", action="store_true", help="Switch back to simulate mode.")
     p.add_argument("--reset-paper", action="store_true", help="Liquidate paper account + clear history (clean slate).")
     p.add_argument("--notify", action="store_true", help="Send the weekly macOS notification.")
+    p.add_argument("--checkin", action="store_true", help="Proactive daily check-in: notify today's suggested action.")
     p.add_argument("--auto-run", action="store_true", help="Scheduler entrypoint: auto-invest (if on) or notify.")
     p.add_argument("--enable-live", action="store_true", help="Enable REAL-money live mode.")
     p.add_argument("--disable-live", action="store_true", help="Disable live mode.")
@@ -186,6 +197,8 @@ def main(argv=None) -> int:
         return run_go_live(args.i_understand_real_money)
     if args.auto_run:
         return run_auto()
+    if args.checkin:
+        return run_checkin()
     if args.notify:
         return run_notify()
     return run_cli(args.approve) if args.cli else run_gui()

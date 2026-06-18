@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Daily proactive check-in (Level 2+). Sends a macOS notification each day at 09:30 with
+  today's suggested action (contribute, reinvest, rebalance, pause on risk, or "all on track").
+  It does NOT trade — only notifies.
+
+  Install:
+    cp com.vadim.accumulator-checkin.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.vadim.accumulator-checkin.plist
+  Uninstall:
+    launchctl bootout gui/$(id -u)/com.vadim.accumulator-checkin
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.vadim.accumulator-checkin</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/.venv/bin/python3</string>
+    <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot/app_main.py</string>
+    <string>--checkin</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/vadimkoenen/Documents/Claude/Projects/Investing/alpaca-autonomous-microbot</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>9</integer>
+    <key>Minute</key><integer>30</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/tmp/accumulator-checkin.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/accumulator-checkin.log</string>
+</dict>
+</plist>
