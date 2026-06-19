@@ -346,7 +346,12 @@ class AccumulatorAPI:
             total_value = round(pf.value(prices), 2)
             total_pl = ec["total_gain"]  # value - contributions
 
-        invested = ec["total_invested"]
+        # 'Invested' = the broker's actual cost basis (value - unrealized P&L) when a broker is
+        # active; falls back to logged contributions in simulate. Robust to history resets.
+        if self._broker_active() and detail:
+            invested = round(total_value - total_pl, 2)
+        else:
+            invested = ec["total_invested"]
         pl_pct = round((total_pl / invested * 100), 2) if invested > 0 else 0.0
         # leader / laggard: rank by the most relevant move (today if any moved, else total P&L)
         use_today = any(abs(d["today"]) > 0 for d in detail.values())
@@ -476,11 +481,25 @@ class AccumulatorAPI:
             except Exception:
                 funded = None
 
+        # Financial context from the broker's actual cost basis (matches the dashboard hero exactly,
+        # so the two never disagree). invested = current value - unrealized P&L.
+        dash = self.get_dashboard()
+        total_value = dash["total_value"]
+        total_pl = dash["total_pl"]
+        invested = round(total_value - total_pl, 2)
+        plp = round(total_pl / invested * 100, 1) if invested > 0 else None
+        assumed = {"preservation": 0.04, "income": 0.06, "growth": 0.08}.get(
+            getattr(self.config, "preset", "income"), 0.06)
+        cadence = max(1, self.config.cadence_days)
         state = {
             "mode": self._mode(),
-            "total_value": plan["portfolio_value"],
+            "total_value": total_value,
+            "invested": invested,
+            "total_pl_pct": plp,
             "contribution": self.config.contribution,
             "cadence_days": self.config.cadence_days,
+            "periods_per_year": 365.0 / cadence,
+            "assumed_return": assumed,
             "days_since_contribution": days,
             "reinvest_amount": self._reinvest_cash(),
             "max_drift": max_drift,

@@ -70,6 +70,20 @@
               text-transform:uppercase; letter-spacing:.6px; margin:10px 0 6px; }
   .saveK { width:100%; border:0; border-radius:12px; padding:13px; background:var(--accent);
            color:#fff; font:inherit; font-weight:700; cursor:pointer; margin-top:6px; }
+  /* shared building blocks (were missing — research card depended on them) */
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px;
+          padding:16px; margin-bottom:14px; }
+  .row { display:flex; align-items:center; }
+  .sub { color:var(--dim); font-size:13px; }
+  .note { color:var(--dim); font-size:11px; margin-top:10px; line-height:1.45; }
+  input, button { font:inherit; }
+  #rSym { background:#0e1014; border:1px solid var(--line); color:var(--txt);
+          border-radius:10px; padding:11px 12px; }
+  #rBtn { border:1px solid var(--line); color:var(--txt); border-radius:10px; padding:11px 16px;
+          cursor:pointer; font-weight:600; }
+  #rOut table { width:100%; border-collapse:collapse; }
+  #rOut td { padding:6px 2px; border-bottom:1px solid var(--line); font-size:14px; }
+  #rOut td:last-child { text-align:right; font-weight:600; font-variant-numeric:tabular-nums; }
 </style>
 </head>
 <body>
@@ -179,10 +193,10 @@ async function refresh() {
     $('alert').textContent = `⚠ ${news.n_risk_alerts} risk alert — consider waiting before you invest.`; }
   else $('alert').style.display='none';
 
-  // today's suggestion (proactive check-in) — hide the bland "on track" to avoid noise
+  // today's suggestion (proactive check-in) — always shown, now with context + guidance
   try {
     const sg = (await api().get_suggestions()).top;
-    if (sg && sg.type !== 'on_track'){ $('suggest').style.display='block';
+    if (sg){ $('suggest').style.display='block';
       $('sTitle').textContent = sg.title; $('sMsg').textContent = sg.message; }
     else $('suggest').style.display='none';
   } catch(e){ $('suggest').style.display='none'; }
