@@ -5,7 +5,7 @@ certifi==2026.5.20
 cffi==2.0.0
 charset-normalizer==3.4.7
 coinbase-advanced-py==1.8.3
-cryptography==48.0.0
+cryptography==48.0.1
 greenlet==3.5.1
 idna==3.16
 iniconfig==2.3.0
