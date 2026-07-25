@@ -1,6 +1,6 @@
 # Auto Status (machine-generated — do not hand-edit)
 
-Generated: 2026-07-25T15:52:35Z
+Generated: 2026-07-25T17:28:23Z
 Main-tree HEAD: cc99fae P2-046V: UX cleanup — insightful suggestions, fix research card, consistent P&L
 Audit verdict: AUDIT_VERDICT=WARN
 
@@ -17,7 +17,7 @@ recent_log_errors(last200 lines)=50
 
 ## Full audit snapshot
 ```
-=== AUDIT SNAPSHOT 2026-07-25T15:52:30Z ===
+=== AUDIT SNAPSHOT 2026-07-25T17:28:19Z ===
 === GIT HEAD ===
 cc99fae P2-046V: UX cleanup — insightful suggestions, fix research card, consistent P&L
 aec4f42 Add course-correction summary for GPT (PM review)
